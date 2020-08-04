@@ -160,7 +160,7 @@ class StructureFocusRepresentationBehavior extends PluginBehavior.WithSubscriber
         this.currentSource = sourceLoci;
         const loci = StructureElement.Loci.remap(sourceLoci, parent.obj!.data);
 
-        const residueLoci = StructureElement.Loci.extendToWholeResidues(loci);
+        const residueLoci = StructureElement.Loci.extendToWholeResidues(loci, 1);
         const residueBundle = StructureElement.Bundle.fromLoci(residueLoci);
 
         const target = StructureElement.Bundle.toExpression(residueBundle);

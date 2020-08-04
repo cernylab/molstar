@@ -149,7 +149,7 @@ export namespace Loci {
 
     export function firstResidue(loci: Loci): Loci {
         if (isEmpty(loci)) return loci;
-        return extendToWholeResidues(firstElement(loci));
+        return extendToWholeResidues(firstElement(loci), 1);
     }
 
     export function firstChain(loci: Loci): Loci {
@@ -307,7 +307,7 @@ export namespace Loci {
         }
     }
 
-    export function extendToWholeResidues(loci: Loci, restrictToConformation?: boolean): Loci {
+    export function extendToWholeResidues(loci: Loci, count: number, restrictToConformation?: boolean): Loci {
         const elements: Loci['elements'][0][] = [];
         const residueAltIds = new Set<string>();
 
@@ -331,16 +331,20 @@ export namespace Loci {
                     residueAltIds.clear();
                     const eI = unitElements[OrderedSet.getAt(indices, i)];
                     const rI = residueIndex[eI];
+                    const rIEnd = rI + count >= residueIndex.length ? residueIndex.length - 1 : rI + count;
                     residueAltIds.add(label_alt_id.value(eI));
                     i++;
                     while (i < len) {
                         const eI = unitElements[OrderedSet.getAt(indices, i)];
-                        if (residueIndex[eI] !== rI) break;
+                        const _rI = residueIndex[eI];
+                        if (_rI < rI || _rI > rIEnd) {
+                            break;
+                        }
                         residueAltIds.add(label_alt_id.value(eI));
                         i++;
                     }
                     const hasSharedAltId = residueAltIds.has('');
-                    for (let j = residueOffsets[rI], _j = residueOffsets[rI + 1]; j < _j; j++) {
+                    for (let j = residueOffsets[rI], _j = residueOffsets[rIEnd]; j < _j; j++) {
                         const idx = OrderedSet.indexOf(unitElements, j);
                         if (idx >= 0) {
                             const altId = label_alt_id.value(j);

@@ -24,14 +24,21 @@ interface StructureFocusControlsState {
     showAction: boolean
 }
 
-function addSymmetryGroupEntries(entries: Map<string, FocusEntry[]>, location: StructureElement.Location, unitSymmetryGroup: Unit.SymmetryGroup, granularity: 'residue' | 'chain') {
+function addSymmetryGroupEntries(entries: Map<string, FocusEntry[]>, location: StructureElement.Location, unitSymmetryGroup: Unit.SymmetryGroup, granularity: 'residue' | 'two-residues' | 'chain') {
     const idx = SortedArray.indexOf(location.unit.elements, location.element) as UnitIndex;
     const base = StructureElement.Loci(location.structure, [
         { unit: location.unit, indices: OrderedSet.ofSingleton(idx) }
     ]);
-    const extended = granularity === 'residue'
-        ? StructureElement.Loci.extendToWholeResidues(base)
-        : StructureElement.Loci.extendToWholeChains(base);
+    const extended = (() => {
+        switch (granularity) {
+            case 'residue':
+                return StructureElement.Loci.extendToWholeResidues(base, 1);
+            case 'two-residues':
+                return StructureElement.Loci.extendToWholeResidues(base, 2);
+            default:
+                return StructureElement.Loci.extendToWholeChains(base);
+        }
+    })();
     const name = StructureProperties.entity.pdbx_description(location).join(', ');
 
     for (const u of unitSymmetryGroup.units) {

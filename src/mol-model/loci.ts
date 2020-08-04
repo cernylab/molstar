@@ -222,7 +222,12 @@ namespace Loci {
         'element': (loci: Loci) => loci,
         'residue': (loci: Loci) => {
             return StructureElement.Loci.is(loci)
-                ? StructureElement.Loci.extendToWholeResidues(loci, true)
+                ? StructureElement.Loci.extendToWholeResidues(loci, 1, true)
+                : loci;
+        },
+        'two-residues': (loci: Loci) => {
+            return StructureElement.Loci.is(loci)
+                ? StructureElement.Loci.extendToWholeResidues(loci, 2, true)
                 : loci;
         },
         'chain': (loci: Loci) => {
@@ -261,7 +266,7 @@ namespace Loci {
         },
         'residueInstances': (loci: Loci) => {
             return StructureElement.Loci.is(loci)
-                ? StructureElement.Loci.extendToAllInstances(StructureElement.Loci.extendToWholeResidues(loci, true))
+                ? StructureElement.Loci.extendToAllInstances(StructureElement.Loci.extendToWholeResidues(loci, 1, true))
                 : loci;
         },
         'chainInstances': (loci: Loci) => {

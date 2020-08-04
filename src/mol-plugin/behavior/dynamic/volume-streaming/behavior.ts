@@ -340,7 +340,7 @@ export namespace VolumeStreaming {
             const transform = GlobalModelTransformInfo.get(root.obj?.data.models[0]!);
             if (transform) Mat4.invert(this._invTransform, transform);
 
-            const extendedLoci = StructureElement.Loci.extendToWholeResidues(loci);
+            const extendedLoci = StructureElement.Loci.extendToWholeResidues(loci, 1);
             const box = StructureElement.Loci.getBoundary(extendedLoci, transform && !Number.isNaN(this._invTransform[0]) ? this._invTransform : void 0).box;
 
             if (StructureElement.Loci.size(extendedLoci) === 1) {

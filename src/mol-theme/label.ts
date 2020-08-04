@@ -14,7 +14,7 @@ import { Vec3 } from '../mol-math/linear-algebra';
 import { radToDeg } from '../mol-math/misc';
 import { Volume } from '../mol-model/volume';
 
-export type LabelGranularity = 'element' | 'conformation' | 'residue' | 'chain' | 'structure'
+export type LabelGranularity = 'element' | 'conformation' | 'residue' | 'two-residues' | 'chain' | 'structure'
 
 export const DefaultLabelOptions = {
     granularity: 'element' as LabelGranularity,
