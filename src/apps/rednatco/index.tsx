@@ -29,6 +29,8 @@ import { MarkerAction } from '../../mol-util/marker-action';
 import { ParamDefinition as PD } from '../../mol-util/param-definition';
 import { ObjectKeys } from '../../mol-util/type-helpers';
 import './index.html';
+import './molstar.css';
+import './rednatco-molstar.css';
 
 const Extensions = {
     'ntc-balls-pyramids-prop': PluginSpec.Behavior(DnatcoConfalPyramids),
@@ -36,6 +38,52 @@ const Extensions = {
 
 const BaseRef = 'rdo';
 const AnimationDurationMsec = 150;
+
+function capitalize(s: string) {
+    if (s.length === 0)
+        return s;
+    return s[0].toLocaleUpperCase() + s.slice(1);
+
+}
+
+class PushButton extends React.Component<{ caption: string, enabled: boolean, onClick: () => void }> {
+    render() {
+        return (
+            <div
+                className={`rmsp-pushbutton ${this.props.enabled ? '' : 'rmsp-pushbutton-disabled'}`}
+                onClick={() => this.props.enabled ? this.props.onClick() : {}}
+            >
+                <div className={`${this.props.enabled ? 'rmsp-pushbutton-text' : 'rmsp-pushbutton-text-disabled'}`}>{this.props.caption}</div>
+            </div>
+        );
+    }
+}
+
+class ToggleButton extends React.Component<{ caption: string, enabled: boolean, switchedOn: boolean, onClick: () => void }> {
+    render() {
+        return (
+            <div
+                className={`rmsp-pushbutton ${this.props.enabled ? (this.props.switchedOn ? 'rmsp-togglebutton-switched-on' : 'rmsp-togglebutton-switched-off') : 'rmsp-pushbutton-disabled'}`}
+                onClick={() => this.props.enabled ? this.props.onClick() : {}}
+            >
+                <div className={`${this.props.enabled ? 'rmsp-pushbutton-text' : 'rmsp-pushbutton-text-disabled'}`}>{this.props.caption}</div>
+            </div>
+        );
+    }
+}
+
+const Display = {
+    representation: 'cartoon',
+
+    showNucleic: true,
+    showProtein: false,
+    showWater: false,
+
+    showPyramids: true,
+
+    modelNumber: 1,
+};
+type Display = typeof Display;
 
 const ReDNATCOLociLabelProvider = PluginBehavior.create({
     name: 'watlas-loci-label-provider',
@@ -176,6 +224,10 @@ class ReDNATCOMspViewer {
     constructor(public plugin: PluginUIContext) {
     }
 
+    private getBuilder(id: IDs.ID, sub: IDs.Substructure|'' = '', ref = BaseRef) {
+        return this.plugin.state.data.build().to(IDs.ID(id, sub, ref));
+    }
+
     private pyramidsParams(colors: Map<string, Color>, visible: Map<string, boolean>, transparent: boolean) {
         const typeParams = {} as PD.Values<ConfalPyramidsParams>;
         for (const k of Reflect.ownKeys(ConfalPyramidsParams) as (keyof ConfalPyramidsParams)[]) {
@@ -229,39 +281,151 @@ class ReDNATCOMspViewer {
         return new ReDNATCOMspViewer(plugin);
     }
 
-    async loadStructure(data: string, type: 'pdb'|'cif') {
+    async changeRepresentation(display: Partial<Display>) {
+        const b = this.plugin.state.data.build();
+        const repr = display.representation ?? 'cartoon';
+
+        for (const sub of ['nucleic', 'protein', 'water'] as IDs.Substructure[]) {
+            if (this.has('visual', sub)) {
+                b.to(IDs.ID('visual', sub, BaseRef))
+                    .update(
+                        StateTransforms.Representation.StructureRepresentation3D,
+                        old => ({
+                            ...old,
+                            type: { ...old.type, name: repr }
+                        })
+                    );
+            }
+        }
+
+        await b.commit();
+    }
+
+    has(id: IDs.ID, sub: IDs.Substructure|'' = '', ref = BaseRef) {
+        return !!this.plugin.state.data.cells.get(IDs.ID(id, sub, ref))?.obj;
+    }
+
+    async loadStructure(data: string, type: 'pdb'|'cif', display: Partial<Display>) {
         await this.plugin.state.data.build().toRoot().commit();
 
         const b = (t => type === 'pdb'
             ? t.apply(StateTransforms.Model.TrajectoryFromPDB)
             : t.apply(StateTransforms.Data.ParseCif).apply(StateTransforms.Model.TrajectoryFromMmCif)
-        )(this.plugin.state.data.build().toRoot().apply(RawData, { data }, { ref: IDs.ID('data', BaseRef) }))
+        )(this.plugin.state.data.build().toRoot().apply(RawData, { data }, { ref: IDs.ID('data', '', BaseRef) }))
             .apply(StateTransforms.Model.ModelFromTrajectory, { modelIndex: 0 })
-            .apply(StateTransforms.Model.StructureFromModel, {}, { ref: IDs.ID('structure', BaseRef) })
-            .apply(
-                StateTransforms.Representation.StructureRepresentation3D,
-                {
-                    type: { name: 'cartoon', params: { sizeFactor: 0.2, sizeAspectRatio: 0.35, aromaticBonds: false } },
-                },
-                { ref: IDs.ID('visual', BaseRef) }
-            )
-            .to(IDs.ID('structure', BaseRef))
-            .apply(
-                StateTransforms.Representation.StructureRepresentation3D,
-                this.pyramidsParams(new Map(), new Map(), false),
-                { ref: IDs.ID('pyramids', BaseRef) }
-            );
+            .apply(StateTransforms.Model.StructureFromModel, {}, { ref: IDs.ID('structure', '', BaseRef) })
+            // Extract substructures
+            .apply(StateTransforms.Model.StructureComplexElement, { type: 'nucleic' }, { ref: IDs.ID('structure', 'nucleic', BaseRef) })
+            .to(IDs.ID('structure', '', BaseRef))
+            .apply(StateTransforms.Model.StructureComplexElement, { type: 'protein' }, { ref: IDs.ID('structure', 'protein', BaseRef) })
+            .to(IDs.ID('structure', '', BaseRef))
+            .apply(StateTransforms.Model.StructureComplexElement, { type: 'water' }, { ref: IDs.ID('structure', 'water', BaseRef) });
+        // Commit now so that we can check whether individual substructures are available
+        await b.commit();
 
-        b.commit();
+        // Create default visuals
+        const bb = this.plugin.state.data.build();
+        if (display.showNucleic && this.has('structure', 'nucleic')) {
+            bb.to(IDs.ID('structure', 'nucleic', BaseRef))
+                .apply(
+                    StateTransforms.Representation.StructureRepresentation3D,
+                    {
+                        type: { name: display.representation ?? 'cartoon', params: { sizeFactor: 0.2, sizeAspectRatio: 0.35, aromaticBonds: false } },
+                    },
+                    { ref: IDs.ID('visual', 'nucleic', BaseRef) }
+                );
+            if (display.showPyramids) {
+                bb.to(IDs.ID('structure', 'nucleic', BaseRef))
+                    .apply(
+                        StateTransforms.Representation.StructureRepresentation3D,
+                        this.pyramidsParams(new Map(), new Map(), false),
+                        { ref: IDs.ID('pyramids', 'nucleic', BaseRef) }
+                    );
+            }
+        }
+        if (display.showProtein && this.has('structure', 'protein')) {
+            bb.to(IDs.ID('structure', 'protein', BaseRef))
+                .apply(
+                    StateTransforms.Representation.StructureRepresentation3D,
+                    {
+                        type: { name: display.representation ?? 'cartoon', params: { sizeFactor: 0.2, sizeAspectRatio: 0.35, aromaticBonds: false } },
+                    },
+                    { ref: IDs.ID('visual', 'protein', BaseRef) }
+                );
+        }
+        if (display.showWater && this.has('structure', 'water')) {
+            bb.to(IDs.ID('structure', 'water', BaseRef))
+                .apply(
+                    StateTransforms.Representation.StructureRepresentation3D,
+                    {
+                        type: { name: display.representation ?? 'ball-and-stick', params: { sizeFactor: 0.2, sizeAspectRatio: 0.35 } },
+                    },
+                    { ref: IDs.ID('visual', 'water', BaseRef) }
+                );
+        }
+
+        await bb.commit();
+    }
+
+    isReady() {
+        return this.has('structure', '', BaseRef);
+    }
+
+    async togglePyramids(display: Partial<Display>) {
+        if (display.showPyramids && !this.has('pyramids', 'nucleic')) {
+            const b = this.getBuilder('structure', 'nucleic');
+            if (b) {
+                b.apply(
+                    StateTransforms.Representation.StructureRepresentation3D,
+                    this.pyramidsParams(new Map(), new Map(), false),
+                    { ref: IDs.ID('pyramids', 'nucleic', BaseRef) }
+                );
+                await b.commit();
+            }
+        } else {
+            await PluginCommands.State.RemoveObject(this.plugin, { state: this.plugin.state.data, ref: IDs.ID('pyramids', 'nucleic', BaseRef) });
+        }
+    }
+
+    async toggleSubstructure(sub: IDs.Substructure, display: Partial<Display>) {
+        const show = sub === 'nucleic' ? !!display.showNucleic :
+            sub === 'protein' ? !!display.showProtein : !!display.showWater;
+        const repr = display.representation ?? 'cartoon';
+
+        if (show) {
+            const b = this.getBuilder('structure', sub);
+            if (b) {
+                b.apply(
+                    StateTransforms.Representation.StructureRepresentation3D,
+                    {
+                        type: { name: repr, params: { sizeFactor: 0.2, sizeAspectRatio: 0.35, aromaticBonds: false } }, // TODO: Use different params for water
+                    },
+                    { ref: IDs.ID('visual', sub, BaseRef) }
+                );
+                await b.commit();
+            }
+        } else
+            await PluginCommands.State.RemoveObject(this.plugin, { state: this.plugin.state.data, ref: IDs.ID('visual', sub, BaseRef) });
     }
 }
 
-class ReDNATCOMsp extends React.Component<ReDNATCOMsp.Props> {
+interface State {
+    display: Display;
+}
+class ReDNATCOMsp extends React.Component<ReDNATCOMsp.Props, State> {
     private viewer: ReDNATCOMspViewer|null = null;
+
+    constructor(props: ReDNATCOMsp.Props) {
+        super(props);
+
+        this.state = {
+            display: { ...Display },
+        };
+    }
 
     loadStructure(data: string, type: 'pdb'|'cif') {
         if (this.viewer)
-            this.viewer.loadStructure(data, type);
+            this.viewer.loadStructure(data, type, this.state.display).then(() => this.forceUpdate());
     }
 
     componentDidMount() {
@@ -278,10 +442,113 @@ class ReDNATCOMsp extends React.Component<ReDNATCOMsp.Props> {
     }
 
     render() {
+        const ready = this.viewer?.isReady() ?? false;
+
+        const hasNucleic = this.viewer?.has('structure', 'nucleic') ?? false;
+        const hasProtein = this.viewer?.has('structure', 'protein') ?? false;
+        const hasWater = this.viewer?.has('structure', 'water') ?? false;
+
         return (
             <div className='rmsp-app'>
-                <div id={this.props.elemId + '-viewer'}></div>
-                <div>Controls</div>
+                <div id={this.props.elemId + '-viewer'} className='rmsp-viewer'></div>
+                <div>
+                    <div>Display and control</div>
+                    <div className='rmsp-controls'>
+                        <div className='rmsp-controls-section-caption'>Representation</div>
+                        <div className='rmsp-controls-line'>
+                            <div className='rmsp-control-item'>
+                                <PushButton
+                                    caption={capitalize(this.state.display.representation)}
+                                    enabled={ready}
+                                    onClick={() => {
+                                        const display = {
+                                            ...this.state.display,
+                                            representation: this.state.display.representation === 'cartoon' ? 'ball-and-stick' : 'cartoon',
+                                        };
+                                        this.viewer!.changeRepresentation(display);
+                                        this.setState({ ...this.state, display });
+                                    }}
+                                />
+                            </div>
+                        </div>
+
+                        <div className='rmsp-controls-section-caption'>Substructure parts</div>
+                        <div className='rmsp-controls-line'>
+                            <div className='rmsp-control-item'>
+                                <ToggleButton
+                                    caption='Nucleic'
+                                    enabled={hasNucleic}
+                                    switchedOn={this.state.display.showNucleic}
+                                    onClick={() => {
+                                        const display = {
+                                            ...this.state.display,
+                                            showNucleic: !this.state.display.showNucleic,
+                                        };
+                                        this.viewer!.toggleSubstructure('nucleic', display);
+                                        this.setState({ ...this.state, display });
+                                    }}
+                                />
+                            </div>
+                            <div className='rmsp-control-item'>
+                                <ToggleButton
+                                    caption='Protein'
+                                    enabled={hasProtein}
+                                    switchedOn={this.state.display.showProtein}
+                                    onClick={() => {
+                                        const display = {
+                                            ...this.state.display,
+                                            showProtein: !this.state.display.showProtein,
+                                        };
+                                        this.viewer!.toggleSubstructure('protein', display);
+                                        this.setState({ ...this.state, display });
+                                    }}
+                                />
+                            </div>
+                            <div className='rmsp-control-item'>
+                                <ToggleButton
+                                    caption='Water'
+                                    enabled={hasWater}
+                                    switchedOn={this.state.display.showWater}
+                                    onClick={() => {
+                                        const display = {
+                                            ...this.state.display,
+                                            showWater: !this.state.display.showWater,
+                                        };
+                                        this.viewer!.toggleSubstructure('water', display);
+                                        this.setState({ ...this.state, display });
+                                    }}
+                                />
+                            </div>
+                        </div>
+
+                        <div className='rmsp-controls-section-caption'>NtC visuals</div>
+                        <div className='rmsp-controls-line'>
+                            <div className='rmsp-control-item'>
+                                <ToggleButton
+                                    caption='Pyramids'
+                                    enabled={ready}
+                                    switchedOn={this.state.display.showPyramids}
+                                    onClick={() => {
+                                        const display = {
+                                            ...this.state.display,
+                                            pyramidsShown: !this.state.display.showPyramids,
+                                        };
+                                        this.viewer!.togglePyramids(display);
+                                        this.setState({ ...this.state, display });
+                                    }}
+                                />
+                            </div>
+                            <div className='rmsp-control-item'>
+                                <ToggleButton
+                                    caption='Balls'
+                                    enabled={false}
+                                    switchedOn={false}
+                                    onClick={() => {}}
+                                />
+                            </div>
+                        </div>
+                    </div>
+                </div>
             </div>
         );
     }
@@ -325,4 +592,3 @@ class _ReDNATCOMspApi {
 }
 
 export const ReDNATCOMspApi = new _ReDNATCOMspApi();
-

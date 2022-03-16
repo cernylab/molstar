@@ -4,8 +4,18 @@
         <meta charset="utf-8" />
         <link rel="stylesheet" type="text/css" href="molstar.css" />
     </head>
-    <body>
-        <div id="app"></div>
+    <body style="height: 100vh; width: 100hw">
+        <div id="xxx-app" style="height: 100%; width: 100%"></div>
         <script type="text/javascript" src="./molstar.js"></script>
+        <script>
+            async function loadStructure() {
+                const resp = await fetch('./3vok_v32C35A23.cif');
+                const data = await resp.text();
+
+                molstar.ReDNATCOMspApi.loadStructure(data);
+            }
+
+            molstar.ReDNATCOMspApi.init('xxx-app', loadStructure);
+        </script>
     </body>
 </html>
