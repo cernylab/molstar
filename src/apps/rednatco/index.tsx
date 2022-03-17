@@ -1,11 +1,15 @@
 import React from 'react';
 import ReactDOM from 'react-dom';
+import { NtCColors } from './colors';
+import { ColorPicker } from './color-picker';
+import { PushButton, ToggleButton } from './controls';
 import * as IDs from './idents';
 import { DnatcoConfalPyramids } from '../../extensions/dnatco';
 import { ConfalPyramidsParams } from '../../extensions/dnatco/confal-pyramids/representation';
-import { ConfalPyramidsColorThemeParams } from '../../extensions/dnatco/confal-pyramids/color';
+import { BoundaryHelper } from '../../mol-math/geometry/boundary-helper';
 import { Loci } from '../../mol-model/loci';
-import { Structure } from '../../mol-model/structure';
+import { Model, Structure, Trajectory } from '../../mol-model/structure';
+import { MmcifFormat } from '../../mol-model-formats/structure/mmcif';
 import { PluginBehavior, PluginBehaviors } from '../../mol-plugin/behavior';
 import { PluginCommands } from '../../mol-plugin/commands';
 import { PluginContext } from '../../mol-plugin/context';
@@ -18,8 +22,9 @@ import { createPluginUI } from '../../mol-plugin-ui';
 import { PluginUIContext } from '../../mol-plugin-ui/context';
 import { DefaultPluginUISpec, PluginUISpec } from '../../mol-plugin-ui/spec';
 import { Representation } from '../../mol-repr/representation';
-import { StateSelection } from '../../mol-state';
+import { StateObjectCell, StateObject, StateSelection } from '../../mol-state';
 import { StateTreeSpine } from '../../mol-state/tree/spine';
+import { Script } from '../../mol-script/script';
 import { lociLabel } from '../../mol-theme/label';
 import { Color } from '../../mol-util/color';
 import { arrayMax } from '../../mol-util/array';
@@ -39,6 +44,9 @@ const Extensions = {
 const BaseRef = 'rdo';
 const AnimationDurationMsec = 150;
 
+const SelectAllScript = Script('(sel.atom.atoms true)', 'mol-script');
+const SphereBoundaryHelper = new BoundaryHelper('98');
+
 function capitalize(s: string) {
     if (s.length === 0)
         return s;
@@ -46,31 +54,32 @@ function capitalize(s: string) {
 
 }
 
-class PushButton extends React.Component<{ caption: string, enabled: boolean, onClick: () => void }> {
+class ColorBox extends React.Component<{ caption: string, color: Color }> {
     render() {
         return (
-            <div
-                className={`rmsp-pushbutton ${this.props.enabled ? '' : 'rmsp-pushbutton-disabled'}`}
-                onClick={() => this.props.enabled ? this.props.onClick() : {}}
-            >
-                <div className={`${this.props.enabled ? 'rmsp-pushbutton-text' : 'rmsp-pushbutton-text-disabled'}`}>{this.props.caption}</div>
+            <div className='rmsp-color-box'>
+                <div className='rmsp-color-box-caption'>{this.props.caption}</div>
+                <div
+                    className='rmsp-color-box-color'
+                    style={{ backgroundColor: Color.toStyle(this.props.color) }}
+                />
             </div>
         );
     }
 }
 
-class ToggleButton extends React.Component<{ caption: string, enabled: boolean, switchedOn: boolean, onClick: () => void }> {
-    render() {
-        return (
-            <div
-                className={`rmsp-pushbutton ${this.props.enabled ? (this.props.switchedOn ? 'rmsp-togglebutton-switched-on' : 'rmsp-togglebutton-switched-off') : 'rmsp-pushbutton-disabled'}`}
-                onClick={() => this.props.enabled ? this.props.onClick() : {}}
-            >
-                <div className={`${this.props.enabled ? 'rmsp-pushbutton-text' : 'rmsp-pushbutton-text-disabled'}`}>{this.props.caption}</div>
-            </div>
-        );
-    }
-}
+const ConformersByClass = {
+    A: ['AA00_Upr', 'AA00_Lwr', 'AA02_Upr', 'AA02_Lwr', 'AA03_Upr', 'AA03_Lwr', 'AA04_Upr', 'AA04_Lwr', 'AA08_Upr', 'AA08_Lwr', 'AA09_Upr', 'AA09_Lwr', 'AA01_Upr', 'AA01_Lwr', 'AA05_Upr', 'AA05_Lwr', 'AA06_Upr', 'AA06_Lwr', 'AA10_Upr', 'AA10_Lwr', 'AA11_Upr', 'AA11_Lwr', 'AA07_Upr', 'AA07_Lwr', 'AA12_Upr', 'AA12_Lwr', 'AA13_Upr', 'AA13_Lwr', 'AB01_Upr', 'AB02_Upr', 'AB03_Upr', 'AB04_Upr', 'AB05_Upr', 'BA01_Lwr', 'BA05_Lwr', 'BA09_Lwr', 'BA08_Lwr', 'BA10_Lwr', 'BA13_Lwr', 'BA16_Lwr', 'BA17_Lwr', 'AAS1_Lwr', 'AB1S_Upr'],
+    B: ['AB01_Lwr', 'AB02_Lwr', 'AB03_Lwr', 'AB04_Lwr', 'AB05_Lwr', 'BA09_Upr', 'BA10_Upr', 'BB00_Upr', 'BB00_Lwr', 'BB01_Upr', 'BB01_Lwr', 'BB17_Upr', 'BB17_Lwr', 'BB02_Upr', 'BB02_Lwr', 'BB03_Upr', 'BB03_Lwr', 'BB11_Upr', 'BB11_Lwr', 'BB16_Upr', 'BB16_Lwr', 'BB04_Upr', 'BB05_Upr', 'BB1S_Upr', 'BB2S_Upr', 'BBS1_Lwr'],
+    BII: ['BA08_Upr', 'BA13_Upr', 'BA16_Upr', 'BA17_Upr', 'BB04_Lwr', 'BB05_Lwr', 'BB07_Upr', 'BB07_Lwr', 'BB08_Upr', 'BB08_Lwr'],
+    miB: ['BB10_Upr', 'BB10_Lwr', 'BB12_Upr', 'BB12_Lwr', 'BB13_Upr', 'BB13_Lwr', 'BB14_Upr', 'BB14_Lwr', 'BB15_Upr', 'BB15_Lwr', 'BB20_Upr', 'BB20_Lwr'],
+    IC: ['IC01_Upr', 'IC01_Lwr', 'IC02_Upr', 'IC02_Lwr', 'IC03_Upr', 'IC03_Lwr', 'IC04_Upr', 'IC04_Lwr', 'IC05_Upr', 'IC05_Lwr', 'IC06_Upr', 'IC06_Lwr', 'IC07_Upr', 'IC07_Lwr'],
+    OPN: ['OP01_Upr', 'OP01_Lwr', 'OP02_Upr', 'OP02_Lwr', 'OP03_Upr', 'OP03_Lwr', 'OP04_Upr', 'OP04_Lwr', 'OP05_Upr', 'OP05_Lwr', 'OP06_Upr', 'OP06_Lwr', 'OP07_Upr', 'OP07_Lwr', 'OP08_Upr', 'OP08_Lwr', 'OP09_Upr', 'OP09_Lwr', 'OP10_Upr', 'OP10_Lwr', 'OP11_Upr', 'OP11_Lwr', 'OP12_Upr', 'OP12_Lwr', 'OP13_Upr', 'OP13_Lwr', 'OP14_Upr', 'OP14_Lwr', 'OP15_Upr', 'OP15_Lwr', 'OP16_Upr', 'OP16_Lwr', 'OP17_Upr', 'OP17_Lwr', 'OP18_Upr', 'OP18_Lwr', 'OP19_Upr', 'OP19_Lwr', 'OP20_Upr', 'OP20_Lwr', 'OP21_Upr', 'OP21_Lwr', 'OP22_Upr', 'OP22_Lwr', 'OP23_Upr', 'OP23_Lwr', 'OP24_Upr', 'OP24_Lwr', 'OP25_Upr', 'OP25_Lwr', 'OP26_Upr', 'OP26_Lwr', 'OP27_Upr', 'OP27_Lwr', 'OP28_Upr', 'OP28_Lwr', 'OP29_Upr', 'OP29_Lwr', 'OP30_Upr', 'OP30_Lwr', 'OP31_Upr', 'OP31_Lwr', 'OPS1_Upr', 'OPS1_Lwr', 'OP1S_Upr', 'OP1S_Lwr'],
+    SYN: ['AAS1_Upr', 'AB1S_Lwr', 'AB2S_Lwr', 'BB1S_Lwr', 'BB2S_Lwr', 'BBS1_Upr', 'ZZ1S_Lwr', 'ZZ2S_Lwr', 'ZZS1_Upr', 'ZZS2_Upr'],
+    Z: ['ZZ01_Upr', 'ZZ01_Lwr', 'ZZ02_Upr', 'ZZ02_Lwr', 'ZZ1S_Upr', 'ZZ2S_Upr', 'ZZS1_Lwr', 'ZZS2_Lwr'],
+    N: ['NANT_Upr', 'NANT_Lwr'],
+};
+type ConformersByClass = typeof ConformersByClass;
 
 const Display = {
     representation: 'cartoon',
@@ -80,8 +89,15 @@ const Display = {
     showWater: false,
 
     showPyramids: true,
+    pyramidsTransparent: false,
+
+    showBalls: false,
+    ballsTransparent: false,
 
     modelNumber: 1,
+
+    classColors: { ...NtCColors.Classes },
+    conformerColors: { ...NtCColors.Conformers },
 };
 type Display = typeof Display;
 
@@ -228,21 +244,59 @@ class ReDNATCOMspViewer {
         return this.plugin.state.data.build().to(IDs.ID(id, sub, ref));
     }
 
-    private pyramidsParams(colors: Map<string, Color>, visible: Map<string, boolean>, transparent: boolean) {
+    private getStructureParent(cell: StateObjectCell) {
+        if (!cell.sourceRef)
+            return undefined;
+        const parent = this.plugin.state.data.cells.get(cell.sourceRef);
+        if (!parent)
+            return undefined;
+        return parent.obj?.type.name === 'Structure' ? parent.obj : undefined;
+    }
+
+    private pyramidsParams(colors: NtCColors.Conformers, visible: Map<string, boolean>, transparent: boolean) {
         const typeParams = {} as PD.Values<ConfalPyramidsParams>;
         for (const k of Reflect.ownKeys(ConfalPyramidsParams) as (keyof ConfalPyramidsParams)[]) {
             if (ConfalPyramidsParams[k].type === 'boolean')
                 (typeParams[k] as any) = visible.get(k) ?? ConfalPyramidsParams[k]['defaultValue'];
         }
 
-        const colorParams = {} as Record<string, Color>; // HAKZ until we implement changeable pyramid colors in Molstar !!!
-        for (const k of Reflect.ownKeys(ConfalPyramidsColorThemeParams) as (keyof ConfalPyramidsColorThemeParams)[])
-            colorParams[k] = colors.get(k) ?? ConfalPyramidsColorThemeParams[k]['defaultValue'];
-
         return {
             type: { name: 'confal-pyramids', params: { ...typeParams, alpha: transparent ? 0.5 : 1.0 } },
-            colorTheme: { name: 'confal-pyramids', params: colorParams }
+            colorTheme: { name: 'confal-pyramids', params: colors }
         };
+    }
+
+    private resetCameraRadius() {
+        if (!this.plugin.canvas3d)
+            return;
+
+        const spheres = [];
+        for (const [ref, cell] of Array.from(this.plugin.state.data.cells)) {
+            if (!IDs.isVisual(ref))
+                continue;
+            const parent = this.getStructureParent(cell);
+            if (parent) {
+                const s = Loci.getBoundingSphere(Script.toLoci(SelectAllScript, parent.data));
+                if (s)
+                    spheres.push(s);
+            }
+        }
+
+        if (spheres.length === 0)
+            return;
+
+        SphereBoundaryHelper.reset();
+        for (const s of spheres)
+            SphereBoundaryHelper.includePositionRadius(s.center, s.radius);
+        SphereBoundaryHelper.finishedIncludeStep();
+        for (const s of spheres)
+            SphereBoundaryHelper.radiusPositionRadius(s.center, s.radius);
+        const bs = SphereBoundaryHelper.getSphere();
+
+        const snapshot = this.plugin.canvas3d.camera.getSnapshot();
+        snapshot.radius = bs.radius;
+        snapshot.target = bs.center;
+        PluginCommands.Camera.SetSnapshot(this.plugin, { snapshot, durationMs: AnimationDurationMsec });
     }
 
     static async create(target: HTMLElement) {
@@ -281,6 +335,50 @@ class ReDNATCOMspViewer {
         return new ReDNATCOMspViewer(plugin);
     }
 
+    async changeNtCColors(display: Partial<Display>) {
+        if (!this.has('pyramids', 'nucleic'))
+            return;
+
+        const b = this.plugin.state.data.build().to(IDs.ID('pyramids', 'nucleic', BaseRef));
+        b.update(
+            StateTransforms.Representation.StructureRepresentation3D,
+            old => ({
+                ...old,
+                colorTheme: { name: 'confal-pyramids', params: display.conformerColors ?? NtCColors.Conformers },
+            })
+        );
+
+        await b.commit();
+    }
+
+    async changePyramids(display: Partial<Display>) {
+        if (display.showPyramids) {
+            if (!this.has('pyramids', 'nucleic')) {
+                const b = this.getBuilder('structure', 'nucleic');
+                if (b) {
+                    b.apply(
+                        StateTransforms.Representation.StructureRepresentation3D,
+                        this.pyramidsParams(display.conformerColors ?? NtCColors.Conformers, new Map(), display.pyramidsTransparent ?? false),
+                        { ref: IDs.ID('pyramids', 'nucleic', BaseRef) }
+                    );
+                    await b.commit();
+                }
+            } else {
+                const b = this.getBuilder('pyramids', 'nucleic');
+                b.update(
+                    StateTransforms.Representation.StructureRepresentation3D,
+                    old => ({
+                        ...old,
+                        ...this.pyramidsParams(display.conformerColors ?? NtCColors.Conformers, new Map(), display.pyramidsTransparent ?? false),
+                    })
+                );
+                await b.commit();
+            }
+        } else {
+            await PluginCommands.State.RemoveObject(this.plugin, { state: this.plugin.state.data, ref: IDs.ID('pyramids', 'nucleic', BaseRef) });
+        }
+    }
+
     async changeRepresentation(display: Partial<Display>) {
         const b = this.plugin.state.data.build();
         const repr = display.representation ?? 'cartoon';
@@ -301,18 +399,74 @@ class ReDNATCOMspViewer {
         await b.commit();
     }
 
+    getModelCount() {
+        const obj = this.plugin.state.data.cells.get(IDs.ID('trajectory', '', BaseRef))?.obj;
+        if (!obj)
+            return 0;
+        return (obj as StateObject<Trajectory>).data.frameCount;
+    }
+
+    getPresentConformers() {
+        const obj = this.plugin.state.data.cells.get(IDs.ID('model', '', BaseRef))?.obj;
+        if (!obj)
+            return [];
+        const model = (obj as StateObject<Model>);
+        const modelNum = model.data.modelNum;
+        const sourceData = model.data.sourceData;
+        if (MmcifFormat.is(sourceData)) {
+            const tableSum = sourceData.data.frame.categories['ndb_struct_ntc_step_summary'];
+            const tableStep = sourceData.data.frame.categories['ndb_struct_ntc_step'];
+            if (!tableSum || !tableStep) {
+                console.warn('NtC information not present');
+                return [];
+            }
+
+            const _stepIds = tableSum.getField('step_id');
+            const _assignedNtCs = tableSum.getField('assigned_NtC');
+            const _ids = tableStep.getField('id');
+            const _modelNos = tableStep.getField('PDB_model_number');
+            if (!_stepIds || !_assignedNtCs || !_ids || !_modelNos) {
+                console.warn('Expected fields are not present in NtC categories');
+                return [];
+            }
+
+            const stepIds = _stepIds.toIntArray();
+            const assignedNtCs = _assignedNtCs.toStringArray();
+            const ids = _ids.toIntArray();
+            const modelNos = _modelNos.toIntArray();
+
+            const present = new Array<string>();
+            for (let row = 0; row < stepIds.length; row++) {
+                const idx = ids.indexOf(stepIds[row]);
+                if (modelNos[idx] === modelNum) {
+                    const ntc = assignedNtCs[row];
+                    if (!present.includes(ntc))
+                        present.push(ntc);
+                }
+            }
+
+            present.sort();
+            return present;
+        }
+        return [];
+    }
+
     has(id: IDs.ID, sub: IDs.Substructure|'' = '', ref = BaseRef) {
         return !!this.plugin.state.data.cells.get(IDs.ID(id, sub, ref))?.obj;
+    }
+
+    isReady() {
+        return this.has('structure', '', BaseRef);
     }
 
     async loadStructure(data: string, type: 'pdb'|'cif', display: Partial<Display>) {
         await this.plugin.state.data.build().toRoot().commit();
 
         const b = (t => type === 'pdb'
-            ? t.apply(StateTransforms.Model.TrajectoryFromPDB)
-            : t.apply(StateTransforms.Data.ParseCif).apply(StateTransforms.Model.TrajectoryFromMmCif)
+            ? t.apply(StateTransforms.Model.TrajectoryFromPDB, {}, { ref: IDs.ID('trajectory', '', BaseRef) })
+            : t.apply(StateTransforms.Data.ParseCif).apply(StateTransforms.Model.TrajectoryFromMmCif, {}, { ref: IDs.ID('trajectory', '', BaseRef) })
         )(this.plugin.state.data.build().toRoot().apply(RawData, { data }, { ref: IDs.ID('data', '', BaseRef) }))
-            .apply(StateTransforms.Model.ModelFromTrajectory, { modelIndex: 0 })
+            .apply(StateTransforms.Model.ModelFromTrajectory, { modelIndex: display.modelNumber ? display.modelNumber - 1 : 0 }, { ref: IDs.ID('model', '', BaseRef) })
             .apply(StateTransforms.Model.StructureFromModel, {}, { ref: IDs.ID('structure', '', BaseRef) })
             // Extract substructures
             .apply(StateTransforms.Model.StructureComplexElement, { type: 'nucleic' }, { ref: IDs.ID('structure', 'nucleic', BaseRef) })
@@ -338,7 +492,7 @@ class ReDNATCOMspViewer {
                 bb.to(IDs.ID('structure', 'nucleic', BaseRef))
                     .apply(
                         StateTransforms.Representation.StructureRepresentation3D,
-                        this.pyramidsParams(new Map(), new Map(), false),
+                        this.pyramidsParams(display.conformerColors ?? NtCColors.Conformers, new Map(), false),
                         { ref: IDs.ID('pyramids', 'nucleic', BaseRef) }
                     );
             }
@@ -367,24 +521,17 @@ class ReDNATCOMspViewer {
         await bb.commit();
     }
 
-    isReady() {
-        return this.has('structure', '', BaseRef);
-    }
+    async switchModel(display: Partial<Display>) {
+        const b = this.getBuilder('model', '', BaseRef);
+        b.update(
+            StateTransforms.Model.ModelFromTrajectory,
+            old => ({
+                ...old,
+                modelIndex: display.modelNumber ? display.modelNumber - 1 : 0
+            })
+        );
 
-    async togglePyramids(display: Partial<Display>) {
-        if (display.showPyramids && !this.has('pyramids', 'nucleic')) {
-            const b = this.getBuilder('structure', 'nucleic');
-            if (b) {
-                b.apply(
-                    StateTransforms.Representation.StructureRepresentation3D,
-                    this.pyramidsParams(new Map(), new Map(), false),
-                    { ref: IDs.ID('pyramids', 'nucleic', BaseRef) }
-                );
-                await b.commit();
-            }
-        } else {
-            await PluginCommands.State.RemoveObject(this.plugin, { state: this.plugin.state.data, ref: IDs.ID('pyramids', 'nucleic', BaseRef) });
-        }
+        await b.commit();
     }
 
     async toggleSubstructure(sub: IDs.Substructure, display: Partial<Display>) {
@@ -404,28 +551,67 @@ class ReDNATCOMspViewer {
                 );
                 await b.commit();
             }
-        } else
+        } else {
             await PluginCommands.State.RemoveObject(this.plugin, { state: this.plugin.state.data, ref: IDs.ID('visual', sub, BaseRef) });
+            this.resetCameraRadius();
+        }
     }
 }
 
 interface State {
     display: Display;
+    showControls: boolean;
 }
 class ReDNATCOMsp extends React.Component<ReDNATCOMsp.Props, State> {
+    private presentConformers: string[] = [];
     private viewer: ReDNATCOMspViewer|null = null;
+
+    private classColorToConformers(k: keyof ConformersByClass, color: Color) {
+        const updated: Partial<NtCColors.Conformers> = {};
+        ConformersByClass[k].map(cfmr => updated[cfmr as keyof NtCColors.Conformers] = color);
+
+        return updated;
+    }
+
+    private updateClassColor(k: keyof NtCColors.Classes, color: number) {
+        const clr = Color(color);
+        const classColors = { ...this.state.display.classColors };
+        classColors[k] = clr;
+
+        const conformerColors = {
+            ...this.state.display.conformerColors,
+            ...this.classColorToConformers(k as keyof ConformersByClass, clr),
+        };
+
+        const display = { ...this.state.display, classColors, conformerColors };
+        this.viewer!.changeNtCColors(display);
+        this.setState({ ...this.state, display });
+    }
+
+    private updateConformerColor(k: keyof NtCColors.Conformers, color: number) {
+        const conformerColors = { ...this.state.display.conformerColors };
+        conformerColors[k] = Color(color);
+
+        const display = { ...this.state.display, conformerColors };
+        this.viewer!.changeNtCColors(display);
+        this.setState({ ...this.state, display });
+    }
 
     constructor(props: ReDNATCOMsp.Props) {
         super(props);
 
         this.state = {
             display: { ...Display },
+            showControls: false,
         };
     }
 
     loadStructure(data: string, type: 'pdb'|'cif') {
         if (this.viewer)
-            this.viewer.loadStructure(data, type, this.state.display).then(() => this.forceUpdate());
+            this.viewer.loadStructure(data, type, this.state.display).then(() => {
+                this.presentConformers = this.viewer!.getPresentConformers();
+                this.forceUpdate();
+            });
     }
 
     componentDidMount() {
@@ -452,102 +638,211 @@ class ReDNATCOMsp extends React.Component<ReDNATCOMsp.Props, State> {
             <div className='rmsp-app'>
                 <div id={this.props.elemId + '-viewer'} className='rmsp-viewer'></div>
                 <div>
-                    <div>Display and control</div>
-                    <div className='rmsp-controls'>
-                        <div className='rmsp-controls-section-caption'>Representation</div>
-                        <div className='rmsp-controls-line'>
-                            <div className='rmsp-control-item'>
-                                <PushButton
-                                    caption={capitalize(this.state.display.representation)}
-                                    enabled={ready}
-                                    onClick={() => {
-                                        const display = {
-                                            ...this.state.display,
-                                            representation: this.state.display.representation === 'cartoon' ? 'ball-and-stick' : 'cartoon',
-                                        };
-                                        this.viewer!.changeRepresentation(display);
-                                        this.setState({ ...this.state, display });
-                                    }}
-                                />
-                            </div>
-                        </div>
-
-                        <div className='rmsp-controls-section-caption'>Substructure parts</div>
-                        <div className='rmsp-controls-line'>
-                            <div className='rmsp-control-item'>
-                                <ToggleButton
-                                    caption='Nucleic'
-                                    enabled={hasNucleic}
-                                    switchedOn={this.state.display.showNucleic}
-                                    onClick={() => {
-                                        const display = {
-                                            ...this.state.display,
-                                            showNucleic: !this.state.display.showNucleic,
-                                        };
-                                        this.viewer!.toggleSubstructure('nucleic', display);
-                                        this.setState({ ...this.state, display });
-                                    }}
-                                />
-                            </div>
-                            <div className='rmsp-control-item'>
-                                <ToggleButton
-                                    caption='Protein'
-                                    enabled={hasProtein}
-                                    switchedOn={this.state.display.showProtein}
-                                    onClick={() => {
-                                        const display = {
-                                            ...this.state.display,
-                                            showProtein: !this.state.display.showProtein,
-                                        };
-                                        this.viewer!.toggleSubstructure('protein', display);
-                                        this.setState({ ...this.state, display });
-                                    }}
-                                />
-                            </div>
-                            <div className='rmsp-control-item'>
-                                <ToggleButton
-                                    caption='Water'
-                                    enabled={hasWater}
-                                    switchedOn={this.state.display.showWater}
-                                    onClick={() => {
-                                        const display = {
-                                            ...this.state.display,
-                                            showWater: !this.state.display.showWater,
-                                        };
-                                        this.viewer!.toggleSubstructure('water', display);
-                                        this.setState({ ...this.state, display });
-                                    }}
-                                />
-                            </div>
-                        </div>
-
-                        <div className='rmsp-controls-section-caption'>NtC visuals</div>
-                        <div className='rmsp-controls-line'>
-                            <div className='rmsp-control-item'>
-                                <ToggleButton
-                                    caption='Pyramids'
-                                    enabled={ready}
-                                    switchedOn={this.state.display.showPyramids}
-                                    onClick={() => {
-                                        const display = {
-                                            ...this.state.display,
-                                            pyramidsShown: !this.state.display.showPyramids,
-                                        };
-                                        this.viewer!.togglePyramids(display);
-                                        this.setState({ ...this.state, display });
-                                    }}
-                                />
-                            </div>
-                            <div className='rmsp-control-item'>
-                                <ToggleButton
-                                    caption='Balls'
-                                    enabled={false}
-                                    switchedOn={false}
-                                    onClick={() => {}}
-                                />
-                            </div>
-                        </div>
+                    <div
+                        onClick={() => this.setState({ ...this.state, showControls: !this.state.showControls })}
+                    >
+                        Display and control
                     </div>
+                    {this.state.showControls ?
+                        <div className='rmsp-controls'>
+                            <div className='rmsp-controls-section-caption'>Representation</div>
+                            <div className='rmsp-controls-line'>
+                                <div className='rmsp-control-item'>
+                                    <PushButton
+                                        text={capitalize(this.state.display.representation)}
+                                        enabled={ready}
+                                        onClick={() => {
+                                            const display = {
+                                                ...this.state.display,
+                                                representation: this.state.display.representation === 'cartoon' ? 'ball-and-stick' : 'cartoon',
+                                            };
+                                            this.viewer!.changeRepresentation(display);
+                                            this.setState({ ...this.state, display });
+                                        }}
+                                    />
+                                </div>
+                            </div>
+
+                            <div className='rmsp-controls-section-caption'>Substructure parts</div>
+                            <div className='rmsp-controls-line'>
+                                <div className='rmsp-control-item'>
+                                    <ToggleButton
+                                        text='Nucleic'
+                                        enabled={hasNucleic}
+                                        switchedOn={this.state.display.showNucleic}
+                                        onClick={() => {
+                                            const display = {
+                                                ...this.state.display,
+                                                showNucleic: !this.state.display.showNucleic,
+                                            };
+                                            this.viewer!.toggleSubstructure('nucleic', display);
+                                            this.setState({ ...this.state, display });
+                                        }}
+                                    />
+                                </div>
+                                <div className='rmsp-control-item'>
+                                    <ToggleButton
+                                        text='Protein'
+                                        enabled={hasProtein}
+                                        switchedOn={this.state.display.showProtein}
+                                        onClick={() => {
+                                            const display = {
+                                                ...this.state.display,
+                                                showProtein: !this.state.display.showProtein,
+                                            };
+                                            this.viewer!.toggleSubstructure('protein', display);
+                                            this.setState({ ...this.state, display });
+                                        }}
+                                    />
+                                </div>
+                                <div className='rmsp-control-item'>
+                                    <ToggleButton
+                                        text='Water'
+                                        enabled={hasWater}
+                                        switchedOn={this.state.display.showWater}
+                                        onClick={() => {
+                                            const display = {
+                                                ...this.state.display,
+                                                showWater: !this.state.display.showWater,
+                                            };
+                                            this.viewer!.toggleSubstructure('water', display);
+                                            this.setState({ ...this.state, display });
+                                        }}
+                                    />
+                                </div>
+                            </div>
+
+                            <div className='rmsp-controls-section-caption'>NtC visuals</div>
+                            <div className='rmsp-controls-line'>
+                                <div className='rmsp-control-item-group'>
+                                    <div className='rmsp-control-item'>
+                                        <ToggleButton
+                                            text='Pyramids'
+                                            enabled={ready}
+                                            switchedOn={this.state.display.showPyramids}
+                                            onClick={() => {
+                                                const display = {
+                                                    ...this.state.display,
+                                                    showPyramids: !this.state.display.showPyramids,
+                                                };
+                                                this.viewer!.changePyramids(display);
+                                                this.setState({ ...this.state, display });
+                                            }}
+                                        />
+                                    </div>
+                                    <div className='rmsp-control-item'>
+                                        <PushButton
+                                            text={this.state.display.pyramidsTransparent ? 'Transparent' : 'Solid'}
+                                            enabled={this.state.display.showPyramids}
+                                            onClick={() => {
+                                                const display = {
+                                                    ...this.state.display,
+                                                    pyramidsTransparent: !this.state.display.pyramidsTransparent,
+                                                };
+                                                this.viewer!.changePyramids(display);
+                                                this.setState({ ...this.state, display });
+                                            }}
+                                        />
+                                    </div>
+                                </div>
+                                <div className='rmsp-control-item-group'>
+                                    <div className='rmsp-control-item'>
+                                        <ToggleButton
+                                            text='Balls'
+                                            enabled={false}
+                                            switchedOn={false}
+                                            onClick={() => {}}
+                                        />
+                                    </div>
+                                    <div className='rmsp-control-item'>
+                                        <PushButton
+                                            text={this.state.display.ballsTransparent ? 'Transparent' : 'Solid'}
+                                            enabled={this.state.display.showBalls}
+                                            onClick={() => {
+                                                const display = {
+                                                    ...this.state.display,
+                                                    ballsTransparent: !this.state.display.ballsTransparent,
+                                                };
+                                                /* No balls today... */
+                                                this.setState({ ...this.state, display });
+                                            }}
+                                        />
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div className='rmsp-controls-section-caption'>NtC classes colors</div>
+                            <div className='rmsp-controls-line'>
+                                {(['A', 'B', 'BII', 'miB', 'Z', 'IC', 'OPN', 'SYN', 'N'] as (keyof NtCColors.Classes)[]).map(k =>
+                                    <div className='rmsp-control-item-group' key={k}>
+                                        <div
+                                            className='rmsp-control-item'
+                                            onClick={evt => ColorPicker.create(
+                                                evt,
+                                                this.state.display.classColors[k],
+                                                color => this.updateClassColor(k, color)
+                                            )}
+                                        >
+                                            <ColorBox caption={k} color={this.state.display.classColors[k]} />
+                                        </div>
+                                        <PushButton
+                                            text='R'
+                                            onClick={() => this.updateClassColor(k, NtCColors.Classes[k])}
+                                            enabled={true}
+                                        />
+                                    </div>
+                                )}
+                            </div>
+
+                            <div className='rmsp-controls-section-caption'>NtC colors</div>
+                            <div className='rmsp-controls-line'>
+                                {this.presentConformers.map(ntc => {
+                                    const uprKey = ntc + '_Upr' as keyof NtCColors.Conformers;
+                                    const lwrKey = ntc + '_Lwr' as keyof NtCColors.Conformers;
+
+                                    return (
+                                        <div className='rmsp-control-item' key={ntc}>
+                                            <div className='rmsp-control-item-group'>
+                                                <div
+                                                    className='rmsp-control-item'
+                                                    onClick={evt => ColorPicker.create(
+                                                        evt,
+                                                        this.state.display.conformerColors[uprKey],
+                                                        color => this.updateConformerColor(uprKey, color)
+                                                    )}
+                                                >
+                                                    <ColorBox caption={`${ntc} Upr`} color={this.state.display.conformerColors[uprKey]} />
+                                                </div>
+                                                <PushButton
+                                                    text='R'
+                                                    onClick={() => this.updateConformerColor(uprKey, NtCColors.Conformers[uprKey])}
+                                                    enabled={true}
+                                                />
+                                            </div>
+                                            <div className='rmsp-control-item-group'>
+                                                <div
+                                                    className='rmsp-control-item'
+                                                    onClick={evt => ColorPicker.create(
+                                                        evt,
+                                                        this.state.display.conformerColors[lwrKey],
+                                                        color => this.updateConformerColor(lwrKey, color)
+                                                    )}
+                                                >
+                                                    <ColorBox caption={`${ntc} Lwr`} color={this.state.display.conformerColors[lwrKey]} />
+                                                </div>
+                                                <PushButton
+                                                    text='R'
+                                                    onClick={() => this.updateConformerColor(lwrKey, NtCColors.Conformers[lwrKey])}
+                                                    enabled={true}
+                                                />
+                                            </div>
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        </div>
+                        : undefined
+                    }
                 </div>
             </div>
         );

@@ -28,9 +28,23 @@
 .rmsp-app {
     display: flex;
     flex-direction: column;
-    height: 90%;
+    height: 100%;
     width: 100%;
 
+    font-family: Verdana, sans-serif;
+    font-size: 12pt;
+    line-height: 1.5;
+}
+
+.rmsp-color-box {
+    display: flex;
+}
+
+.rmsp-color-box-color {
+    flex: 1;
+}
+
+.rmsp-color-picker-nest {
     font-family: Verdana, sans-serif;
     font-size: 12pt;
     line-height: 1.5;
@@ -41,6 +55,12 @@
     grid-template-columns: auto 1fr;
     grid-column-gap: var(--h-gap);
     overflow: scroll;
+}
+
+.rmsp-control-item-group {
+    display: flex;
+    flex: 1;
+    gap: 0;
 }
 
 .rmsp-control-item {
@@ -88,6 +108,41 @@
     color: var(--color-a);
     font-weight: bold;
     margin: 0.15em;
+}
+
+.rmsp-spinbox-container {
+    background-color: white;
+    border: 0.15em solid #ccc;
+    border-radius: 0;
+    display: grid;
+    grid-template-columns: auto 1fr;
+}
+
+.rmsp-spinbox-button {
+    height: 0.6em;
+    text-align: center;
+}
+.rmsp-spinbox-button:hover {
+    background-color: #aaa;
+}
+
+.rmsp-spinbox-buttons {
+    display: flex;
+    flex-direction: column;
+    gap: 0.05em;
+    margin: 0.1em;
+}
+
+.rmsp-spinbox-input {
+    -moz-appearance: none;
+    -webkit-appearance: none;
+    appearance: none;
+    border: none;
+
+    width: 100%;
+}
+.rmsp-spinbox-input:focus {
+    outline: none;
 }
 
 .rmsp-viewer {
