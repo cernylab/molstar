@@ -21,6 +21,25 @@ export namespace Step {
         return `${compId}${altId ? `.${altId}` : ''}_${seqId}${insCode ? `.${insCode}` : '' }`;
     }
 
+    function residueDescription(a: string, b: string): { comp: string, altId?: string, resNo: number, insCode?: string }|undefined {
+        const toksA = a.split('.');
+        const toksB = b.split('.');
+
+        if (toksA.length > 2 || toksB.length > 2)
+            return void 0;
+
+        const resNo = parseInt(toksB[0]);
+        if (isNaN(resNo))
+            return void 0;
+
+        return {
+            comp: toksA[0],
+            altId: toksA.length === 2 ? toksA[1] : void 0,
+            resNo,
+            insCode: toksB.length === 2 ? toksB[1] : void 0,
+        };
+    }
+
     export function describe(loci: StructureElement.Loci) {
         const es = loci.elements[0]; // Ignore multiple selections
 
@@ -60,6 +79,96 @@ export namespace Step {
         description.insCode2 = StructureProperties.residue.pdbx_PDB_ins_code(loc);
 
         return description;
+    }
+
+    export function fromName(name: string) {
+        const description: Description = {
+            model: -1,
+            entryId: '',
+            chain: '',
+            resNo1: -1,
+            comp1: '',
+            altId1: void 0,
+            insCode1: void 0,
+            resNo2: -1,
+            comp2: '',
+            altId2: void 0,
+            insCode2: void 0,
+        };
+
+        const toks = name.split('_');
+        if (toks.length !== 6) {
+            console.error(`String ${name} is not valid step name`);
+            return void 0;
+        }
+
+        const entryTok = toks[0];
+        const chain = toks[1];
+        const res1TokA = toks[2];
+        const res1TokB = toks[3];
+        const res2TokA = toks[4];
+        const res2TokB = toks[5];
+
+        const ets = entryTok.split('-');
+        if (ets.length === 1) {
+            description.entryId = ets[0];
+            description.model = 1;
+        } else if (ets.length === 2) {
+            description.entryId = ets[0];
+            const m = parseInt(ets[1].slice(1));
+            if (isNaN(m)) {
+                console.error(`String ${name} is not valid step name`);
+                return void 0;
+            }
+            description.model = m;
+        } else {
+            console.error(`String ${name} is not valid step name`);
+            return void 0;
+        }
+
+        if (chain.length !== 1) {
+            console.error(`String ${name} is not valid step name`);
+            return void 0;
+        } else
+            description.chain = chain;
+
+        const res1 = residueDescription(res1TokA, res1TokB);
+        const res2 = residueDescription(res2TokA, res2TokB);
+        if (!res1 || !res2) {
+            console.error(`String ${name} is not valid step name`);
+            return void 0;
+        }
+
+        description.resNo1 = res1.resNo;
+        description.comp1 = res1.comp;
+        description.altId1 = res1.altId;
+        description.insCode1 = res1.insCode;
+        description.resNo2 = res2.resNo;
+        description.comp2 = res2.comp;
+        description.altId2 = res2.altId;
+        description.insCode2 = res2.insCode;
+
+        return description;
+    }
+
+    export function is(loci: StructureElement.Loci) {
+        const e = loci.elements[0];
+        const loc = Location.create(loci.structure, e.unit, e.unit.elements[OrderedSet.getAt(e.indices, 0)]);
+
+        const resNo1 = StructureProperties.residue.label_seq_id(loc);
+        const asymId = StructureProperties.chain.label_asym_id(loc);
+        for (let idx = 1; idx < OrderedSet.size(e.indices); idx++) {
+            loc.element = e.unit.elements[OrderedSet.getAt(e.indices, idx)];
+
+            const resNo = StructureProperties.residue.label_seq_id(loc);
+            if (resNo !== resNo1 + 1)
+                continue;
+            const _asymId = StructureProperties.chain.label_asym_id(loc);
+            if (_asymId === asymId)
+                return true;
+        }
+
+        return false;
     }
 
     export function name(description: Description, multipleModels: boolean) {

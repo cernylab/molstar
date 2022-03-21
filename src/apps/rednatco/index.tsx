@@ -2,18 +2,20 @@ import React from 'react';
 import ReactDOM from 'react-dom';
 import { NtCColors } from './colors';
 import { ColorPicker } from './color-picker';
+import { Commands } from './commands';
 import { PushButton, ToggleButton } from './controls';
 import * as IDs from './idents';
 import * as RefCfmr from './reference-conformers';
 import { ReferenceConformersPdbs } from './reference-conformers-pdbs';
 import { Step } from './step';
 import { Superpose } from './superpose';
+import { Traverse } from './traverse';
 import { DnatcoConfalPyramids } from '../../extensions/dnatco';
 import { ConfalPyramidsParams } from '../../extensions/dnatco/confal-pyramids/representation';
 import { OrderedSet } from '../../mol-data/int/ordered-set';
 import { BoundaryHelper } from '../../mol-math/geometry/boundary-helper';
 import { Loci } from '../../mol-model/loci';
-import { Model, Structure, StructureElement, StructureProperties, Trajectory } from '../../mol-model/structure';
+import { Model, Structure, StructureElement, StructureProperties, StructureSelection, Trajectory } from '../../mol-model/structure';
 import { Location } from '../../mol-model/structure/structure/element/location';
 import { MmcifFormat } from '../../mol-model-formats/structure/mmcif';
 import { PluginBehavior, PluginBehaviors } from '../../mol-plugin/behavior';
@@ -30,7 +32,6 @@ import { DefaultPluginUISpec, PluginUISpec } from '../../mol-plugin-ui/spec';
 import { Representation } from '../../mol-repr/representation';
 import { StateObjectCell, StateObject, StateSelection } from '../../mol-state';
 import { StateTreeSpine } from '../../mol-state/tree/spine';
-import { Script } from '../../mol-script/script';
 import { lociLabel } from '../../mol-theme/label';
 import { Color } from '../../mol-util/color';
 import { arrayMax } from '../../mol-util/array';
@@ -54,7 +55,6 @@ const NtCSupPrev = 'ntc-sup-prev';
 const NtCSupSel = 'ntc-sup-sel';
 const NtCSupNext = 'ntc-sup-next';
 
-const SelectAllScript = Script('(sel.atom.atoms true)', 'mol-script');
 const SphereBoundaryHelper = new BoundaryHelper('98');
 
 type StepInfo = {
@@ -171,8 +171,9 @@ const ConformersByClass = {
 };
 type ConformersByClass = typeof ConformersByClass;
 
+type VisualRepresentations = 'ball-and-stick'|'cartoon';
 const Display = {
-    representation: 'cartoon',
+    representation: 'cartoon' as VisualRepresentations,
 
     showNucleic: true,
     showProtein: false,
@@ -350,6 +351,13 @@ class ReDNATCOMspViewer {
         interactionContext.self = this;
     }
 
+    private currentModelNumber() {
+        const model = this.plugin.state.data.cells.get(IDs.ID('model', '', BaseRef))?.obj;
+        if (!model)
+            return -1;
+        return (model as StateObject<Model>).data.modelNum;
+    }
+
     private getBuilder(id: IDs.ID, sub: IDs.Substructure|'' = '', ref = BaseRef) {
         return this.plugin.state.data.build().to(IDs.ID(id, sub, ref));
     }
@@ -401,7 +409,8 @@ class ReDNATCOMspViewer {
                 continue;
             const parent = this.getStructureParent(cell);
             if (parent) {
-                const s = Loci.getBoundingSphere(Script.toLoci(SelectAllScript, parent.data));
+                const loci = StructureSelection.toLociWithSourceUnits(StructureSelection.Singletons(parent.data, parent.data));
+                const s = Loci.getBoundingSphere(loci);
                 if (s)
                     spheres.push(s);
             }
@@ -422,6 +431,27 @@ class ReDNATCOMspViewer {
         snapshot.radius = bs.radius;
         snapshot.target = bs.center;
         PluginCommands.Camera.SetSnapshot(this.plugin, { snapshot, durationMs: AnimationDurationMsec });
+    }
+
+    private substructureVisuals(representation: 'ball-and-stick'|'cartoon') {
+        switch (representation) {
+            case 'cartoon':
+                return {
+                    type: {
+                        name: 'cartoon',
+                        params: { sizeFactor: 0.2, sizeAspectRatio: 0.35, aromaticBonds: false },
+                    },
+                    colorTheme: { name: 'chain-id', params: { asymId: 'auth' } },
+                };
+            case 'ball-and-stick':
+                return {
+                    type: {
+                        name: 'ball-and-stick',
+                        params: { sizeFactor: 0.2, sizeAspectRatio: 0.35, aromaticBonds: false },
+                    },
+                    colorTheme: { name: 'element-symbol', params: { carbonColor: 'chain-id' } },
+                };
+        }
     }
 
     private superpose(reference: StructureElement.Loci, stru: StructureElement.Loci) {
@@ -525,9 +555,8 @@ class ReDNATCOMspViewer {
                 );
                 await b.commit();
             }
-        } else {
+        } else
             await PluginCommands.State.RemoveObject(this.plugin, { state: this.plugin.state.data, ref: IDs.ID('pyramids', 'nucleic', BaseRef) });
-        }
     }
 
     async changeRepresentation(display: Partial<Display>) {
@@ -541,7 +570,7 @@ class ReDNATCOMspViewer {
                         StateTransforms.Representation.StructureRepresentation3D,
                         old => ({
                             ...old,
-                            type: { ...old.type, name: repr }
+                            ...this.substructureVisuals(repr),
                         })
                     );
             }
@@ -689,9 +718,7 @@ class ReDNATCOMspViewer {
             bb.to(IDs.ID('structure', 'nucleic', BaseRef))
                 .apply(
                     StateTransforms.Representation.StructureRepresentation3D,
-                    {
-                        type: { name: display.representation ?? 'cartoon', params: { sizeFactor: 0.2, sizeAspectRatio: 0.35, aromaticBonds: false } },
-                    },
+                    this.substructureVisuals('cartoon'),
                     { ref: IDs.ID('visual', 'nucleic', BaseRef) }
                 );
             if (display.showPyramids) {
@@ -707,9 +734,7 @@ class ReDNATCOMspViewer {
             bb.to(IDs.ID('structure', 'protein', BaseRef))
                 .apply(
                     StateTransforms.Representation.StructureRepresentation3D,
-                    {
-                        type: { name: display.representation ?? 'cartoon', params: { sizeFactor: 0.2, sizeAspectRatio: 0.35, aromaticBonds: false } },
-                    },
+                    this.substructureVisuals('cartoon'),
                     { ref: IDs.ID('visual', 'protein', BaseRef) }
                 );
         }
@@ -717,9 +742,7 @@ class ReDNATCOMspViewer {
             bb.to(IDs.ID('structure', 'water', BaseRef))
                 .apply(
                     StateTransforms.Representation.StructureRepresentation3D,
-                    {
-                        type: { name: display.representation ?? 'ball-and-stick', params: { sizeFactor: 0.2, sizeAspectRatio: 0.35 } },
-                    },
+                    this.substructureVisuals('ball-and-stick'),
                     { ref: IDs.ID('visual', 'water', BaseRef) }
                 );
         }
@@ -770,34 +793,80 @@ class ReDNATCOMspViewer {
     onLociSelected(selected: Representation.Loci) {
         const loci = Loci.normalize(selected.loci, 'two-residues');
 
-        if (loci.kind === 'element-loci')
-            this.superposeReferences(loci);
+        if (loci.kind === 'element-loci') {
+            // TODO: This cannot call superposeReferences directly
+            // Instead, we must make a callback via the API
+            // and have the listener decide what to do with this event
+            const stepDesc = Step.describe(loci);
+            if (!stepDesc)
+                return;
+            const stepName = Step.name(stepDesc, this.haveMultipleModels);
+            this.superposeReferences(stepName, '', []);
+        }
     }
 
     async switchModel(display: Partial<Display>) {
-        const b = this.getBuilder('model', '', BaseRef);
-        b.update(
-            StateTransforms.Model.ModelFromTrajectory,
-            old => ({
-                ...old,
-                modelIndex: display.modelNumber ? display.modelNumber - 1 : 0
-            })
-        );
+        if (display.modelNumber && display.modelNumber === this.currentModelNumber())
+            return;
+
+        const b = this.plugin.state.data.build()
+            .delete(IDs.ID('superposition', '', NtCSupSel))
+            .delete(IDs.ID('superposition', '', NtCSupPrev))
+            .delete(IDs.ID('superposition', '', NtCSupNext))
+            .to(IDs.ID('model', '', BaseRef))
+            .update(
+                StateTransforms.Model.ModelFromTrajectory,
+                old => ({
+                    ...old,
+                    modelIndex: display.modelNumber ? display.modelNumber - 1 : 0
+                })
+            );
 
         await b.commit();
     }
 
-    superposeReferences(selected: StructureElement.Loci) {
-        const step = Step.describe(selected);
-        if (!step)
-            return;
+    async superposeReferences(stepName: string, referenceNtc: string, references: ('sel'|'prev'|'next')[]) {
+        const ReferenceVisuals = (color: number) => {
+            return {
+                type: { name: 'ball-and-stick', params: { sizeFactor: 0.15, aromaticBonds: false } },
+                colorTheme: { name: 'uniform', params: { value: Color(color) } },
+            };
+        };
 
-        const stepName = Step.name(step, this.haveMultipleModels);
+        const stepDesc = Step.fromName(stepName);
+        if (!stepDesc)
+            return;
         const stepId = this.stepNames.get(stepName);
         if (stepId === undefined) {
             console.error(`Unknown step name ${stepName}`);
             return;
         }
+
+        if (stepDesc.model !== this.currentModelNumber()) {
+            const b = this.getBuilder('model')
+                .update(
+                    StateTransforms.Model.ModelFromTrajectory,
+                    old => ({
+                        ...old,
+                        modelIndex: stepDesc.model - 1,
+                    })
+                );
+            await b.commit();
+        }
+
+        const entireStru = this.plugin.state.data.cells.get(IDs.ID('structure', 'nucleic', BaseRef))!.obj!;
+        const loci = Traverse.findResidue(
+            stepDesc.chain,
+            stepDesc.resNo1,
+            stepDesc.altId1,
+            StructureSelection.toLociWithSourceUnits(StructureSelection.Singletons(entireStru.data, entireStru.data)),
+            'auth'
+        );
+        if (loci.kind !== 'element-loci')
+            return;
+        const selLoci = Loci.normalize(loci, 'two-residues');
+        if (selLoci.kind !== 'element-loci')
+            return;
 
         const stepIdPrev = stepId === 0 ? void 0 : stepId - 1;
         const stepIdNext = stepId === this.steps.length - 1 ? void 0 : stepId + 1;
@@ -807,7 +876,7 @@ class ReDNATCOMspViewer {
         const ntcRefNext = this.ntcRef(stepIdNext, 'next');
 
         if (!ntcRefSel) {
-            console.error(`Seemingly invalid stepId ${stepId}`);
+            console.error(`stepId ${stepId} does not map to a known step`);
             return;
         }
 
@@ -816,74 +885,39 @@ class ReDNATCOMspViewer {
             .delete(IDs.ID('superposition', '', NtCSupPrev))
             .delete(IDs.ID('superposition', '', NtCSupNext));
 
-        {
-            const stru = this.plugin.state.data.cells.get(IDs.ID('structure', '', ntcRefSel))!.obj!;
-            const loci = Script.toLoci(SelectAllScript, stru.data);
+        const addReference = (ntcRef: string, superposRef: string, loci: Loci, color: number) => {
+            const refStru = this.plugin.state.data.cells.get(IDs.ID('structure', '', ntcRef))!.obj!;
+            const refLoci = StructureSelection.toLociWithSourceUnits(StructureSelection.Singletons(refStru.data, refStru.data));
 
-            const { bTransform } = this.superpose(loci, selected);
-            if (isNaN(bTransform[0])) {
-                console.error(`Cannot superpose reference conformer ${ntcRefSel} onto selection`);
-                return;
+            if (loci.kind === 'element-loci' && Step.is(loci)) {
+                const { bTransform, rmsd } = this.superpose(refLoci, loci);
+                if (isNaN(bTransform[0])) {
+                    console.error(`Cannot superpose reference conformer ${ntcRef} onto selection`);
+                    return;
+                }
+                b.to(IDs.ID('structure', '', ntcRef))
+                    .apply(
+                        StateTransforms.Model.TransformStructureConformation,
+                        { transform: { name: 'matrix', params: { data: bTransform, transpose: false } } },
+                        { ref: IDs.ID('superposition', '', superposRef) }
+                    ).apply(
+                        StateTransforms.Representation.StructureRepresentation3D,
+                        ReferenceVisuals(color),
+                        { ref: IDs.ID('visual', '', superposRef) }
+                    );
+                return rmsd;
             }
-            b.to(IDs.ID('structure', '', ntcRefSel))
-                .apply(
-                    StateTransforms.Model.TransformStructureConformation,
-                    { transform: { name: 'matrix', params: { data: bTransform, transpose: false } } },
-                    { ref: IDs.ID('superposition', '', NtCSupSel) }
-                ).apply(
-                    StateTransforms.Representation.StructureRepresentation3D,
-                    { type: { name: 'ball-and-stick', params: { sizeFactor: 0.15 } } },
-                    { ref: IDs.ID('visual', '', NtCSupSel) }
-                );
-        }
+        };
 
-        // TODO: These cannot be applied onto selection!!!
-        if (ntcRefPrev) {
-            const stru = this.plugin.state.data.cells.get(IDs.ID('structure', '', ntcRefPrev))!.obj!;
-            const loci = Script.toLoci(SelectAllScript, stru.data);
-
-            const { bTransform } = this.superpose(loci, selected);
-            if (isNaN(bTransform[0])) {
-                console.error(`Cannot superpose reference conformer ${ntcRefPrev} onto selection`);
-                return;
-            }
-            b.to(IDs.ID('structure', '', ntcRefPrev))
-                .apply(
-                    StateTransforms.Model.TransformStructureConformation,
-                    { transform: { name: 'matrix', params: { data: bTransform, transpose: false } } },
-                    { ref: IDs.ID('superposition', '', NtCSupPrev) }
-                ).apply(
-                    StateTransforms.Representation.StructureRepresentation3D,
-                    { type: { name: 'ball-and-stick', params: { sizeFactor: 0.15 } } },
-                    { ref: IDs.ID('visual', '', NtCSupPrev) }
-                );
-        }
-
-        // TODO: These cannot be applied onto selection!!!
-        if (ntcRefNext) {
-            const stru = this.plugin.state.data.cells.get(IDs.ID('structure', '', ntcRefNext))!.obj!;
-            const loci = Script.toLoci(SelectAllScript, stru.data);
-
-            const { bTransform } = this.superpose(loci, selected);
-            if (isNaN(bTransform[0])) {
-                console.error(`Cannot superpose reference conformer ${ntcRefNext} onto selection`);
-                return;
-            }
-            b.to(IDs.ID('structure', '', ntcRefNext))
-                .apply(
-                    StateTransforms.Model.TransformStructureConformation,
-                    { transform: { name: 'matrix', params: { data: bTransform, transpose: false } } },
-                    { ref: IDs.ID('superposition', '', NtCSupNext) }
-                ).apply(
-                    StateTransforms.Representation.StructureRepresentation3D,
-                    { type: { name: 'ball-and-stick', params: { sizeFactor: 0.15 } } },
-                    { ref: IDs.ID('visual', '', NtCSupNext) }
-                );
-        }
-
-        // TODO: Superpose previous and next step too!!!
+        const rmsd = addReference(ntcRefSel, NtCSupSel, selLoci, 0x008000);
+        if (ntcRefPrev)
+            addReference(ntcRefPrev, NtCSupPrev, Loci.normalize(Traverse.residue(-1, stepDesc.altId1, selLoci), 'two-residues'), 0x0000FF);
+        if (ntcRefNext)
+            addReference(ntcRefNext, NtCSupNext, Loci.normalize(Traverse.residue(1, stepDesc.altId2, selLoci), 'two-residues'), 0x00FFFF);
 
         b.commit();
+
+        return rmsd;
     }
 
     async toggleSubstructure(sub: IDs.Substructure, display: Partial<Display>) {
@@ -893,12 +927,11 @@ class ReDNATCOMspViewer {
 
         if (show) {
             const b = this.getBuilder('structure', sub);
+            const visuals = this.substructureVisuals(sub === 'water' ? 'ball-and-stick' : repr);
             if (b) {
                 b.apply(
                     StateTransforms.Representation.StructureRepresentation3D,
-                    {
-                        type: { name: repr, params: { sizeFactor: 0.2, sizeAspectRatio: 0.35, aromaticBonds: false } }, // TODO: Use different params for water
-                    },
+                    visuals,
                     { ref: IDs.ID('visual', sub, BaseRef) }
                 );
                 await b.commit();
@@ -949,6 +982,26 @@ class ReDNATCOMsp extends React.Component<ReDNATCOMsp.Props, State> {
         this.setState({ ...this.state, display });
     }
 
+    command(cmd: Commands.Cmd) {
+        if (!this.viewer)
+            return;
+
+        if (cmd.type === 'select-step') {
+            this.viewer.superposeReferences(cmd.stepName, cmd.referenceNtC, cmd.references);
+        } else if (cmd.type === 'switch-model') {
+            if (cmd.model < 1 || cmd.model > this.viewer.getModelCount())
+                return;
+
+            const display: Display = {
+                ...this.state.display,
+                modelNumber: cmd.model,
+            };
+
+            this.viewer.switchModel(display);
+            this.setState({ ...this.state, display });
+        }
+    }
+
     constructor(props: ReDNATCOMsp.Props) {
         super(props);
 
@@ -972,7 +1025,7 @@ class ReDNATCOMsp extends React.Component<ReDNATCOMsp.Props, State> {
             ReDNATCOMspViewer.create(elem!).then(viewer => {
                 this.viewer = viewer;
                 this.viewer.loadReferenceConformers().then(() => {
-                    ReDNATCOMspApi.bind(this);
+                    ReDNATCOMspApi._bind(this);
 
                     if (this.props.onInited)
                         this.props.onInited();
@@ -1006,7 +1059,7 @@ class ReDNATCOMsp extends React.Component<ReDNATCOMsp.Props, State> {
                                         text={capitalize(this.state.display.representation)}
                                         enabled={ready}
                                         onClick={() => {
-                                            const display = {
+                                            const display: Display = {
                                                 ...this.state.display,
                                                 representation: this.state.display.representation === 'cartoon' ? 'ball-and-stick' : 'cartoon',
                                             };
@@ -1025,7 +1078,7 @@ class ReDNATCOMsp extends React.Component<ReDNATCOMsp.Props, State> {
                                         enabled={hasNucleic}
                                         switchedOn={this.state.display.showNucleic}
                                         onClick={() => {
-                                            const display = {
+                                            const display: Display = {
                                                 ...this.state.display,
                                                 showNucleic: !this.state.display.showNucleic,
                                             };
@@ -1040,7 +1093,7 @@ class ReDNATCOMsp extends React.Component<ReDNATCOMsp.Props, State> {
                                         enabled={hasProtein}
                                         switchedOn={this.state.display.showProtein}
                                         onClick={() => {
-                                            const display = {
+                                            const display: Display = {
                                                 ...this.state.display,
                                                 showProtein: !this.state.display.showProtein,
                                             };
@@ -1055,7 +1108,7 @@ class ReDNATCOMsp extends React.Component<ReDNATCOMsp.Props, State> {
                                         enabled={hasWater}
                                         switchedOn={this.state.display.showWater}
                                         onClick={() => {
-                                            const display = {
+                                            const display: Display = {
                                                 ...this.state.display,
                                                 showWater: !this.state.display.showWater,
                                             };
@@ -1075,7 +1128,7 @@ class ReDNATCOMsp extends React.Component<ReDNATCOMsp.Props, State> {
                                             enabled={ready}
                                             switchedOn={this.state.display.showPyramids}
                                             onClick={() => {
-                                                const display = {
+                                                const display: Display = {
                                                     ...this.state.display,
                                                     showPyramids: !this.state.display.showPyramids,
                                                 };
@@ -1089,7 +1142,7 @@ class ReDNATCOMsp extends React.Component<ReDNATCOMsp.Props, State> {
                                             text={this.state.display.pyramidsTransparent ? 'Transparent' : 'Solid'}
                                             enabled={this.state.display.showPyramids}
                                             onClick={() => {
-                                                const display = {
+                                                const display: Display = {
                                                     ...this.state.display,
                                                     pyramidsTransparent: !this.state.display.pyramidsTransparent,
                                                 };
@@ -1113,7 +1166,7 @@ class ReDNATCOMsp extends React.Component<ReDNATCOMsp.Props, State> {
                                             text={this.state.display.ballsTransparent ? 'Transparent' : 'Solid'}
                                             enabled={this.state.display.showBalls}
                                             onClick={() => {
-                                                const display = {
+                                                const display: Display = {
                                                     ...this.state.display,
                                                     ballsTransparent: !this.state.display.ballsTransparent,
                                                 };
@@ -1226,12 +1279,18 @@ class _ReDNATCOMspApi {
             throw new Error('ReDNATCOMsp object not bound');
     }
 
-    bind(target: ReDNATCOMsp) {
+    _bind(target: ReDNATCOMsp) {
         this.target = target;
+    }
+
+    command(cmd: Commands.Cmd) {
+        this.check();
+        this.target!.command(cmd);
     }
 
     init(elemId: string, onInited?: () => void) {
         ReDNATCOMsp.init(elemId, onInited);
+        return this;
     }
 
     loadStructure(data: string) {
