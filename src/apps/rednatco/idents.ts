@@ -1,4 +1,4 @@
-export type ID ='data'|'trajectory'|'model'|'structure'|'visual'|'pyramids';
+export type ID ='data'|'trajectory'|'model'|'structure'|'visual'|'pyramids'|'superposition';
 export type Substructure = 'nucleic'|'protein'|'water';
 
 export function ID(id: ID, sub: Substructure|'', ref: string) {

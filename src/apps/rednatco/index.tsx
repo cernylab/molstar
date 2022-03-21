@@ -4,11 +4,17 @@ import { NtCColors } from './colors';
 import { ColorPicker } from './color-picker';
 import { PushButton, ToggleButton } from './controls';
 import * as IDs from './idents';
+import * as RefCfmr from './reference-conformers';
+import { ReferenceConformersPdbs } from './reference-conformers-pdbs';
+import { Step } from './step';
+import { Superpose } from './superpose';
 import { DnatcoConfalPyramids } from '../../extensions/dnatco';
 import { ConfalPyramidsParams } from '../../extensions/dnatco/confal-pyramids/representation';
+import { OrderedSet } from '../../mol-data/int/ordered-set';
 import { BoundaryHelper } from '../../mol-math/geometry/boundary-helper';
 import { Loci } from '../../mol-model/loci';
-import { Model, Structure, Trajectory } from '../../mol-model/structure';
+import { Model, Structure, StructureElement, StructureProperties, Trajectory } from '../../mol-model/structure';
+import { Location } from '../../mol-model/structure/structure/element/location';
 import { MmcifFormat } from '../../mol-model-formats/structure/mmcif';
 import { PluginBehavior, PluginBehaviors } from '../../mol-plugin/behavior';
 import { PluginCommands } from '../../mol-plugin/commands';
@@ -41,17 +47,101 @@ const Extensions = {
     'ntc-balls-pyramids-prop': PluginSpec.Behavior(DnatcoConfalPyramids),
 };
 
-const BaseRef = 'rdo';
 const AnimationDurationMsec = 150;
+const BaseRef = 'rdo';
+const RCRef = 'rc';
+const NtCSupPrev = 'ntc-sup-prev';
+const NtCSupSel = 'ntc-sup-sel';
+const NtCSupNext = 'ntc-sup-next';
 
 const SelectAllScript = Script('(sel.atom.atoms true)', 'mol-script');
 const SphereBoundaryHelper = new BoundaryHelper('98');
+
+type StepInfo = {
+    name: string;
+    assignedNtC: string;
+    closestNtC: string; // Fallback for cases where assignedNtC is NANT
+}
 
 function capitalize(s: string) {
     if (s.length === 0)
         return s;
     return s[0].toLocaleUpperCase() + s.slice(1);
 
+}
+
+function dinucleotideBackbone(loci: StructureElement.Loci) {
+    const es = loci.elements[0];
+    const loc = Location.create(loci.structure, es.unit, es.unit.elements[OrderedSet.getAt(es.indices, 0)]);
+    const len = OrderedSet.size(es.indices);
+    const indices = [];
+
+    // Find split between first and second residue
+    const resNo1 = StructureProperties.residue.auth_seq_id(loc);
+    let secondIdx = -1;
+    for (let idx = 0; idx < len; idx++) {
+        loc.element = es.unit.elements[OrderedSet.getAt(es.indices, idx)];
+        const resNo = StructureProperties.residue.auth_seq_id(loc);
+        if (resNo !== resNo1) {
+            secondIdx = idx;
+            break;
+        }
+    }
+    if (secondIdx === -1)
+        return [];
+
+    // Gather ElementIndices for backbone atoms of the first  residue
+    loc.element = es.unit.elements[OrderedSet.getAt(es.indices, 0)];
+    const comp1 = StructureProperties.atom.label_comp_id(loc);
+    const ring1 = RefCfmr.CompoundRings[comp1 as keyof RefCfmr.CompoundRings];
+    if (!ring1)
+        return [];
+
+    const first = RefCfmr.BackboneAtoms.first.concat(RefCfmr.BackboneAtoms[ring1]);
+    for (const atom of first) {
+        let idx = 0;
+        for (; idx < secondIdx; idx++) {
+            loc.element = es.unit.elements[OrderedSet.getAt(es.indices, idx)];
+            const _atom = StructureProperties.atom.label_atom_id(loc);
+            if (atom === _atom) {
+                indices.push(loc.element);
+                break;
+            }
+        }
+        if (idx === secondIdx) {
+            console.error(`Cannot find backbone atom ${atom} in first residue of a step`);
+            return [];
+        }
+    }
+
+    loc.element = es.unit.elements[OrderedSet.getAt(es.indices, secondIdx)];
+    const comp2 = StructureProperties.atom.label_comp_id(loc);
+    const ring2 = RefCfmr.CompoundRings[comp2 as keyof RefCfmr.CompoundRings];
+    if (!ring2)
+        return [];
+
+    const second = RefCfmr.BackboneAtoms.second.concat(RefCfmr.BackboneAtoms[ring2]);
+    for (const atom of second) {
+        let idx = secondIdx;
+        for (; idx < len; idx++) {
+            loc.element = es.unit.elements[OrderedSet.getAt(es.indices, idx)];
+            const _atom = StructureProperties.atom.label_atom_id(loc);
+            if (atom === _atom) {
+                indices.push(loc.element);
+                break;
+            }
+        }
+        if (idx === len) {
+            console.error(`Cannot find backbone atom ${atom} in second residue of a step`);
+            return [];
+        }
+    }
+
+    return indices;
+}
+
+function rcref(c: string, where: 'sel'|'prev'|'next'|'' = '') {
+    return `${RCRef}-${c}-${where}`;
 }
 
 class ColorBox extends React.Component<{ caption: string, color: Color }> {
@@ -127,20 +217,22 @@ const ReDNATCOLociLabelProvider = PluginBehavior.create({
 
 const ReDNATCOLociSelectionBindings = {
     clickFocus: Binding([Binding.Trigger(ButtonsType.Flag.Secondary)], 'Focus camera on selected loci using ${triggers}'),
-    clickToggle: Binding([Binding.Trigger(ButtonsType.Flag.Primary)], 'Set selection to clicked element using ${triggers}.'),
+    clickSelectOnly: Binding([Binding.Trigger(ButtonsType.Flag.Primary)], 'Select the clicked element using ${triggers}.'),
     clickDeselectAllOnEmpty: Binding([Binding.Trigger(ButtonsType.Flag.Primary)], 'Deselect all when clicking on nothing using ${triggers}.'),
 };
 const ReDNATCOLociSelectionParams = {
     bindings: PD.Value(ReDNATCOLociSelectionBindings, { isHidden: true }),
+    onDeselected: PD.Value(() => {}, { isHidden: true }),
+    onSelected: PD.Value((loci: Representation.Loci) => {}, { isHidden: true }),
 };
-type WatlasLociSelectionProps = PD.Values<typeof ReDNATCOLociSelectionParams>;
+type ReDNATCOLociSelectionProps = PD.Values<typeof ReDNATCOLociSelectionParams>;
 
 const ReDNATCOLociSelectionProvider = PluginBehavior.create({
-    name: 'watlas-loci-selection-provider',
+    name: 'rednatco-loci-selection-provider',
     category: 'interaction',
-    display: { name: 'Interactive loci selection' },
+    display: { name: 'Interactive step selection' },
     params: () => ReDNATCOLociSelectionParams,
-    ctor: class extends PluginBehavior.Handler<WatlasLociSelectionProps> {
+    ctor: class extends PluginBehavior.Handler<ReDNATCOLociSelectionProps> {
         private spine: StateTreeSpine.Impl;
         private lociMarkProvider = (reprLoci: Representation.Loci, action: MarkerAction) => {
             if (!this.ctx.canvas3d) return;
@@ -178,12 +270,25 @@ const ReDNATCOLociSelectionProvider = PluginBehavior.create({
 
             const actions: [keyof typeof ReDNATCOLociSelectionBindings, (current: Representation.Loci) => void, ((current: Representation.Loci) => boolean) | undefined][] = [
                 ['clickFocus', current => this.focusOnLoci(current), lociIsNotEmpty],
-                ['clickDeselectAllOnEmpty', () => this.ctx.managers.interactivity.lociSelects.deselectAll(), lociIsEmpty],
-                ['clickToggle', current => {
-                    if (current.loci.kind === 'element-loci')
-                        this.ctx.managers.interactivity.lociSelects.toggle(current, true);
-                },
-                lociIsNotEmpty],
+                [
+                    'clickDeselectAllOnEmpty',
+                    () => {
+                        this.ctx.managers.interactivity.lociSelects.deselectAll();
+                        this.params.onDeselected();
+                    },
+                    lociIsEmpty
+                ],
+                [
+                    'clickSelectOnly',
+                    current => {
+                        this.ctx.managers.interactivity.lociSelects.deselectAll();
+                        if (current.loci.kind === 'element-loci') {
+                            this.ctx.managers.interactivity.lociSelects.select(current);
+                            this.params.onSelected(current);
+                        }
+                    },
+                    lociIsNotEmpty
+                ],
             ];
 
             // sort the action so that the ones with more modifiers trigger sooner.
@@ -229,7 +334,7 @@ const ReDNATCOLociSelectionProvider = PluginBehavior.create({
         }
         unregister() {
         }
-        constructor(ctx: PluginContext, params: WatlasLociSelectionProps) {
+        constructor(ctx: PluginContext, params: ReDNATCOLociSelectionProps) {
             super(ctx, params);
             this.spine = new StateTreeSpine.Impl(ctx.state.data.cells);
         }
@@ -237,7 +342,12 @@ const ReDNATCOLociSelectionProvider = PluginBehavior.create({
 });
 
 class ReDNATCOMspViewer {
-    constructor(public plugin: PluginUIContext) {
+    private haveMultipleModels = false;
+    private steps: StepInfo[] = [];
+    private stepNames: Map<string, number> = new Map();
+
+    constructor(public plugin: PluginUIContext, interactionContext: { self?: ReDNATCOMspViewer }) {
+        interactionContext.self = this;
     }
 
     private getBuilder(id: IDs.ID, sub: IDs.Substructure|'' = '', ref = BaseRef) {
@@ -251,6 +361,13 @@ class ReDNATCOMspViewer {
         if (!parent)
             return undefined;
         return parent.obj?.type.name === 'Structure' ? parent.obj : undefined;
+    }
+
+    private ntcRef(id: number|undefined, where: 'sel'|'prev'|'next') {
+        if (id === undefined)
+            return undefined;
+        const info = this.steps[id];
+        return rcref(info.assignedNtC === 'NANT' ? info.closestNtC : info.assignedNtC, where);
     }
 
     private pyramidsParams(colors: NtCColors.Conformers, visible: Map<string, boolean>, transparent: boolean) {
@@ -299,14 +416,32 @@ class ReDNATCOMspViewer {
         PluginCommands.Camera.SetSnapshot(this.plugin, { snapshot, durationMs: AnimationDurationMsec });
     }
 
+    private superpose(reference: StructureElement.Loci, stru: StructureElement.Loci) {
+        const refElems = dinucleotideBackbone(reference);
+        const struElems = dinucleotideBackbone(stru);
+
+        return Superpose.superposition(
+            { elements: refElems, conformation: reference.elements[0].unit.conformation },
+            { elements: struElems, conformation: stru.elements[0].unit.conformation }
+        );
+    }
+
     static async create(target: HTMLElement) {
+        const interactCtx: { self?: ReDNATCOMspViewer } = { self: undefined };
         const defaultSpec = DefaultPluginUISpec();
         const spec: PluginUISpec = {
             ...defaultSpec,
             behaviors: [
                 PluginSpec.Behavior(ReDNATCOLociLabelProvider),
                 PluginSpec.Behavior(PluginBehaviors.Representation.HighlightLoci),
-                PluginSpec.Behavior(ReDNATCOLociSelectionProvider),
+                PluginSpec.Behavior(
+                    ReDNATCOLociSelectionProvider,
+                    {
+                        bindings: ReDNATCOLociSelectionBindings,
+                        onDeselected: () => interactCtx.self!.onDeselected(),
+                        onSelected: (loci) => interactCtx.self!.onLociSelected(loci),
+                    }
+                ),
                 ...ObjectKeys(Extensions).map(k => Extensions[k]),
             ],
             components: {
@@ -332,7 +467,7 @@ class ReDNATCOMspViewer {
         plugin.managers.interactivity.setProps({ granularity: 'two-residues' });
         plugin.selectionMode = true;
 
-        return new ReDNATCOMspViewer(plugin);
+        return new ReDNATCOMspViewer(plugin, interactCtx);
     }
 
     async changeNtCColors(display: Partial<Display>) {
@@ -399,6 +534,61 @@ class ReDNATCOMspViewer {
         await b.commit();
     }
 
+    gatherNtCInfo(): { steps: StepInfo[], stepNames: Map<string, number> }|undefined {
+        const obj = this.plugin.state.data.cells.get(IDs.ID('model', '', BaseRef))?.obj;
+        if (!obj)
+            return void 0;
+        const model = (obj as StateObject<Model>);
+        const sourceData = model.data.sourceData;
+        if (!MmcifFormat.is(sourceData))
+            return void 0;
+
+        const tableSum = sourceData.data.frame.categories['ndb_struct_ntc_step_summary'];
+        const tableStep = sourceData.data.frame.categories['ndb_struct_ntc_step'];
+        if (!tableSum || !tableStep) {
+            console.warn('NtC information not present');
+            return void 0;
+        }
+
+        const _ids = tableStep.getField('id');
+        const _names = tableStep.getField('name');
+        const _stepIds = tableSum.getField('step_id');
+        const _assignedNtCs = tableSum.getField('assigned_NtC');
+        const _closestNtCs = tableSum.getField('closest_NtC');
+        if (!_ids || !_names || !_stepIds || !_assignedNtCs || !_closestNtCs) {
+            console.warn('Expected fields are not present in NtC categories');
+            return void 0;
+        }
+
+        const ids = _ids.toIntArray();
+        const names = _names.toStringArray();
+        const stepIds = _stepIds.toIntArray();
+        const assignedNtCs = _assignedNtCs.toStringArray();
+        const closestNtCs = _closestNtCs.toStringArray();
+        const len = ids.length;
+
+        const stepNames = new Map<string, number>();
+        const steps = new Array<StepInfo>(len);
+
+        for (let idx = 0; idx < len; idx++) {
+            const id = ids[idx];
+            const name = names[idx];
+            for (let jdx = 0; jdx < len; jdx++) {
+                if (stepIds[jdx] === id) {
+                    const assignedNtC = assignedNtCs[jdx];
+                    const closestNtC = closestNtCs[jdx];
+
+                    // We're assuming that steps are ID'd with a contigious, monotonic sequence starting from 1
+                    steps[id - 1] = { name, assignedNtC, closestNtC };
+                    stepNames.set(name, id - 1);
+                    break;
+                }
+            }
+        }
+
+        return { steps, stepNames };
+    }
+
     getModelCount() {
         const obj = this.plugin.state.data.cells.get(IDs.ID('trajectory', '', BaseRef))?.obj;
         if (!obj)
@@ -460,7 +650,7 @@ class ReDNATCOMspViewer {
     }
 
     async loadStructure(data: string, type: 'pdb'|'cif', display: Partial<Display>) {
-        await this.plugin.state.data.build().toRoot().commit();
+        // TODO: Remove the currently loaded structure
 
         const b = (t => type === 'pdb'
             ? t.apply(StateTransforms.Model.TrajectoryFromPDB, {}, { ref: IDs.ID('trajectory', '', BaseRef) })
@@ -519,6 +709,53 @@ class ReDNATCOMspViewer {
         }
 
         await bb.commit();
+
+        this.haveMultipleModels = this.getModelCount() > 1;
+
+        const ntcInfo = this.gatherNtCInfo();
+        if (!ntcInfo) {
+            this.steps.length = 0;
+            this.stepNames.clear();
+        } else {
+            this.steps = ntcInfo.steps;
+            this.stepNames = ntcInfo.stepNames;
+        }
+    }
+
+    async loadReferenceConformers() {
+        const b = this.plugin.state.data.build().toRoot();
+
+        for (const c in ReferenceConformersPdbs) {
+            const cfmr = ReferenceConformersPdbs[c as keyof typeof ReferenceConformersPdbs];
+            const bRef = rcref(c);
+            const mRef = IDs.ID('model', '', bRef);
+            b.toRoot();
+            b.apply(RawData, { data: cfmr }, { ref: IDs.ID('data', '', bRef) })
+                .apply(StateTransforms.Model.TrajectoryFromPDB, {}, { ref: IDs.ID('trajectory', '', bRef) })
+                .apply(StateTransforms.Model.ModelFromTrajectory, {}, { ref: mRef })
+                .apply(StateTransforms.Model.StructureFromModel, {}, { ref: IDs.ID('structure', '', rcref(c, 'sel')) })
+                .to(mRef)
+                .apply(StateTransforms.Model.StructureFromModel, {}, { ref: IDs.ID('structure', '', rcref(c, 'prev')) })
+                .to(mRef)
+                .apply(StateTransforms.Model.StructureFromModel, {}, { ref: IDs.ID('structure', '', rcref(c, 'next')) });
+        }
+
+        await b.commit();
+    }
+
+    onDeselected() {
+        this.plugin.state.data.build()
+            .delete(IDs.ID('superposition', '', NtCSupSel))
+            .delete(IDs.ID('superposition', '', NtCSupPrev))
+            .delete(IDs.ID('superposition', '', NtCSupNext))
+            .commit();
+    }
+
+    onLociSelected(selected: Representation.Loci) {
+        const loci = Loci.normalize(selected.loci, 'two-residues');
+
+        if (loci.kind === 'element-loci')
+            this.superposeReferences(loci);
     }
 
     async switchModel(display: Partial<Display>) {
@@ -532,6 +769,105 @@ class ReDNATCOMspViewer {
         );
 
         await b.commit();
+    }
+
+    superposeReferences(selected: StructureElement.Loci) {
+        const step = Step.describe(selected);
+        if (!step)
+            return;
+
+        const stepName = Step.name(step, this.haveMultipleModels);
+        const stepId = this.stepNames.get(stepName);
+        if (stepId === undefined) {
+            console.error(`Unknown step name ${stepName}`);
+            return;
+        }
+
+        const stepIdPrev = stepId === 0 ? void 0 : stepId - 1;
+        const stepIdNext = stepId === this.steps.length - 1 ? void 0 : stepId + 1;
+
+        const ntcRefSel = this.ntcRef(stepId, 'sel');
+        const ntcRefPrev = this.ntcRef(stepIdPrev, 'prev');
+        const ntcRefNext = this.ntcRef(stepIdNext, 'next');
+
+        if (!ntcRefSel) {
+            console.error(`Seemingly invalid stepId ${stepId}`);
+            return;
+        }
+
+        const b = this.plugin.state.data.build()
+            .delete(IDs.ID('superposition', '', NtCSupSel))
+            .delete(IDs.ID('superposition', '', NtCSupPrev))
+            .delete(IDs.ID('superposition', '', NtCSupNext));
+
+        {
+            const stru = this.plugin.state.data.cells.get(IDs.ID('structure', '', ntcRefSel))!.obj!;
+            const loci = Script.toLoci(SelectAllScript, stru.data);
+
+            const { bTransform } = this.superpose(loci, selected);
+            if (isNaN(bTransform[0])) {
+                console.error(`Cannot superpose reference conformer ${ntcRefSel} onto selection`);
+                return;
+            }
+            b.to(IDs.ID('structure', '', ntcRefSel))
+                .apply(
+                    StateTransforms.Model.TransformStructureConformation,
+                    { transform: { name: 'matrix', params: { data: bTransform, transpose: false } } },
+                    { ref: IDs.ID('superposition', '', NtCSupSel) }
+                ).apply(
+                    StateTransforms.Representation.StructureRepresentation3D,
+                    { type: { name: 'ball-and-stick', params: { sizeFactor: 0.15 } } },
+                    { ref: IDs.ID('visual', '', NtCSupSel) }
+                );
+        }
+
+        // TODO: These cannot be applied onto selection!!!
+        if (ntcRefPrev) {
+            const stru = this.plugin.state.data.cells.get(IDs.ID('structure', '', ntcRefPrev))!.obj!;
+            const loci = Script.toLoci(SelectAllScript, stru.data);
+
+            const { bTransform } = this.superpose(loci, selected);
+            if (isNaN(bTransform[0])) {
+                console.error(`Cannot superpose reference conformer ${ntcRefPrev} onto selection`);
+                return;
+            }
+            b.to(IDs.ID('structure', '', ntcRefPrev))
+                .apply(
+                    StateTransforms.Model.TransformStructureConformation,
+                    { transform: { name: 'matrix', params: { data: bTransform, transpose: false } } },
+                    { ref: IDs.ID('superposition', '', NtCSupPrev) }
+                ).apply(
+                    StateTransforms.Representation.StructureRepresentation3D,
+                    { type: { name: 'ball-and-stick', params: { sizeFactor: 0.15 } } },
+                    { ref: IDs.ID('visual', '', NtCSupPrev) }
+                );
+        }
+
+        // TODO: These cannot be applied onto selection!!!
+        if (ntcRefNext) {
+            const stru = this.plugin.state.data.cells.get(IDs.ID('structure', '', ntcRefNext))!.obj!;
+            const loci = Script.toLoci(SelectAllScript, stru.data);
+
+            const { bTransform } = this.superpose(loci, selected);
+            if (isNaN(bTransform[0])) {
+                console.error(`Cannot superpose reference conformer ${ntcRefNext} onto selection`);
+                return;
+            }
+            b.to(IDs.ID('structure', '', ntcRefNext))
+                .apply(
+                    StateTransforms.Model.TransformStructureConformation,
+                    { transform: { name: 'matrix', params: { data: bTransform, transpose: false } } },
+                    { ref: IDs.ID('superposition', '', NtCSupNext) }
+                ).apply(
+                    StateTransforms.Representation.StructureRepresentation3D,
+                    { type: { name: 'ball-and-stick', params: { sizeFactor: 0.15 } } },
+                    { ref: IDs.ID('visual', '', NtCSupNext) }
+                );
+        }
+
+        // TODO: Superpose previous and next step too!!!
+
+        b.commit();
     }
 
     async toggleSubstructure(sub: IDs.Substructure, display: Partial<Display>) {
@@ -619,10 +955,12 @@ class ReDNATCOMsp extends React.Component<ReDNATCOMsp.Props, State> {
             const elem = document.getElementById(this.props.elemId + '-viewer');
             ReDNATCOMspViewer.create(elem!).then(viewer => {
                 this.viewer = viewer;
-                ReDNATCOMspApi.bind(this);
+                this.viewer.loadReferenceConformers().then(() => {
+                    ReDNATCOMspApi.bind(this);
 
-                if (this.props.onInited)
-                    this.props.onInited();
+                    if (this.props.onInited)
+                        this.props.onInited();
+                });
             });
         }
     }
