@@ -379,7 +379,15 @@ class ReDNATCOMspViewer {
 
         return {
             type: { name: 'confal-pyramids', params: { ...typeParams, alpha: transparent ? 0.5 : 1.0 } },
-            colorTheme: { name: 'confal-pyramids', params: colors }
+            colorTheme: {
+                name: 'confal-pyramids',
+                params: {
+                    colors: {
+                        name: 'custom',
+                        params: colors,
+                    },
+                },
+            },
         };
     }
 
@@ -479,7 +487,15 @@ class ReDNATCOMspViewer {
             StateTransforms.Representation.StructureRepresentation3D,
             old => ({
                 ...old,
-                colorTheme: { name: 'confal-pyramids', params: display.conformerColors ?? NtCColors.Conformers },
+                colorTheme: {
+                    name: 'confal-pyramids',
+                    params: {
+                        colors: {
+                            name: 'custom',
+                            params: display.conformerColors ?? NtCColors.Conformers,
+                        },
+                    },
+                },
             })
         );
 
