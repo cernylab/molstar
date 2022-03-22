@@ -1,5 +1,8 @@
 export namespace Commands {
-    export type Type = 'select-step'|'switch-model';
+    export type Type = 'redraw'|'select-step'|'switch-model';
+
+    export type Redraw = { type: 'redraw' }
+    export function Redraw(): Redraw { return { type: 'redraw' }; }
 
     export type SelectStep = {
         type: 'select-step';
@@ -19,7 +22,5 @@ export namespace Commands {
     export type SwitchModel = { type: 'switch-model', model: number };
     export function SwitchModel(model: number): SwitchModel { return { type: 'switch-model', model }; }
 
-    export type Cmd = SelectStep|SwitchModel;
+    export type Cmd = Redraw|SelectStep|SwitchModel;
 }
-
-

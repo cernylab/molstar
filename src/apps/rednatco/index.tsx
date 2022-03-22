@@ -15,7 +15,7 @@ import { ConfalPyramidsParams } from '../../extensions/dnatco/confal-pyramids/re
 import { OrderedSet } from '../../mol-data/int/ordered-set';
 import { BoundaryHelper } from '../../mol-math/geometry/boundary-helper';
 import { Loci } from '../../mol-model/loci';
-import { Model, Structure, StructureElement, StructureProperties, StructureSelection, Trajectory } from '../../mol-model/structure';
+import { ElementIndex, Model, Structure, StructureElement, StructureProperties, StructureSelection, Trajectory } from '../../mol-model/structure';
 import { Location } from '../../mol-model/structure/structure/element/location';
 import { MmcifFormat } from '../../mol-model-formats/structure/mmcif';
 import { PluginBehavior, PluginBehaviors } from '../../mol-plugin/behavior';
@@ -61,6 +61,10 @@ type StepInfo = {
     name: string;
     assignedNtC: string;
     closestNtC: string; // Fallback for cases where assignedNtC is NANT
+    resNo1: number;
+    resNo2: number;
+    altId1?: string;
+    altId2?: string;
 }
 
 function capitalize(s: string) {
@@ -70,11 +74,37 @@ function capitalize(s: string) {
 
 }
 
-function dinucleotideBackbone(loci: StructureElement.Loci) {
+function dinucleotideBackbone(loci: StructureElement.Loci, altId1?: string, altId2?: string) {
     const es = loci.elements[0];
     const loc = Location.create(loci.structure, es.unit, es.unit.elements[OrderedSet.getAt(es.indices, 0)]);
     const len = OrderedSet.size(es.indices);
-    const indices = [];
+    const indices = new Array<ElementIndex>();
+
+    const gather = (atoms: string[], start: number, end: number, altId?: string) => {
+        for (const atom of atoms) {
+            let idx = start;
+            for (; idx < end; idx++) {
+                loc.element = es.unit.elements[OrderedSet.getAt(es.indices, idx)];
+                const _atom = StructureProperties.atom.label_atom_id(loc);
+                if (atom === _atom) {
+                    if (altId) {
+                        const _altId = StructureProperties.atom.label_alt_id(loc);
+                        if (_altId !== '' && _altId !== altId)
+                            continue;
+                    }
+
+                    indices.push(loc.element);
+                    break;
+                }
+            }
+            if (idx === end) {
+                console.error(`Cannot find backbone atom ${atom} in first residue of a step`);
+                return false;
+            }
+        }
+
+        return true;
+    };
 
     // Find split between first and second residue
     const resNo1 = StructureProperties.residue.auth_seq_id(loc);
@@ -92,50 +122,22 @@ function dinucleotideBackbone(loci: StructureElement.Loci) {
 
     // Gather ElementIndices for backbone atoms of the first  residue
     loc.element = es.unit.elements[OrderedSet.getAt(es.indices, 0)];
-    const comp1 = StructureProperties.atom.label_comp_id(loc);
-    const ring1 = RefCfmr.CompoundRings[comp1 as keyof RefCfmr.CompoundRings];
+    const ring1 = RefCfmr.CompoundRings[StructureProperties.atom.label_comp_id(loc) as keyof RefCfmr.CompoundRings];
     if (!ring1)
         return [];
 
     const first = RefCfmr.BackboneAtoms.first.concat(RefCfmr.BackboneAtoms[ring1]);
-    for (const atom of first) {
-        let idx = 0;
-        for (; idx < secondIdx; idx++) {
-            loc.element = es.unit.elements[OrderedSet.getAt(es.indices, idx)];
-            const _atom = StructureProperties.atom.label_atom_id(loc);
-            if (atom === _atom) {
-                indices.push(loc.element);
-                break;
-            }
-        }
-        if (idx === secondIdx) {
-            console.error(`Cannot find backbone atom ${atom} in first residue of a step`);
-            return [];
-        }
-    }
+    if (!gather(first, 0, secondIdx, altId1))
+        return [];
 
     loc.element = es.unit.elements[OrderedSet.getAt(es.indices, secondIdx)];
-    const comp2 = StructureProperties.atom.label_comp_id(loc);
-    const ring2 = RefCfmr.CompoundRings[comp2 as keyof RefCfmr.CompoundRings];
+    const ring2 = RefCfmr.CompoundRings[StructureProperties.atom.label_comp_id(loc) as keyof RefCfmr.CompoundRings];
     if (!ring2)
         return [];
 
     const second = RefCfmr.BackboneAtoms.second.concat(RefCfmr.BackboneAtoms[ring2]);
-    for (const atom of second) {
-        let idx = secondIdx;
-        for (; idx < len; idx++) {
-            loc.element = es.unit.elements[OrderedSet.getAt(es.indices, idx)];
-            const _atom = StructureProperties.atom.label_atom_id(loc);
-            if (atom === _atom) {
-                indices.push(loc.element);
-                break;
-            }
-        }
-        if (idx === len) {
-            console.error(`Cannot find backbone atom ${atom} in second residue of a step`);
-            return [];
-        }
-    }
+    if (!gather(second, secondIdx, len, altId2))
+        return [];
 
     return indices;
 }
@@ -371,11 +373,8 @@ class ReDNATCOMspViewer {
         return parent.obj?.type.name === 'Structure' ? parent.obj : undefined;
     }
 
-    private ntcRef(id: number|undefined, where: 'sel'|'prev'|'next') {
-        if (id === undefined)
-            return undefined;
-        const info = this.steps[id];
-        return rcref(info.assignedNtC === 'NANT' ? info.closestNtC : info.assignedNtC, where);
+    private ntcRef(step: StepInfo, where: 'sel'|'prev'|'next') {
+        return rcref(step.assignedNtC === 'NANT' ? step.closestNtC : step.assignedNtC, where);
     }
 
     private pyramidsParams(colors: NtCColors.Conformers, visible: Map<string, boolean>, transparent: boolean) {
@@ -433,6 +432,32 @@ class ReDNATCOMspViewer {
         PluginCommands.Camera.SetSnapshot(this.plugin, { snapshot, durationMs: AnimationDurationMsec });
     }
 
+    private stepNext(currentIdx: number) {
+        if (currentIdx === this.steps.length - 1)
+            return void 0;
+        const currentStep = this.steps[currentIdx];
+        const cand1 = this.steps[currentIdx + 1];
+        if (!currentStep.altId2 || !cand1.altId1 || currentStep.altId2 === cand1.altId1)
+            return cand1; // Current step is "altId'd" and the candidate step has a matching altId
+        if (currentIdx + 2 === this.steps.length)
+            return cand1; // Current step is "altId'd", candidate step has a mismatching altId but there are no more steps to try
+        const cand2 = this.steps[currentIdx + 2];
+        return cand2.resNo1 === currentStep.resNo2 ? cand2 : cand1;
+    }
+
+    private stepPrev(currentIdx: number) {
+        if (currentIdx === 0)
+            return void 0;
+        const currentStep = this.steps[currentIdx];
+        const cand1 = this.steps[currentIdx - 1];
+        if (!currentStep.altId1 || !cand1.altId2 || currentStep.altId1 === cand1.altId2)
+            return cand1; // Current step is "altId'd" and the candidate step has a matching altId
+        if (currentIdx - 2 < 0)
+            return cand1; // Current step is "altId'd", candidate step has a mismatching altId but there are no more steps to try
+        const cand2 = this.steps[currentIdx - 2];
+        return cand2.resNo2 === currentStep.resNo1 ? cand2 : cand1;
+    }
+
     private substructureVisuals(representation: 'ball-and-stick'|'cartoon') {
         switch (representation) {
             case 'cartoon':
@@ -454,9 +479,9 @@ class ReDNATCOMspViewer {
         }
     }
 
-    private superpose(reference: StructureElement.Loci, stru: StructureElement.Loci) {
+    private superpose(reference: StructureElement.Loci, stru: StructureElement.Loci, altId1?: string, altId2?: string) {
         const refElems = dinucleotideBackbone(reference);
-        const struElems = dinucleotideBackbone(stru);
+        const struElems = dinucleotideBackbone(stru, altId1, altId2);
 
         return Superpose.superposition(
             { elements: refElems, conformation: reference.elements[0].unit.conformation },
@@ -579,7 +604,7 @@ class ReDNATCOMspViewer {
         await b.commit();
     }
 
-    gatherNtCInfo(): { steps: StepInfo[], stepNames: Map<string, number> }|undefined {
+    gatherStepInfo(): { steps: StepInfo[], stepNames: Map<string, number> }|undefined {
         const obj = this.plugin.state.data.cells.get(IDs.ID('model', '', BaseRef))?.obj;
         if (!obj)
             return void 0;
@@ -597,16 +622,24 @@ class ReDNATCOMspViewer {
 
         const _ids = tableStep.getField('id');
         const _names = tableStep.getField('name');
+        const _authSeqId1 = tableStep.getField('auth_seq_id_1');
+        const _authSeqId2 = tableStep.getField('auth_seq_id_2');
+        const _labelAltId1 = tableStep.getField('label_alt_id_1');
+        const _labelAltId2 = tableStep.getField('label_alt_id_2');
         const _stepIds = tableSum.getField('step_id');
         const _assignedNtCs = tableSum.getField('assigned_NtC');
         const _closestNtCs = tableSum.getField('closest_NtC');
-        if (!_ids || !_names || !_stepIds || !_assignedNtCs || !_closestNtCs) {
+        if (!_ids || !_names || !_stepIds || !_assignedNtCs || !_closestNtCs || !_labelAltId1 || !_labelAltId2 || !_authSeqId1 || !_authSeqId2) {
             console.warn('Expected fields are not present in NtC categories');
             return void 0;
         }
 
         const ids = _ids.toIntArray();
         const names = _names.toStringArray();
+        const authSeqId1 = _authSeqId1.toIntArray();
+        const authSeqId2 = _authSeqId2.toIntArray();
+        const labelAltId1 = _labelAltId1.toStringArray();
+        const labelAltId2 = _labelAltId2.toStringArray();
         const stepIds = _stepIds.toIntArray();
         const assignedNtCs = _assignedNtCs.toStringArray();
         const closestNtCs = _closestNtCs.toStringArray();
@@ -622,9 +655,13 @@ class ReDNATCOMspViewer {
                 if (stepIds[jdx] === id) {
                     const assignedNtC = assignedNtCs[jdx];
                     const closestNtC = closestNtCs[jdx];
+                    const resNo1 = authSeqId1[jdx];
+                    const resNo2 = authSeqId2[jdx];
+                    const altId1 = labelAltId1[jdx] === '' ? void 0 : labelAltId1[jdx];
+                    const altId2 = labelAltId2[jdx] === '' ? void 0 : labelAltId2[jdx];
 
                     // We're assuming that steps are ID'd with a contigious, monotonic sequence starting from 1
-                    steps[id - 1] = { name, assignedNtC, closestNtC };
+                    steps[id - 1] = { name, assignedNtC, closestNtC, resNo1, resNo2, altId1, altId2 };
                     stepNames.set(name, id - 1);
                     break;
                 }
@@ -751,7 +788,7 @@ class ReDNATCOMspViewer {
 
         this.haveMultipleModels = this.getModelCount() > 1;
 
-        const ntcInfo = this.gatherNtCInfo();
+        const ntcInfo = this.gatherStepInfo();
         if (!ntcInfo) {
             this.steps.length = 0;
             this.stepNames.clear();
@@ -836,8 +873,8 @@ class ReDNATCOMspViewer {
         const stepDesc = Step.fromName(stepName);
         if (!stepDesc)
             return;
-        const stepId = this.stepNames.get(stepName);
-        if (stepId === undefined) {
+        const stepIdx = this.stepNames.get(stepName);
+        if (stepIdx === undefined) {
             console.error(`Unknown step name ${stepName}`);
             return;
         }
@@ -868,15 +905,16 @@ class ReDNATCOMspViewer {
         if (selLoci.kind !== 'element-loci')
             return;
 
-        const stepIdPrev = stepId === 0 ? void 0 : stepId - 1;
-        const stepIdNext = stepId === this.steps.length - 1 ? void 0 : stepId + 1;
+        const step = this.steps[stepIdx];
+        const stepPrev = this.stepPrev(stepIdx);
+        const stepNext = this.stepNext(stepIdx);
 
-        const ntcRefSel = this.ntcRef(stepId, 'sel');
-        const ntcRefPrev = this.ntcRef(stepIdPrev, 'prev');
-        const ntcRefNext = this.ntcRef(stepIdNext, 'next');
+        const ntcRefSel = step ? this.ntcRef(step, 'sel') : void 0;
+        const ntcRefPrev = stepPrev ? this.ntcRef(stepPrev, 'prev') : void 0;
+        const ntcRefNext = stepNext ? this.ntcRef(stepNext, 'next') : void 0;
 
         if (!ntcRefSel) {
-            console.error(`stepId ${stepId} does not map to a known step`);
+            console.error(`stepIdx ${stepIdx} does not map to a known step`);
             return;
         }
 
@@ -885,12 +923,12 @@ class ReDNATCOMspViewer {
             .delete(IDs.ID('superposition', '', NtCSupPrev))
             .delete(IDs.ID('superposition', '', NtCSupNext));
 
-        const addReference = (ntcRef: string, superposRef: string, loci: Loci, color: number) => {
+        const addReference = (ntcRef: string, superposRef: string, loci: Loci, altId1: string|undefined, altId2: string|undefined, color: number) => {
             const refStru = this.plugin.state.data.cells.get(IDs.ID('structure', '', ntcRef))!.obj!;
             const refLoci = StructureSelection.toLociWithSourceUnits(StructureSelection.Singletons(refStru.data, refStru.data));
 
             if (loci.kind === 'element-loci' && Step.is(loci)) {
-                const { bTransform, rmsd } = this.superpose(refLoci, loci);
+                const { bTransform, rmsd } = this.superpose(refLoci, loci, altId1, altId2);
                 if (isNaN(bTransform[0])) {
                     console.error(`Cannot superpose reference conformer ${ntcRef} onto selection`);
                     return;
@@ -909,11 +947,15 @@ class ReDNATCOMspViewer {
             }
         };
 
-        const rmsd = addReference(ntcRefSel, NtCSupSel, selLoci, 0x008000);
-        if (ntcRefPrev)
-            addReference(ntcRefPrev, NtCSupPrev, Loci.normalize(Traverse.residue(-1, stepDesc.altId1, selLoci), 'two-residues'), 0x0000FF);
-        if (ntcRefNext)
-            addReference(ntcRefNext, NtCSupNext, Loci.normalize(Traverse.residue(1, stepDesc.altId2, selLoci), 'two-residues'), 0x00FFFF);
+        const rmsd = addReference(ntcRefSel, NtCSupSel, selLoci, stepDesc.altId1, stepDesc.altId2, 0x008000);
+        if (ntcRefPrev) {
+            const { altId1, altId2 } = stepPrev!;
+            addReference(ntcRefPrev, NtCSupPrev, Loci.normalize(Traverse.residue(-1, altId1, selLoci), 'two-residues'), altId1, altId2, 0x0000FF);
+        }
+        if (ntcRefNext) {
+            const { altId1, altId2 } = stepNext!;
+            addReference(ntcRefNext, NtCSupNext, Loci.normalize(Traverse.residue(1, altId1, selLoci), 'two-residues'), altId1, altId2, 0x00FFFF);
+        }
 
         b.commit();
 
@@ -986,7 +1028,9 @@ class ReDNATCOMsp extends React.Component<ReDNATCOMsp.Props, State> {
         if (!this.viewer)
             return;
 
-        if (cmd.type === 'select-step') {
+        if (cmd.type === 'redraw')
+            window.dispatchEvent(new Event('resize'));
+        else if (cmd.type === 'select-step') {
             this.viewer.superposeReferences(cmd.stepName, cmd.referenceNtC, cmd.references);
         } else if (cmd.type === 'switch-model') {
             if (cmd.model < 1 || cmd.model > this.viewer.getModelCount())

@@ -7,16 +7,17 @@ import { Location } from '../../mol-model/structure/structure/element/location';
 export namespace Traverse {
     type Residue = Segmentation.Segment<ResidueIndex>;
 
-    export function residueAltId(structure: Structure, unit: Unit, residue: Residue) {
+    export function residueAltIds(structure: Structure, unit: Unit, residue: Residue) {
+        const altIds = new Array<string>();
         const loc = Location.create(structure, unit);
         for (let rI = residue.start; rI < residue.end; rI++) {
             loc.element = OrderedSet.getAt(unit.elements, rI);
             const altId = StructureProperties.atom.label_alt_id(loc);
-            if (altId !== '')
-                return altId;
+            if (altId !== '' && !altIds.includes(altId))
+                altIds.push(altId);
         }
 
-        return void 0;
+        return altIds;
     }
 
     export function findResidue(asymId: string, seqId: number, altId: string|undefined, loci: StructureElement.Loci, source: 'label'|'auth') {
@@ -46,8 +47,8 @@ export namespace Traverse {
                     const _seqId = getSeqId(loc);
                     if (_seqId === seqId) {
                         if (altId) {
-                            const _altId = residueAltId(loci.structure, e.unit, residue);
-                            if (_altId && _altId !== altId)
+                            const _altIds = residueAltIds(loci.structure, e.unit, residue);
+                            if (!_altIds.includes(altId))
                                 continue;
                         }
 
