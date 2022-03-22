@@ -769,7 +769,7 @@ class ReDNATCOMspViewer {
             const bRef = rcref(c);
             const mRef = IDs.ID('model', '', bRef);
             b.toRoot();
-            b.apply(RawData, { data: cfmr }, { ref: IDs.ID('data', '', bRef) })
+            b.apply(RawData, { data: cfmr, label: `Reference ${c}` }, { ref: IDs.ID('data', '', bRef) })
                 .apply(StateTransforms.Model.TrajectoryFromPDB, {}, { ref: IDs.ID('trajectory', '', bRef) })
                 .apply(StateTransforms.Model.ModelFromTrajectory, {}, { ref: mRef })
                 .apply(StateTransforms.Model.StructureFromModel, {}, { ref: IDs.ID('structure', '', rcref(c, 'sel')) })
