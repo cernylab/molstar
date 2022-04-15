@@ -36,12 +36,22 @@
     line-height: 1.5;
 }
 
-.rmsp-color-box {
-    display: flex;
+.rmsp-collapsible-vertical-caption {
+    background-color: var(--color-f);
+    color: var(--color-c);
+    padding: calc(0.5 * var(--x-gap));
+    transition: background-color var(--anim-speed);
+}
+.rmsp-collapsible-vertical-caption:hover {
+    background-color: var(--color-c);
+    color: black;
 }
 
-.rmsp-color-box-color {
-    flex: 1;
+.rmsp-color-box {
+    align-items: center;
+    display: flex;
+    height: 100%;
+    justify-content: center;
 }
 
 .rmsp-color-picker-nest {
@@ -51,10 +61,12 @@
 }
 
 .rmsp-controls {
+    align-items: center;
     display: grid;
     grid-template-columns: auto 1fr;
     grid-column-gap: var(--h-gap);
-    overflow: scroll;
+    overflow: auto;
+    padding: calc(0.5 * var(--x-gap));
 }
 
 .rmsp-control-item-group {
@@ -96,7 +108,7 @@
 }
 
 .rmsp-togglebutton-switched-on {
-    background-color: green;
+    background-color: #26e326;
 }
 
 .rmsp-pushbutton-text {

@@ -9,7 +9,7 @@
         <script type="text/javascript" src="./molstar.js"></script>
         <script>
             async function loadStructure() {
-                const resp = await fetch('./1hmh_v41C35A23.cif');
+                const resp = await fetch('./1dk1_v41C35A23.cif');
                 const data = await resp.text();
 
                 molstar.ReDNATCOMspApi.loadStructure(data);

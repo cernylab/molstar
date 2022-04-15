@@ -12,6 +12,8 @@ import ReactDOM from 'react-dom';
 import { Colors } from './colors';
 import { PushButton, SpinBox } from './controls';
 import { parseInt as parseIntMS } from '../../mol-io/reader/common/text/number-parser';
+import './assets/imgs/triangle-down.svg';
+import './assets/imgs/triangle-up.svg';
 
 const PALETTE_CURSOR_HALFSIZE = 10;
 const VALUE_CURSOR_THICKNESS = 3;

@@ -1,5 +1,34 @@
 import React from 'react';
 
+export class CollapsibleVertical extends React.Component<CollapsibleVertical.Props, { collapsed: boolean }> {
+    constructor(props: CollapsibleVertical.Props) {
+        super(props);
+
+        this.state = {
+            collapsed: true,
+        };
+    }
+
+    render() {
+        return (
+            <div className='rmsp-collapsible-vertical'>
+                <div
+                    className='rmsp-collapsible-vertical-caption'
+                    onClick={() => this.setState({ ...this.state, collapsed: !this.state.collapsed })}
+                >
+                    {this.props.caption}
+                </div>
+                {this.state.collapsed ? undefined : this.props.children}
+            </div>
+        );
+    }
+}
+export namespace CollapsibleVertical {
+    export interface Props {
+        caption: string;
+    }
+}
+
 export class PushButton extends React.Component<{ text: string, enabled: boolean, onClick: () => void }> {
     render() {
         return (
@@ -77,18 +106,17 @@ export class SpinBox extends React.Component<SpinBox.Props> {
                 <div className='rmsp-spinbox-buttons'>
                     <img
                         className='rmsp-spinbox-button'
-                        src={`./${this.props.pathPrefix}assets/imgs/triangle-up.svg`} onClick={() => this.increase()}
+                        src={`./${this.props.pathPrefix}imgs/triangle-up.svg`} onClick={() => this.increase()}
                     />
                     <img
                         className='rmsp-spinbox-button'
-                        src={`./${this.props.pathPrefix}assets/imgs/triangle-down.svg`} onClick={() => this.decrease()}
+                        src={`./${this.props.pathPrefix}imgs/triangle-down.svg`} onClick={() => this.decrease()}
                     />
                 </div>
             </div>
         );
     }
 }
-
 export namespace SpinBox {
     export interface Formatter {
         (v: number|null): string;
