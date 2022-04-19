@@ -26,6 +26,7 @@ export class CollapsibleVertical extends React.Component<CollapsibleVertical.Pro
 export namespace CollapsibleVertical {
     export interface Props {
         caption: string;
+        children?: React.ReactNode;
     }
 }
 
