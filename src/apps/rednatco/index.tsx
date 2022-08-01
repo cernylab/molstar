@@ -71,6 +71,8 @@ const ConformersByClass = {
 };
 type ConformersByClass = typeof ConformersByClass;
 
+const DefaultChainColor = Color(0xD9D9D9);
+
 class ColorBox extends React.Component<{ caption: string, color: Color }> {
     render() {
         const lum = luminance(this.props.color);
@@ -472,7 +474,7 @@ class ReDNATCOMspViewer {
                         name: 'cartoon',
                         params: { sizeFactor: 0.2, sizeAspectRatio: 0.35, aromaticBonds: false },
                     },
-                    colorTheme: { name: 'chain-id', params: { asymId: 'auth' } },
+                    colorTheme: { name: 'uniform', params: { color: DefaultChainColor } }
                 };
             case 'ball-and-stick':
                 return {
@@ -480,7 +482,7 @@ class ReDNATCOMspViewer {
                         name: 'ball-and-stick',
                         params: { sizeFactor: 0.2, sizeAspectRatio: 0.35, aromaticBonds: false },
                     },
-                    colorTheme: { name: 'element-symbol', params: { carbonColor: 'chain-id' } },
+                    colorTheme: { name: 'element-symbol', params: { carbonColor: { name: 'custom', params: DefaultChainColor } } },
                 };
         }
     }
@@ -783,7 +785,7 @@ class ReDNATCOMspViewer {
                     StateTransforms.Representation.StructureRepresentation3D,
                     this.substructureVisuals('cartoon'),
                     { ref: IDs.ID('visual', 'nucleic', BaseRef) }
-                );
+                )
             if (display.showPyramids) {
                 bb.to(IDs.ID('structure', 'nucleic', BaseRef))
                     .apply(

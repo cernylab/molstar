@@ -86,7 +86,6 @@ function getCarbonTheme(ctx: ThemeDataContext, props: ElementSymbolColorThemePro
 
 export function ElementSymbolColorTheme(ctx: ThemeDataContext, props: PD.Values<ElementSymbolColorThemeParams>): ColorTheme<ElementSymbolColorThemeParams> {
     const colorMap = getAdjustedColorMap(props.colors.name === 'default' ? ElementSymbolColors : props.colors.params, props.saturation, props.lightness);
-
     const carbonTheme = getCarbonTheme(ctx, props.carbonColor);
     const carbonColor = carbonTheme?.color;
     const contextHash = carbonTheme?.contextHash ?? -1;
