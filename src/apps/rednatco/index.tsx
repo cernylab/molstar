@@ -464,32 +464,6 @@ class ReDNATCOMspViewer {
         PluginCommands.Camera.SetSnapshot(this.plugin, { snapshot, durationMs: AnimationDurationMsec });
     }
 
-    private stepNext(currentIdx: number) {
-        if (currentIdx === this.steps.length - 1)
-            return void 0;
-        const currentStep = this.steps[currentIdx];
-        const cand1 = this.steps[currentIdx + 1];
-        if (!currentStep.altId2 || !cand1.altId1 || currentStep.altId2 === cand1.altId1)
-            return cand1; // Current step is "altId'd" and the candidate step has a matching altId
-        if (currentIdx + 2 === this.steps.length)
-            return cand1; // Current step is "altId'd", candidate step has a mismatching altId but there are no more steps to try
-        const cand2 = this.steps[currentIdx + 2];
-        return cand2.resNo1 === currentStep.resNo2 ? cand2 : cand1;
-    }
-
-    private stepPrev(currentIdx: number) {
-        if (currentIdx === 0)
-            return void 0;
-        const currentStep = this.steps[currentIdx];
-        const cand1 = this.steps[currentIdx - 1];
-        if (!currentStep.altId1 || !cand1.altId2 || currentStep.altId1 === cand1.altId2)
-            return cand1; // Current step is "altId'd" and the candidate step has a matching altId
-        if (currentIdx - 2 < 0)
-            return cand1; // Current step is "altId'd", candidate step has a mismatching altId but there are no more steps to try
-        const cand2 = this.steps[currentIdx - 2];
-        return cand2.resNo2 === currentStep.resNo1 ? cand2 : cand1;
-    }
-
     private substructureVisuals(representation: 'ball-and-stick'|'cartoon') {
         switch (representation) {
             case 'cartoon':
@@ -892,7 +866,7 @@ class ReDNATCOMspViewer {
             if (!stepDesc)
                 return;
             const stepName = Step.name(stepDesc, this.haveMultipleModels);
-            await this.superposeReferences(stepName, '', []);
+            await this.superposeReferences(stepName, null, null, '', []);
             this.focusOnSelectedStep();
         }
     }
@@ -917,7 +891,7 @@ class ReDNATCOMspViewer {
         await b.commit();
     }
 
-    async superposeReferences(stepName: string, referenceNtc: string, references: ('sel'|'prev'|'next')[]) {
+    async superposeReferences(stepName: string, prevStepName: string|null, nextStepName: string|null, referenceNtc: string, references: ('sel'|'prev'|'next')[]) {
         const ReferenceVisuals = (color: number) => {
             return {
                 type: { name: 'ball-and-stick', params: { sizeFactor: 0.15, aromaticBonds: false } },
@@ -960,9 +934,19 @@ class ReDNATCOMspViewer {
         if (selLoci.kind !== 'element-loci')
             return;
 
+        // HACK: This is a temporary hack until we get prev-next steps mapping into the plugin
+        let stepPrev = undefined;
+        if (prevStepName) {
+            const idx = this.stepNames.get(prevStepName);
+            stepPrev = (idx !== undefined) ? this.steps[idx] : undefined;
+        }
+        let stepNext = undefined;
+        if (nextStepName) {
+            const idx = this.stepNames.get(nextStepName);
+            stepNext = (idx !== undefined) ? this.steps[idx] : undefined;
+        }
+
         const step = this.steps[stepIdx];
-        const stepPrev = this.stepPrev(stepIdx);
-        const stepNext = this.stepNext(stepIdx);
 
         const ntcRefSel = step ? this.ntcRef(step, 'sel') : void 0;
         const ntcRefPrev = stepPrev ? this.ntcRef(stepPrev, 'prev') : void 0;
@@ -1095,7 +1079,7 @@ class ReDNATCOMsp extends React.Component<ReDNATCOMsp.Props, State> {
         if (cmd.type === 'redraw')
             window.dispatchEvent(new Event('resize'));
         else if (cmd.type === 'select-step') {
-            await this.viewer.superposeReferences(cmd.stepName, cmd.referenceNtC, cmd.references);
+            await this.viewer.superposeReferences(cmd.stepName, cmd.prevStepName, cmd.nextStepName, cmd.referenceNtC, cmd.references);
             this.viewer.focusOnSelectedStep();
         } else if (cmd.type === 'switch-model') {
             if (cmd.model < 1 || cmd.model > this.viewer.getModelCount())
