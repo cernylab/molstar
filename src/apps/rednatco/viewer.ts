@@ -12,7 +12,7 @@ import { OrderedSet } from '../../mol-data/int/ordered-set';
 import { BoundaryHelper } from '../../mol-math/geometry/boundary-helper';
 import { Vec3 } from '../../mol-math/linear-algebra/3d';
 import { EmptyLoci, Loci } from '../../mol-model/loci';
-import { ElementIndex, Model, Structure, StructureElement, StructureProperties, StructureSelection, Trajectory } from '../../mol-model/structure';
+import { ElementIndex, Model, StructureElement, StructureProperties, StructureSelection, Trajectory } from '../../mol-model/structure';
 import { structureUnion, structureSubtract } from '../../mol-model/structure/query/utils/structure-set';
 import { Location } from '../../mol-model/structure/structure/element/location';
 import { MmcifFormat } from '../../mol-model-formats/structure/mmcif';
@@ -21,22 +21,19 @@ import { PluginCommands } from '../../mol-plugin/commands';
 import { PluginContext } from '../../mol-plugin/context';
 import { PluginSpec } from '../../mol-plugin/spec';
 import { LociLabel } from '../../mol-plugin-state/manager/loci-label';
-import { PluginStateObject as PSO } from '../../mol-plugin-state/objects';
 import { StateTransforms } from '../../mol-plugin-state/transforms';
 import { RawData } from '../../mol-plugin-state/transforms/data';
 import { createPluginUI } from '../../mol-plugin-ui';
 import { PluginUIContext } from '../../mol-plugin-ui/context';
 import { DefaultPluginUISpec, PluginUISpec } from '../../mol-plugin-ui/spec';
 import { Representation } from '../../mol-repr/representation';
-import { StateObjectCell, StateObject, StateSelection, StateTransformer } from '../../mol-state';
+import { StateObjectCell, StateObject, StateTransformer } from '../../mol-state';
 import { StateBuilder } from '../../mol-state/state/builder';
-import { StateTreeSpine } from '../../mol-state/tree/spine';
 import { lociLabel } from '../../mol-theme/label';
 import { arrayMax } from '../../mol-util/array';
 import { Binding } from '../../mol-util/binding';
 import { Color } from '../../mol-util/color';
 import { ButtonsType, ModifiersKeys } from '../../mol-util/input/input-observer';
-import { MarkerAction } from '../../mol-util/marker-action';
 import { ParamDefinition as PD } from '../../mol-util/param-definition';
 import { ObjectKeys } from '../../mol-util/type-helpers';
 import './molstar.css';
@@ -187,25 +184,6 @@ const ReDNATCOLociSelectionProvider = PluginBehavior.create({
     display: { name: 'Interactive step selection' },
     params: () => ReDNATCOLociSelectionParams,
     ctor: class extends PluginBehavior.Handler<ReDNATCOLociSelectionProps> {
-        private spine: StateTreeSpine.Impl;
-        private lociMarkProvider = (reprLoci: Representation.Loci, action: MarkerAction) => {
-            if (!this.ctx.canvas3d) return;
-            this.ctx.canvas3d.mark({ loci: reprLoci.loci }, action);
-        };
-        private applySelectMark(ref: string, clear?: boolean) {
-            const cell = this.ctx.state.data.cells.get(ref);
-            if (cell && PSO.isRepresentation3D(cell.obj)) {
-                this.spine.current = cell;
-                const so = this.spine.getRootOfType(PSO.Molecule.Structure);
-                if (so) {
-                    if (clear) {
-                        this.lociMarkProvider({ loci: Structure.Loci(so.data) }, MarkerAction.Deselect);
-                    }
-                    const loci = this.ctx.managers.structure.selection.getLoci(so.data);
-                    this.lociMarkProvider({ loci }, MarkerAction.Select);
-                }
-            }
-        }
         private focusOnLoci(loci: Representation.Loci) {
             if (!this.ctx.canvas3d)
                 return;
@@ -237,7 +215,6 @@ const ReDNATCOLociSelectionProvider = PluginBehavior.create({
                     current => {
                         this.ctx.managers.interactivity.lociSelects.deselectAll();
                         if (current.loci.kind === 'element-loci') {
-                            this.ctx.managers.interactivity.lociSelects.select(current);
                             this.params.onSelected(current);
                         }
                     },
@@ -264,33 +241,11 @@ const ReDNATCOLociSelectionProvider = PluginBehavior.create({
                     }
                 }
             });
-
-            this.ctx.managers.interactivity.lociSelects.addProvider(this.lociMarkProvider);
-
-            this.subscribeObservable(this.ctx.state.events.object.created, ({ ref }) => this.applySelectMark(ref));
-
-            // re-apply select-mark to all representation of an updated structure
-            this.subscribeObservable(this.ctx.state.events.object.updated, ({ ref, obj, oldObj, oldData, action }) => {
-                const cell = this.ctx.state.data.cells.get(ref);
-                if (cell && PSO.Molecule.Structure.is(cell.obj)) {
-                    const structure: Structure = obj.data;
-                    const oldStructure: Structure | undefined = action === 'recreate' ? oldObj?.data :
-                        action === 'in-place' ? oldData : undefined;
-                    if (oldStructure &&
-                        Structure.areEquivalent(structure, oldStructure) &&
-                        Structure.areHierarchiesEqual(structure, oldStructure)) return;
-
-                    const reprs = this.ctx.state.data.select(StateSelection.Generators.ofType(PSO.Molecule.Structure.Representation3D, ref));
-                    for (const repr of reprs) this.applySelectMark(repr.transform.ref, true);
-                }
-            });
-
         }
         unregister() {
         }
         constructor(ctx: PluginContext, params: ReDNATCOLociSelectionProps) {
             super(ctx, params);
-            this.spine = new StateTreeSpine.Impl(ctx.state.data.cells);
         }
     },
 });
