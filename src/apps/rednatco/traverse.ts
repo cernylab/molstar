@@ -66,6 +66,14 @@ export namespace Traverse {
         return EmptyLoci;
     }
 
+    export function findStep(asymId: string, seqId: number, altId: string|undefined, loci: StructureElement.Loci, source: 'label'|'auth') {
+        const sel = findResidue(asymId, seqId, altId, loci, source);
+        if (sel.kind === 'empty-loci')
+            return sel;
+
+        return Loci.normalize(sel, 'two-residues');
+    }
+
     export function residue(shift: number, altId: string|undefined, cursor: StructureElement.Loci) {
         for (const e of cursor.elements) {
             const entireUnit = cursor.structure.units[e.unit.id];
