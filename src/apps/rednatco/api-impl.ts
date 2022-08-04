@@ -24,9 +24,9 @@ export class ReDNATCOMspApiImpl implements ReDNATCOMspApi.Object {
             this.onEvent(evt);
     }
 
-    init(elemId: string, onEvent?: (evt: ReDNATCOMspApi.Event) => void, onInited?: () => void) {
+    init(elemId: string, onEvent?: (evt: ReDNATCOMspApi.Event) => void) {
         this.onEvent = onEvent;
-        ReDNATCOMsp.init(elemId, onInited);
+        ReDNATCOMsp.init(elemId);
         return this;
     }
 

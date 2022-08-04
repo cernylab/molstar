@@ -171,6 +171,7 @@ export class ReDNATCOMsp extends React.Component<ReDNATCOMsp.Props, State> {
             this.viewer.loadStructure(data, type, this.state.display).then(() => {
                 this.presentConformers = this.viewer!.getPresentConformers();
                 this.forceUpdate();
+                ReDNATCOMspApi.event(Api.Events.StructureLoaded());
             });
     }
 
@@ -190,9 +191,7 @@ export class ReDNATCOMsp extends React.Component<ReDNATCOMsp.Props, State> {
                 this.viewer = viewer;
                 this.viewer.loadReferenceConformers().then(() => {
                     ReDNATCOMspApi._bind(this);
-
-                    if (this.props.onInited)
-                        this.props.onInited();
+                    ReDNATCOMspApi.event(Api.Events.Ready());
                 });
             });
         }
@@ -413,15 +412,14 @@ export class ReDNATCOMsp extends React.Component<ReDNATCOMsp.Props, State> {
 export namespace ReDNATCOMsp {
     export interface Props {
         elemId: string;
-        onInited?: () => void;
     }
 
-    export function init(elemId: string, onInited?: () => void) {
+    export function init(elemId: string) {
         const elem = document.getElementById(elemId);
         if (!elem)
             throw new Error(`Element ${elemId} does not exist`);
 
-        ReactDOM.render(<ReDNATCOMsp elemId={elemId} onInited={onInited} />, elem);
+        ReactDOM.render(<ReDNATCOMsp elemId={elemId} />, elem);
     }
 }
 

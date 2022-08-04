@@ -853,7 +853,7 @@ export class ReDNATCOMspViewer {
         this.resetCameraRadius();
     }
 
-    async actionSelectStep(stepName: string, stepNamePrev: string|undefined, stepNameNext: string|undefined, referenceNtc: string, references: ('sel'|'prev'|'next')[], display: Partial<Display>): Promise<{ rmsd: number }|undefined> {
+    async actionSelectStep(stepName: string, stepNamePrev: string|undefined, stepNameNext: string|undefined, referenceNtc: string, references: ('sel'|'prev'|'next')[], display: Display): Promise<{ rmsd: number }|undefined> {
         const stepCurrent = this.stepFromName(stepName);
         if (!stepCurrent)
             return void 0;
@@ -923,7 +923,7 @@ export class ReDNATCOMspViewer {
             b.to(IDs.ID('structure', 'remainder-slice', BaseRef))
                 .apply(
                     StateTransforms.Representation.StructureRepresentation3D,
-                    this.substructureVisuals('cartoon'),
+                    this.substructureVisuals(display.representation),
                     { ref: IDs.ID('visual', 'remainder-slice', BaseRef) }
                 )
                 .delete(IDs.ID('visual', 'nucleic', BaseRef));
