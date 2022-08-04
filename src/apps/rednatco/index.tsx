@@ -428,7 +428,7 @@ export class ReDNATCOMsp extends React.Component<ReDNATCOMsp.Props, State> {
                             })}
                         </div>
 
-                        <div className='rmsp-controls-section-caption'>Chain color</div>
+                        <div className='rmsp-controls-section-caption'>Structure colors</div>
                         <div className='rmsp-controls-line'>
                             <div className='rmsp-control-item-group'>
                                 <div
