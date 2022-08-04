@@ -23,6 +23,8 @@ const ConformersByClass = {
 };
 type ConformersByClass = typeof ConformersByClass;
 
+const DefaultChainColor = Color(0xD9D9D9);
+const DefaultWaterColor = Color(0x0BB2FF);
 export type VisualRepresentations = 'ball-and-stick'|'cartoon';
 const Display = {
     representation: 'cartoon' as VisualRepresentations,
@@ -41,6 +43,8 @@ const Display = {
 
     classColors: { ...NtCColors.Classes },
     conformerColors: { ...NtCColors.Conformers },
+    chainColor: DefaultChainColor,
+    waterColor: DefaultWaterColor,
 };
 export type Display = typeof Display;
 
@@ -89,6 +93,16 @@ export class ReDNATCOMsp extends React.Component<ReDNATCOMsp.Props, State> {
         return updated;
     }
 
+    private updateChainColor(color: number) {
+        const display: Display = {
+            ...this.state.display,
+            chainColor: Color(color),
+        };
+
+        this.viewer!.changeChainColor(display);
+        this.setState({ ...this.state, display });
+    }
+
     private updateClassColor(changes: { cls: keyof NtCColors.Classes, color: number }|{ cls: keyof NtCColors.Classes, color: number }[]) {
         const classColors = { ...this.state.display.classColors };
 
@@ -119,6 +133,16 @@ export class ReDNATCOMsp extends React.Component<ReDNATCOMsp.Props, State> {
 
         const display = { ...this.state.display, conformerColors };
         this.viewer!.changeNtCColors(display);
+        this.setState({ ...this.state, display });
+    }
+
+    private updateWaterColor(color: number) {
+        const display: Display = {
+            ...this.state.display,
+            waterColor: Color(color),
+        };
+
+        this.viewer!.changeWaterColor(display);
         this.setState({ ...this.state, display });
     }
 
@@ -402,6 +426,45 @@ export class ReDNATCOMsp extends React.Component<ReDNATCOMsp.Props, State> {
                                     </div>
                                 );
                             })}
+                        </div>
+
+                        <div className='rmsp-controls-section-caption'>Chain color</div>
+                        <div className='rmsp-controls-line'>
+                            <div className='rmsp-control-item-group'>
+                                <div
+                                    className='rmsp-control-item'
+                                    onClick={evt => ColorPicker.create(
+                                        evt,
+                                        this.state.display.chainColor,
+                                        color => this.updateChainColor(color)
+                                    )}
+                                >
+                                    <ColorBox caption='Chains' color={this.state.display.chainColor} />
+                                </div>
+                                <PushButton
+                                    text='R'
+                                    onClick={() => this.updateChainColor(DefaultChainColor)}
+                                    enabled={true}
+                                />
+                            </div>
+                            <div className='rmsp-control-item-group'>
+                                <div
+                                    className='rmsp-control-item'
+                                    onClick={evt => ColorPicker.create(
+                                        evt,
+                                        this.state.display.waterColor,
+                                        color => this.updateWaterColor(color)
+                                    )}
+                                >
+                                    <ColorBox caption='Waters' color={this.state.display.waterColor} />
+                                </div>
+                                <PushButton
+                                    text='R'
+                                    onClick={() => this.updateChainColor(DefaultWaterColor)}
+                                    enabled={true}
+                                />
+                            </div>
+
                         </div>
                     </div>
                 </CollapsibleVertical>
