@@ -167,12 +167,13 @@ export class ReDNATCOMsp extends React.Component<ReDNATCOMsp.Props, State> {
     }
 
     loadStructure(data: string, type: 'pdb'|'cif') {
-        if (this.viewer)
+        if (this.viewer) {
             this.viewer.loadStructure(data, type, this.state.display).then(() => {
                 this.presentConformers = this.viewer!.getPresentConformers();
                 this.forceUpdate();
                 ReDNATCOMspApi.event(Api.Events.StructureLoaded());
             });
+        }
     }
 
     viewerStepDeselected() {
