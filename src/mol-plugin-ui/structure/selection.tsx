@@ -282,7 +282,7 @@ export class StructureSelectionActionsControls extends PluginUIComponent<{}, Str
         }
 
         return <>
-            <div className='msp-flex-row' style={{ background: 'none' }}>
+            <div className='msp-flex-row' style={{ background: 'none', display: 'none' }}>
                 {(!hide?.granularity) && <PureSelectControl title={`Picking Level for selecting and highlighting`} param={this.state.structureSelectionParams.granularity} name='granularity' value={granularity} onChange={this.setGranuality} isDisabled={this.isDisabled} />}
                 {(!hide?.union) && <ToggleButton icon={UnionSvg} title={`${ActionHeader.get('add')}. Hold shift key to keep menu open.`} toggle={this.toggleAdd} isSelected={this.state.action === 'add'} disabled={this.isDisabled} />}
                 {(!hide?.subtract) && <ToggleButton icon={SubtractSvg} title={`${ActionHeader.get('remove')}. Hold shift key to keep menu open.`} toggle={this.toggleRemove} isSelected={this.state.action === 'remove'} disabled={this.isDisabled} />}

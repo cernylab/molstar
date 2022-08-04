@@ -18,6 +18,7 @@ import { Location } from '../../mol-model/structure/structure/element/location';
 import { MmcifFormat } from '../../mol-model-formats/structure/mmcif';
 import { PluginBehavior, PluginBehaviors } from '../../mol-plugin/behavior';
 import { PluginCommands } from '../../mol-plugin/commands';
+import { PluginConfig } from '../../mol-plugin/config';
 import { PluginContext } from '../../mol-plugin/context';
 import { PluginSpec } from '../../mol-plugin/spec';
 import { LociLabel } from '../../mol-plugin-state/manager/loci-label';
@@ -502,8 +503,16 @@ export class ReDNATCOMspViewer {
                 initial: {
                     isExpanded: false,
                     showControls: false,
-                },
+                }
             },
+            config: [
+                [PluginConfig.Viewport.ShowExpand, false],
+                [PluginConfig.Viewport.ShowControls, false],
+                [PluginConfig.Viewport.ShowSettings, false],
+                [PluginConfig.Viewport.ShowTrajectoryControls, false],
+                [PluginConfig.Viewport.ShowAnimation, false],
+                [PluginConfig.Viewport.ShowSelectionMode, false],
+            ]
         };
 
         const plugin = await createPluginUI(target, spec);
