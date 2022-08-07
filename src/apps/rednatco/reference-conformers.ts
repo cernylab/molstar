@@ -1,6 +1,7 @@
+/* eslint-disable array-bracket-spacing, no-multi-spaces, indent */
+
 export type Ring = 'purine'|'pyrimidine';
 
-/* eslint-disable array-bracket-spacing, no-multi-spaces */
 export const ReferenceCompounds: Record<string, [string, string]> = {
     AA00: [ 'A',  'G'],
     AA01: ['DC', 'DG'],
@@ -101,7 +102,6 @@ export const ReferenceCompounds: Record<string, [string, string]> = {
 };
 export type ReferenceCompounds = typeof ReferenceCompounds;
 
-/* eslint-disable no-multi-spaces */
 export const CompoundRings: Record<string, Ring> = {
     '0AD': 'purine',
     '0AV': 'purine',
