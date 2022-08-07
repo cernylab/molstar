@@ -150,6 +150,7 @@ const ReDNATCOLociLabelProvider = PluginBehavior.create({
                 switch (loci.kind) {
                     case 'structure-loci':
                     case 'element-loci':
+                    case 'data-loci':
                         return lociLabel(loci);
                     default:
                         return '';
