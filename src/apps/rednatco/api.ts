@@ -112,7 +112,7 @@ export namespace ReDNATCOMspApi {
     }
 
     export interface Object {
-        command: (cmd: Command) => void;
+        command: (cmd: Command) => Promise<void>;
         event: (evt: Event) => void;
         init: (elemId: string, onEvent?: (evt: Event) => void) => void;
         isReady: () => boolean;

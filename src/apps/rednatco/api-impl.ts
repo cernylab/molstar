@@ -14,7 +14,7 @@ export class ReDNATCOMspApiImpl implements ReDNATCOMspApi.Object {
         this.target = target;
     }
 
-    command(cmd: ReDNATCOMspApi.Command) {
+    async command(cmd: ReDNATCOMspApi.Command) {
         this.check();
         this.target!.command(cmd);
     }
