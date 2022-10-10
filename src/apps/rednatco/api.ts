@@ -41,13 +41,21 @@ export namespace ReDNATCOMspApi {
     }
     export type Command =
         Commands.DeselectStep |
+        Commands.Filter |
         Commands.Redraw |
         Commands.SelectStep |
         Commands.SwitchModel;
 
     export namespace Events {
-        export type Type = 'ready'|'step-deselected'|'step-requested'|'step-selected'|'structure-loaded';
+        export type Type = 'filter'|'ready'|'step-deselected'|'step-requested'|'step-selected'|'structure-loaded';
 
+        export type Filter = { type: 'filter', success: boolean, message: string }
+        export function FilterApplied(): Filter {
+            return { type: 'filter', success: true, message: '' };
+        }
+        export function FilterFailed(message: string): Filter {
+            return { type: 'filter', success: false, message };
+        }
         export type Ready = { type: 'ready' }
         export function Ready(): Ready {
             return { type: 'ready' };
@@ -77,6 +85,7 @@ export namespace ReDNATCOMspApi {
         }
     }
     export type Event =
+        Events.Filter |
         Events.Ready |
         Events.StepDeselected |
         Events.StepRequested |
@@ -84,14 +93,19 @@ export namespace ReDNATCOMspApi {
         Events.StructureLoaded;
 
     export namespace Queries {
-        export type Type = 'selected-step';
+        export type Type = 'current-filter'|'selected-step';
+
+        export type CurrentFilter = { type: 'current-filter', filter: Filters.All }
+        export function CurrentFilter(filter: Filters.All): CurrentFilter {
+            return { type: 'current-filter', filter };
+        }
 
         export type SelectedStep = { type: 'selected-step', name: string, rmsd?: number }
         export function SelectedStep(name: string, rmsd?: number): SelectedStep {
             return { type: 'selected-step', name, rmsd };
         }
     }
-    export type Response = Queries.SelectedStep;
+    export type Response = Queries.CurrentFilter|Queries.SelectedStep;
 
     export interface Object {
         command: (cmd: Command) => void;

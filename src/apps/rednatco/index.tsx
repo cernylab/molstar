@@ -2,6 +2,7 @@ import React from 'react';
 import ReactDOM from 'react-dom';
 import { ReDNATCOMspApi as Api } from './api';
 import { ReDNATCOMspApiImpl } from './api-impl';
+import { Filters } from './filters';
 import { ReDNATCOMspViewer } from './viewer';
 import { NtCColors } from './colors';
 import { ColorPicker } from './color-picker';
@@ -73,6 +74,7 @@ interface State {
     showControls: boolean;
 }
 export class ReDNATCOMsp extends React.Component<ReDNATCOMsp.Props, State> {
+    private currentFilter: Filters.All = Filters.Empty();
     private presentConformers: string[] = [];
     private viewer: ReDNATCOMspViewer|undefined = undefined;
     private selectedStep: { name: string, rmsd?: number }|undefined;
@@ -147,7 +149,9 @@ export class ReDNATCOMsp extends React.Component<ReDNATCOMsp.Props, State> {
     }
 
     apiQuery(type: Api.Queries.Type): Api.Response {
-        if (type === 'selected-step') {
+        if (type === 'current-filter') {
+            return Api.Queries.CurrentFilter(this.currentFilter);
+        } else if (type === 'selected-step') {
             if (this.selectedStep)
                 return Api.Queries.SelectedStep(this.selectedStep.name, this.selectedStep.rmsd);
             return Api.Queries.SelectedStep('');
@@ -165,6 +169,15 @@ export class ReDNATCOMsp extends React.Component<ReDNATCOMsp.Props, State> {
             window.dispatchEvent(new Event('resize'));
         else if (cmd.type === 'deselect-step') {
             await this.viewer.actionDeselectStep(this.state.display);
+        } else if (cmd.type === 'filter') {
+            const ret = await this.viewer.actionApplyFilter(cmd.filter);
+            if (!ret) {
+                ReDNATCOMspApi.event(Api.Events.FilterFailed(''));
+                return;
+            }
+
+            this.currentFilter = cmd.filter;
+            ReDNATCOMspApi.event(Api.Events.FilterApplied());
         } else if (cmd.type === 'select-step') {
             const ret = await this.viewer.actionSelectStep(cmd.stepName, cmd.prevStepName, cmd.nextStepName, cmd.referenceNtC, cmd.references, this.state.display);
             if (!ret) {

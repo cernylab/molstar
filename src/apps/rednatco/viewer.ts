@@ -966,6 +966,37 @@ export class ReDNATCOMspViewer {
         }
     }
 
+    async actionApplyFilter(filter: Filters.All) {
+        await this.plugin.state.data.build()
+            .to(IDs.ID('structure', 'nucleic', BaseRef))
+            .update(
+                StateTransforms.Model.StructureSelectionFromExpression,
+                old => ({
+                    ...old,
+                    expression: Filtering.toExpression(filter)
+                })
+            )
+            .to(IDs.ID('structure', 'protein', BaseRef))
+            .update(
+                StateTransforms.Model.StructureSelectionFromExpression,
+                old => ({
+                    ...old,
+                    expression: Filtering.toExpression(filter)
+                })
+            )
+            .to(IDs.ID('structure', 'protein', BaseRef))
+            .update(
+                StateTransforms.Model.StructureSelectionFromExpression,
+                old => ({
+                    ...old,
+                    expression: Filtering.toExpression(filter)
+                })
+            )
+            .commit();
+
+        return true;
+    }
+
     async actionDeselectStep(display: Display) {
         await this.plugin.state.data.build()
             .delete(IDs.ID('superposition', '', NtCSupSel))
