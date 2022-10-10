@@ -2,6 +2,7 @@ import * as IDs from './idents';
 import * as RefCfmr from './reference-conformers';
 import { ReDNATCOMsp, Display, VisualRepresentations } from './index';
 import { NtCColors } from './colors';
+import { Filtering } from './filtering';
 import { ReferenceConformersPdbs } from './reference-conformers-pdbs';
 import { Step } from './step';
 import { Superpose } from './superpose';
@@ -840,27 +841,55 @@ export class ReDNATCOMspViewer {
             : t.apply(StateTransforms.Data.ParseCif).apply(StateTransforms.Model.TrajectoryFromMmCif, {}, { ref: IDs.ID('trajectory', '', BaseRef) })
         )(this.plugin.state.data.build().toRoot().apply(RawData, { data }, { ref: IDs.ID('data', '', BaseRef) }))
             .apply(StateTransforms.Model.ModelFromTrajectory, { modelIndex: display.modelNumber ? display.modelNumber - 1 : 0 }, { ref: IDs.ID('model', '', BaseRef) })
-            .apply(StateTransforms.Model.StructureFromModel, {}, { ref: IDs.ID('structure', '', BaseRef) })
+            .apply(StateTransforms.Model.StructureFromModel, {}, { ref: IDs.ID('entire-structure', '', BaseRef) })
             // Extract substructures
-            .apply(StateTransforms.Model.StructureComplexElement, { type: 'nucleic' }, { ref: IDs.ID('structure', 'nucleic', BaseRef) })
-            .to(IDs.ID('structure', '', BaseRef))
-            .apply(StateTransforms.Model.StructureComplexElement, { type: 'protein' }, { ref: IDs.ID('structure', 'protein', BaseRef) })
-            .to(IDs.ID('structure', '', BaseRef))
-            .apply(StateTransforms.Model.StructureComplexElement, { type: 'water' }, { ref: IDs.ID('structure', 'water', BaseRef) });
-        // Commit now so that we can check whether individual substructures are available
+            .apply(StateTransforms.Model.StructureComplexElement, { type: 'nucleic' }, { ref: IDs.ID('entire-structure', 'nucleic', BaseRef) })
+            .to(IDs.ID('entire-structure', '', BaseRef))
+            .apply(StateTransforms.Model.StructureComplexElement, { type: 'protein' }, { ref: IDs.ID('entire-structure', 'protein', BaseRef) })
+            .to(IDs.ID('entire-structure', '', BaseRef))
+            .apply(StateTransforms.Model.StructureComplexElement, { type: 'water' }, { ref: IDs.ID('entire-structure', 'water', BaseRef) });
+        // Commit now so that we can check whether individual substructures are available and apply filters
         await b.commit();
 
+        // Create the "possibly filtered" structure PSOs
+        const b2 = this.plugin.state.data.build();
+        if (this.has('entire-structure', 'nucleic')) {
+            b2.to(IDs.ID('entire-structure', 'nucleic', BaseRef))
+                .apply(
+                    StateTransforms.Model.StructureSelectionFromExpression,
+                    { expression: Filtering.toExpression(Filtering.EmptyFilter()) },
+                    { ref: IDs.ID('structure', 'nucleic', BaseRef) }
+                );
+        }
+        if (this.has('entire-structure', 'protein')) {
+            b2.to(IDs.ID('entire-structure', 'protein', BaseRef))
+                .apply(
+                    StateTransforms.Model.StructureSelectionFromExpression,
+                    { expression: Filtering.toExpression(Filtering.EmptyFilter()) },
+                    { ref: IDs.ID('structure', 'protein', BaseRef) }
+                );
+        }
+        if (this.has('entire-structure', 'water')) {
+            b2.to(IDs.ID('entire-structure', 'water', BaseRef))
+                .apply(
+                    StateTransforms.Model.StructureSelectionFromExpression,
+                    { expression: Filtering.toExpression(Filtering.EmptyFilter()) },
+                    { ref: IDs.ID('structure', 'water', BaseRef) }
+                );
+        }
+        await b2.commit();
+
         // Create default visuals
-        const bb = this.plugin.state.data.build();
+        const b3 = this.plugin.state.data.build();
         if (display.showNucleic && this.has('structure', 'nucleic')) {
-            bb.to(IDs.ID('structure', 'nucleic', BaseRef))
+            b3.to(IDs.ID('structure', 'nucleic', BaseRef))
                 .apply(
                     StateTransforms.Representation.StructureRepresentation3D,
                     this.substructureVisuals('cartoon', chainColor),
                     { ref: IDs.ID('visual', 'nucleic', BaseRef) }
                 );
             if (display.showPyramids) {
-                bb.to(IDs.ID('structure', 'nucleic', BaseRef))
+                b3.to(IDs.ID('structure', 'nucleic', BaseRef))
                     .apply(
                         StateTransforms.Representation.StructureRepresentation3D,
                         this.pyramidsParams(display.conformerColors ?? NtCColors.Conformers, new Map(), false),
@@ -869,7 +898,7 @@ export class ReDNATCOMspViewer {
             }
         }
         if (display.showProtein && this.has('structure', 'protein')) {
-            bb.to(IDs.ID('structure', 'protein', BaseRef))
+            b3.to(IDs.ID('structure', 'protein', BaseRef))
                 .apply(
                     StateTransforms.Representation.StructureRepresentation3D,
                     this.substructureVisuals('cartoon', chainColor),
@@ -877,7 +906,7 @@ export class ReDNATCOMspViewer {
                 );
         }
         if (display.showWater && this.has('structure', 'water')) {
-            bb.to(IDs.ID('structure', 'water', BaseRef))
+            b3.to(IDs.ID('structure', 'water', BaseRef))
                 .apply(
                     StateTransforms.Representation.StructureRepresentation3D,
                     this.waterVisuals(waterColor),
@@ -885,7 +914,7 @@ export class ReDNATCOMspViewer {
                 );
         }
 
-        await bb.commit();
+        await b3.commit();
 
         this.haveMultipleModels = this.getModelCount() > 1;
 

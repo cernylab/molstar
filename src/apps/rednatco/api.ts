@@ -1,14 +1,21 @@
+import { Filtering } from './filtering';
+
 export namespace ReDNATCOMspApi {
     export namespace Commands {
-        export type Type = 'deselect-step'|'redraw'|'select-step'|'switch-model';
+        export type Type = 'deselect-step'|'filter'|'redraw'|'select-step'|'switch-model';
+
+        export type DeselectStep = { type: 'deselect-step' }
+        export function DeselectStep(): DeselectStep {
+            return { type: 'deselect-step' };
+        }
+
+        export type Filter = { type: 'filter', filter: Filtering.Filter };
+        export function Filter(filter: Filtering.Filter) {
+            return { type: 'filter', filter };
+        }
 
         export type Redraw = { type: 'redraw' }
         export function Redraw(): Redraw { return { type: 'redraw' }; }
-
-        export type DeselectStep = { type: 'deselect-step' }
-        export function DeselectStep() {
-            return { type: 'deselect-step' };
-        }
 
         export type SelectStep = {
             type: 'select-step';
