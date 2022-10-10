@@ -1,3 +1,5 @@
+/* eslint-disable array-bracket-spacing, no-multi-spaces, indent */
+
 export type ID =
     'data' |             /* Source structural data */
     'trajectory' |       /* Source data parsed into trajectory */

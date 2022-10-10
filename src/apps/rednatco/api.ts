@@ -10,7 +10,7 @@ export namespace ReDNATCOMspApi {
         }
 
         export type Filter = { type: 'filter', filter: Filters.All };
-        export function Filter(filter: Filters.All) {
+        export function Filter(filter: Filters.All): Filter {
             return { type: 'filter', filter };
         }
 
