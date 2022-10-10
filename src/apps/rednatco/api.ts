@@ -106,6 +106,10 @@ export namespace ReDNATCOMspApi {
         }
     }
     export type Response = Queries.CurrentFilter|Queries.SelectedStep;
+    export type ResponseTypes = {
+        'current-filter': Queries.CurrentFilter,
+        'selected-step': Queries.SelectedStep,
+    }
 
     export interface Object {
         command: (cmd: Command) => void;
@@ -113,6 +117,6 @@ export namespace ReDNATCOMspApi {
         init: (elemId: string, onEvent?: (evt: Event) => void) => void;
         isReady: () => boolean;
         loadStructure: (data: string, type: 'cif'|'pdb') => void;
-        query: (type: Queries.Type) => Response;
+        query: <T extends Queries.Type>(type: T) => ResponseTypes[T];
     }
 }
