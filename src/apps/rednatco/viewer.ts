@@ -967,32 +967,40 @@ export class ReDNATCOMspViewer {
     }
 
     async actionApplyFilter(filter: Filters.All) {
-        await this.plugin.state.data.build()
-            .to(IDs.ID('structure', 'nucleic', BaseRef))
-            .update(
-                StateTransforms.Model.StructureSelectionFromExpression,
-                old => ({
-                    ...old,
-                    expression: Filtering.toExpression(filter)
-                })
-            )
-            .to(IDs.ID('structure', 'protein', BaseRef))
-            .update(
-                StateTransforms.Model.StructureSelectionFromExpression,
-                old => ({
-                    ...old,
-                    expression: Filtering.toExpression(filter)
-                })
-            )
-            .to(IDs.ID('structure', 'protein', BaseRef))
-            .update(
-                StateTransforms.Model.StructureSelectionFromExpression,
-                old => ({
-                    ...old,
-                    expression: Filtering.toExpression(filter)
-                })
-            )
-            .commit();
+        const b = this.plugin.state.data.build();
+        if (this.has('structure', 'nucleic', BaseRef)) {
+            b.to(IDs.ID('structure', 'nucleic', BaseRef))
+                .update(
+                    StateTransforms.Model.StructureSelectionFromExpression,
+                    old => ({
+                        ...old,
+                        expression: Filtering.toExpression(filter)
+                    })
+                );
+        }
+
+        if (this.has('structure', 'protein', BaseRef)) {
+            b.to(IDs.ID('structure', 'protein', BaseRef))
+                .update(
+                    StateTransforms.Model.StructureSelectionFromExpression,
+                    old => ({
+                        ...old,
+                        expression: Filtering.toExpression(filter)
+                    })
+                );
+        }
+
+        if (this.has('structure', 'water', BaseRef)) {
+            b.to(IDs.ID('structure', 'water', BaseRef))
+                .update(
+                    StateTransforms.Model.StructureSelectionFromExpression,
+                    old => ({
+                        ...old,
+                        expression: Filtering.toExpression(filter)
+                    })
+                );
+        }
+        await b.commit();
 
         return true;
     }
