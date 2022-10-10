@@ -1,4 +1,4 @@
-import { Filtering } from './filtering';
+import { Filters } from './filters';
 
 export namespace ReDNATCOMspApi {
     export namespace Commands {
@@ -9,8 +9,8 @@ export namespace ReDNATCOMspApi {
             return { type: 'deselect-step' };
         }
 
-        export type Filter = { type: 'filter', filter: Filtering.Filter };
-        export function Filter(filter: Filtering.Filter) {
+        export type Filter = { type: 'filter', filter: Filters.All };
+        export function Filter(filter: Filters.All) {
             return { type: 'filter', filter };
         }
 

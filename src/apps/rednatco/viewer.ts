@@ -2,6 +2,7 @@ import * as IDs from './idents';
 import * as RefCfmr from './reference-conformers';
 import { ReDNATCOMsp, Display, VisualRepresentations } from './index';
 import { NtCColors } from './colors';
+import { Filters } from './filters';
 import { Filtering } from './filtering';
 import { ReferenceConformersPdbs } from './reference-conformers-pdbs';
 import { Step } from './step';
@@ -857,7 +858,7 @@ export class ReDNATCOMspViewer {
             b2.to(IDs.ID('entire-structure', 'nucleic', BaseRef))
                 .apply(
                     StateTransforms.Model.StructureSelectionFromExpression,
-                    { expression: Filtering.toExpression(Filtering.EmptyFilter()) },
+                    { expression: Filtering.toExpression(Filters.Empty()) },
                     { ref: IDs.ID('structure', 'nucleic', BaseRef) }
                 );
         }
@@ -865,7 +866,7 @@ export class ReDNATCOMspViewer {
             b2.to(IDs.ID('entire-structure', 'protein', BaseRef))
                 .apply(
                     StateTransforms.Model.StructureSelectionFromExpression,
-                    { expression: Filtering.toExpression(Filtering.EmptyFilter()) },
+                    { expression: Filtering.toExpression(Filters.Empty()) },
                     { ref: IDs.ID('structure', 'protein', BaseRef) }
                 );
         }
@@ -873,7 +874,7 @@ export class ReDNATCOMspViewer {
             b2.to(IDs.ID('entire-structure', 'water', BaseRef))
                 .apply(
                     StateTransforms.Model.StructureSelectionFromExpression,
-                    { expression: Filtering.toExpression(Filtering.EmptyFilter()) },
+                    { expression: Filtering.toExpression(Filters.Empty()) },
                     { ref: IDs.ID('structure', 'water', BaseRef) }
                 );
         }

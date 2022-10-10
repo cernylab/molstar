@@ -1,36 +1,14 @@
+import { Filters } from './filters';
 import { Expression } from '../../mol-script/language/expression';
 import { MolScriptBuilder as MSB } from '../../mol-script/language/builder';
 import { formatMolScript } from '../../mol-script/language/expression-formatter';
 
 export namespace Filtering {
-    export type FilterKind = 'empty'|'slices';
-
-    export type EmptyFilter = {
-        kind: 'empty',
-    };
-    export function EmptyFilter(): EmptyFilter {
-        return { kind: 'empty' };
-    }
-
-    export type SlicesFilter = {
-        kind: 'slices',
-        slices: {
-            chain: string;
-            residues?: number[];
-            altIds?: string[];
-        }[];
-    };
-    export function SlicesFilter(slices: SlicesFilter['slices']): SlicesFilter {
-        return { kind: 'slices', slices };
-    }
-
-    export type Filter = EmptyFilter|SlicesFilter;
-
     function empty() {
         return MSB.struct.generator.all();
     }
 
-    function sliceExpr(slice: SlicesFilter['slices'][0]) {
+    function sliceExpr(slice: Filters.Slices['slices'][0]) {
         let expr = MSB.core.rel.eq([MSB.struct.atomProperty.macromolecular.label_asym_id(), slice.chain]);
 
         if (slice.residues && slice.residues.length > 0) {
@@ -59,7 +37,7 @@ export namespace Filtering {
         return expr;
     }
 
-    function slices(slices: SlicesFilter['slices']) {
+    function slices(slices: Filters.Slices['slices']) {
         if (slices.length > 0) {
             let expr = sliceExpr(slices[0]);
 
@@ -78,7 +56,7 @@ export namespace Filtering {
         return MSB.struct.generator.all();
     }
 
-    export function toExpression(filter: Filter): Expression {
+    export function toExpression(filter: Filters.All): Expression {
         switch (filter.kind) {
             case 'empty':
                 return empty();
