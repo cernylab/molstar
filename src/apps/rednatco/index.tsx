@@ -151,6 +151,8 @@ export class ReDNATCOMsp extends React.Component<ReDNATCOMsp.Props, State> {
     apiQuery(type: Api.Queries.Type): Api.Response {
         if (type === 'current-filter') {
             return Api.Queries.CurrentFilter(this.currentFilter);
+        } else if (type === 'current-model-number') {
+            return Api.Queries.CurrentModelNumber(this.viewer!.currentModelNumber());
         } else if (type === 'selected-step') {
             if (this.selectedStep)
                 return Api.Queries.SelectedStep(this.selectedStep.name, this.selectedStep.rmsd);

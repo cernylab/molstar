@@ -263,13 +263,6 @@ export class ReDNATCOMspViewer {
         this.app = app;
     }
 
-    private currentModelNumber() {
-        const model = this.plugin.state.data.cells.get(IDs.ID('model', '', BaseRef))?.obj;
-        if (!model)
-            return -1;
-        return (model as StateObject<Model>).data.modelNum;
-    }
-
     private focusOnLoci(loci: StructureElement.Loci) {
         if (!this.plugin.canvas3d)
             return;
@@ -666,6 +659,13 @@ export class ReDNATCOMspViewer {
         }
 
         await b.commit();
+    }
+
+    currentModelNumber() {
+        const model = this.plugin.state.data.cells.get(IDs.ID('model', '', BaseRef))?.obj;
+        if (!model)
+            return -1;
+        return (model as StateObject<Model>).data.modelNum;
     }
 
     focusOnSelectedStep() {

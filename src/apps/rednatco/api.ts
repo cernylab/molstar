@@ -93,11 +93,16 @@ export namespace ReDNATCOMspApi {
         Events.StructureLoaded;
 
     export namespace Queries {
-        export type Type = 'current-filter'|'selected-step';
+        export type Type = 'current-filter'|'current-model-number'|'selected-step';
 
         export type CurrentFilter = { type: 'current-filter', filter: Filters.All }
         export function CurrentFilter(filter: Filters.All): CurrentFilter {
             return { type: 'current-filter', filter };
+        }
+
+        export type CurrentModelNumber = { type: 'current-model-number', num: number };
+        export function CurrentModelNumber(num: number): CurrentModelNumber {
+            return { type: 'current-model-number', num };
         }
 
         export type SelectedStep = { type: 'selected-step', name: string, rmsd?: number }
@@ -105,9 +110,10 @@ export namespace ReDNATCOMspApi {
             return { type: 'selected-step', name, rmsd };
         }
     }
-    export type Response = Queries.CurrentFilter|Queries.SelectedStep;
+    export type Response = Queries.CurrentFilter|Queries.CurrentModelNumber|Queries.SelectedStep;
     export type ResponseTypes = {
         'current-filter': Queries.CurrentFilter,
+        'current-model-number': Queries.CurrentModelNumber,
         'selected-step': Queries.SelectedStep,
     }
 
