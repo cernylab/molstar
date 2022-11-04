@@ -9,7 +9,7 @@ export namespace ReDNATCOMspApi {
                 color: number,
             };
         }
-        function StepSelection(name: string, reference?: StepSelection['reference']): StepSelection {
+        export function StepSelection(name: string, reference?: StepSelection['reference']): StepSelection {
             return { name, reference };
         }
     }
