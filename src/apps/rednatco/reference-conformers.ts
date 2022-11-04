@@ -1,5 +1,7 @@
 /* eslint-disable array-bracket-spacing, no-multi-spaces, indent */
 
+import {ObjectKeys} from "../../mol-util/type-helpers";
+
 export type Ring = 'purine'|'pyrimidine'|'PSU';
 
 export const ReferenceCompounds: Record<string, [string, string]> = {
@@ -432,18 +434,30 @@ export const BaseAtomsKinds: Record<string, Ring> = {
     'PSU': 'PSU'
 };
 
+const _BaseAtomKindKeys = ObjectKeys(BaseAtomsKinds);
+function isKnownResidue(compId: string): compId is keyof typeof BaseAtomsKinds {
+    return _BaseAtomKindKeys.includes(compId);
+}
+
+
 export const BackboneAtoms = {
     first: ["C5'", "C4'", "O4'", "C3'", "O3'", "C1'"],
     /* eslint-disable @typescript-eslint/quotes */
     second: ["P", "O5'", "C5'", "C4'", "O4'", "C3'", "O3'", "C1'"],
 };
 
-export const BaseAtoms: Record<keyof typeof BaseAtomsKinds, string[]> = {
+export const BaseAtoms: Record<Ring, string[]> = {
     purine: ['N9', 'C4'],
     pyrimidine: ['N1', 'C2'],
     PSU: ['C5', 'C4'],
 };
 
-export function referenceAtoms(compId: keyof typeof BaseAtomsKinds, order: 'first'|'second') {
-    return [...BackboneAtoms[order], ...BaseAtoms[compId]];
+export function referenceAtoms(compId: string, order: keyof typeof BackboneAtoms) {
+    if (!isKnownResidue(compId))
+        return [];
+
+    return [
+        ...BackboneAtoms[order],
+        ...BaseAtoms[BaseAtomsKinds[compId]]
+    ];
 }

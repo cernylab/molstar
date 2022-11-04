@@ -181,14 +181,14 @@ export class ReDNATCOMsp extends React.Component<ReDNATCOMsp.Props, State> {
             this.currentFilter = cmd.filter;
             ReDNATCOMspApi.event(Api.Events.FilterApplied());
         } else if (cmd.type === 'select-step') {
-            const ret = await this.viewer.actionSelectStep(cmd.step, cmd.prev, cmd.next, this.state.display);
-            if (!ret) {
+            const success = await this.viewer.actionSelectStep(cmd.step, cmd.prev, cmd.next, this.state.display);
+            if (!success) {
                 ReDNATCOMspApi.event(Api.Events.StepSelectedFail());
                 return;
             }
 
-            this.viewer.focusOnSelectedStep();
             this.selectedStep = cmd.step;
+            this.viewer.focusOnSelectedStep();
 
             ReDNATCOMspApi.event(Api.Events.StepSelectedOk(this.selectedStep.name));
         } else if (cmd.type === 'switch-model') {

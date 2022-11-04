@@ -71,7 +71,7 @@ type StepInfo = {
     model: number;
 }
 
-function dinucleotideBackbone(loci: StructureElement.Loci) {
+function superpositionAtomsIndices(loci: StructureElement.Loci) {
     const es = loci.elements[0];
     const loc = Location.create(loci.structure, es.unit, es.unit.elements[OrderedSet.getAt(es.indices, 0)]);
     const len = OrderedSet.size(es.indices);
@@ -98,32 +98,38 @@ function dinucleotideBackbone(loci: StructureElement.Loci) {
     };
 
     // Find split between first and second residue
-    const resNo1 = StructureProperties.residue.auth_seq_id(loc);
+    const resNo1 = StructureProperties.residue.label_seq_id(loc);
     let secondIdx = -1;
     for (let idx = 0; idx < len; idx++) {
         loc.element = es.unit.elements[OrderedSet.getAt(es.indices, idx)];
-        const resNo = StructureProperties.residue.auth_seq_id(loc);
+        const resNo = StructureProperties.residue.label_seq_id(loc);
         if (resNo !== resNo1) {
             secondIdx = idx;
             break;
         }
     }
-    if (secondIdx === -1)
+    if (secondIdx === -1) {
+        console.log('No first/second residue split');
         return [];
+    }
 
     // Gather element indices for the first residue
     loc.element = es.unit.elements[OrderedSet.getAt(es.indices, 0)];
     const compId1 = StructureProperties.atom.label_comp_id(loc);
     const atoms1 = RefCfmr.referenceAtoms(compId1.toUpperCase(), 'first');
-    if (!gather(atoms1, 0, secondIdx))
+    if (!gather(atoms1, 0, secondIdx)) {
+        console.log('No ref atoms for first');
         return [];
+    }
 
     // Gather element indices for the second residue
     loc.element = es.unit.elements[OrderedSet.getAt(es.indices, secondIdx)];
     const compId2 = StructureProperties.atom.label_comp_id(loc);
     const atoms2 = RefCfmr.referenceAtoms(compId2.toUpperCase(), 'second');
-    if (!gather(atoms2, secondIdx, len))
+    if (!gather(atoms2, secondIdx, len)) {
+        console.log('No ref atoms for second');
         return [];
+    }
 
     return indices;
 }
@@ -270,13 +276,6 @@ export class ReDNATCOMspViewer {
         Vec3.scale(u, u, sphere.radius * 8);
         Vec3.add(v, u, v);
 
-        console.log(
-            'Cam',
-            'Center', sphere.center,
-            'Radius', sphere.radius,
-            'Position', v
-        );
-
         snapshot.target = sphere.center;
         snapshot.position = v;
 
@@ -390,8 +389,8 @@ export class ReDNATCOMspViewer {
     }
 
     private superpose(reference: StructureElement.Loci, stru: StructureElement.Loci) {
-        const refElems = dinucleotideBackbone(reference);
-        const struElems = dinucleotideBackbone(stru);
+        const refElems = superpositionAtomsIndices(reference);
+        const struElems = superpositionAtomsIndices(stru);
 
         return Superpose.superposition(
             { elements: refElems, conformation: reference.elements[0].unit.conformation },
@@ -654,7 +653,6 @@ export class ReDNATCOMspViewer {
     }
 
     focusOnSelectedStep() {
-        // Focus camera on the selection
         const sel = this.plugin.state.data.cells.get(IDs.ID('superposition', '', NtCSupSel));
         const prev = this.plugin.state.data.cells.get(IDs.ID('superposition', '', NtCSupPrev));
         const next = this.plugin.state.data.cells.get(IDs.ID('superposition', '', NtCSupNext));
@@ -1004,10 +1002,10 @@ export class ReDNATCOMspViewer {
         this.resetCameraRadius();
     }
 
-    async actionSelectStep(stepSel: Api.Payloads.StepSelection, prevSel: Api.Payloads.StepSelection|undefined, nextSel: Api.Payloads.StepSelection|undefined, display: Display): Promise<{ rmsd: number }|undefined> {
+    async actionSelectStep(stepSel: Api.Payloads.StepSelection, prevSel: Api.Payloads.StepSelection|undefined, nextSel: Api.Payloads.StepSelection|undefined, display: Display) {
         const step = this.stepFromName(stepSel.name);
         if (!step)
-            return;
+            return false;
 
         // Switch to a different model if the selected step is from a different model
         // This is the first thing we need to do
@@ -1016,7 +1014,7 @@ export class ReDNATCOMspViewer {
 
         const entireStruCell = this.plugin.state.data.cells.get(IDs.ID('structure', 'nucleic', BaseRef));
         if (!entireStruCell)
-            return void 0;
+            return false;
         const stru = entireStruCell.obj!.data!;
         const struLoci = StructureSelection.toLociWithSourceUnits(StructureSelection.Singletons(stru, stru));
 
@@ -1027,7 +1025,7 @@ export class ReDNATCOMspViewer {
             struLoci, 'auth'
         );
         if (stepLoci.kind !== 'element-loci')
-            return;
+            return false;
 
         const prevLoci = prevSel ? this.toStepLoci(prevSel.name, struLoci) : EmptyLoci;
         const nextLoci = nextSel ? this.toStepLoci(nextSel.name, struLoci) : EmptyLoci;
@@ -1083,6 +1081,7 @@ export class ReDNATCOMspViewer {
         );
 
         await b.commit();
+        return true;
     }
 
     async switchModel(display: Partial<Display>) {
