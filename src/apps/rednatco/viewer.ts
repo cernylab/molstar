@@ -55,22 +55,6 @@ const NtCSupSel = 'ntc-sup-sel';
 const NtCSupNext = 'ntc-sup-next';
 const SphereBoundaryHelper = new BoundaryHelper('98');
 
-type StepInfo = {
-    name: string;
-    assignedNtC: string;
-    closestNtC: string;
-    chain: string;
-    resNo1: number;
-    resNo2: number;
-    compId1: string;
-    compId2: string;
-    altId1?: string;
-    altId2?: string;
-    insCode1: string;
-    insCode2: string;
-    model: number;
-}
-
 function superpositionAtomsIndices(loci: StructureElement.Loci) {
     const es = loci.elements[0];
     const loc = Location.create(loci.structure, es.unit, es.unit.elements[OrderedSet.getAt(es.indices, 0)]);
@@ -249,7 +233,7 @@ const ReDNATCOLociSelectionProvider = PluginBehavior.create({
 
 export class ReDNATCOMspViewer {
     private haveMultipleModels = false;
-    private steps: StepInfo[] = [];
+    private steps: Step.ExtendedDescription[] = [];
     private stepNames: Map<string, number> = new Map();
     private app: ReDNATCOMsp;
 
@@ -671,12 +655,12 @@ export class ReDNATCOMspViewer {
         this.focusOnLoci(focusOn);
     }
 
-    gatherStepInfo(): { steps: StepInfo[], stepNames: Map<string, number> }|undefined {
+    gatherStepInfo(): { steps: Step.ExtendedDescription[], stepNames: Map<string, number> }|undefined {
         const obj = this.plugin.state.data.cells.get(IDs.ID('model', '', BaseRef))?.obj;
         if (!obj)
             return void 0;
-        const model = (obj as StateObject<Model>);
-        const sourceData = model.data.sourceData;
+        const struModel = (obj as StateObject<Model>);
+        const sourceData = struModel.data.sourceData;
         if (!MmcifFormat.is(sourceData))
             return void 0;
 
@@ -709,7 +693,7 @@ export class ReDNATCOMspViewer {
 
         const len = _ids.length;
         const stepNames = new Map<string, number>();
-        const steps = new Array<StepInfo>(len);
+        const steps = new Array<Step.ExtendedDescription>(len);
 
         for (let idx = 0; idx < len; idx++) {
             const id = _ids[idx];
@@ -732,6 +716,8 @@ export class ReDNATCOMspViewer {
                     // We're assuming that steps are ID'd with a contigious, monotonic sequence starting from 1
                     steps[id - 1] = {
                         name,
+                        model,
+                        entryId: struModel.data.entryId,
                         assignedNtC,
                         closestNtC,
                         chain,
@@ -743,7 +729,6 @@ export class ReDNATCOMspViewer {
                         altId2,
                         insCode1,
                         insCode2,
-                        model
                     };
                     stepNames.set(name, id - 1);
                     break;
@@ -941,11 +926,9 @@ export class ReDNATCOMspViewer {
         const loci = Loci.normalize(selected.loci, 'two-residues');
 
         if (loci.kind === 'element-loci') {
-            const stepDesc = Step.describe(loci);
-            if (stepDesc) {
-                const stepName = Step.name(stepDesc, this.haveMultipleModels);
-                this.app.viewerStepSelected(stepName);
-            }
+            const stepDesc = Step.describe(loci, this.haveMultipleModels);
+            if (stepDesc && this.stepNames.has(stepDesc.name))
+                this.app.viewerStepSelected(stepDesc.name);
         }
     }
 

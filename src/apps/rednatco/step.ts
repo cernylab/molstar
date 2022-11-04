@@ -3,25 +3,44 @@ import { StructureElement, StructureProperties } from '../../mol-model/structure
 import { Location } from '../../mol-model/structure/structure/element/location';
 
 export namespace Step {
-    export type Description = {
+    export interface Description {
+        name: string;
         model: number;
         entryId: string;
         chain: string;
         resNo1: number;
-        comp1: string;
+        compId1: string;
         altId1?: string;
-        insCode1?: string;
+        insCode1: string;
         resNo2: number;
-        comp2: string;
+        compId2: string;
         altId2?: string;
-        insCode2?: string;
+        insCode2: string;
     };
 
-    function nameResidue(seqId: number, compId: string, altId?: string, insCode?: string) {
-        return `${compId}${altId ? `.${altId}` : ''}_${seqId}${insCode ? `.${insCode}` : '' }`;
+    export interface ExtendedDescription extends Description{
+        assignedNtC: string;
+        closestNtC: string;
+    };
+
+    function nameResidue(seqId: number, compId: string, altId: string|undefined, insCode: string) {
+        return `${compId}${altId ? `.${altId}` : ''}_${seqId}${insCode !== '' ? `.${insCode}` : '' }`;
     }
 
-    function residueDescription(a: string, b: string): { comp: string, altId?: string, resNo: number, insCode?: string }|undefined {
+    function nameStep(
+        entryId: string,
+        modelNum: number, asymId: string,
+        seqId1: number, compId1: string, altId1: string|undefined, insCode1: string,
+        seqId2: number, compId2: string, altId2: string|undefined, insCode2: string,
+        multipleModels: boolean
+    ) {
+        const res1 = nameResidue(seqId1, compId1, altId1, insCode1);
+        const res2 = nameResidue(seqId2, compId2, altId2, insCode2);
+
+        return `${entryId}${multipleModels ? `-m${modelNum}` : ''}_${asymId}_${res1}_${res2}`;
+    }
+
+    function residueDescription(a: string, b: string): { comp: string, altId?: string, resNo: number, insCode: string }|undefined {
         const toksA = a.split('.');
         const toksB = b.split('.');
 
@@ -36,35 +55,37 @@ export namespace Step {
             comp: toksA[0],
             altId: toksA.length === 2 ? toksA[1] : void 0,
             resNo,
-            insCode: toksB.length === 2 ? toksB[1] : void 0,
+            insCode: toksB.length === 2 ? toksB[1] : '',
         };
     }
 
-    export function describe(loci: StructureElement.Loci) {
+    export function describe(loci: StructureElement.Loci, multipleModels: boolean) {
         const es = loci.elements[0]; // Ignore multiple selections
 
         const loc = Location.create(loci.structure, es.unit);
         loc.element = es.unit.elements[OrderedSet.getAt(es.indices, 0)]; // We're assuming a non-empty set
 
         const description: Description = {
+            name: '',
             model: es.unit.model.modelNum,
             entryId: loci.structure.model.entryId.toLowerCase(),
             chain: StructureProperties.chain.auth_asym_id(loc),
             resNo1: StructureProperties.residue.auth_seq_id(loc),
-            comp1: StructureProperties.atom.auth_comp_id(loc),
-            altId1: StructureProperties.atom.label_alt_id(loc),
+            compId1: StructureProperties.atom.auth_comp_id(loc),
+            altId1: StructureProperties.atom.label_alt_id(loc) === '' ? void 0 : StructureProperties.atom.label_alt_id(loc),
             insCode1: StructureProperties.residue.pdbx_PDB_ins_code(loc),
             resNo2: -1,
-            comp2: '',
+            compId2: '',
             altId2: void 0,
-            insCode2: void 0,
+            insCode2: '',
         };
 
         let found = false;
         const len = OrderedSet.size(es.indices);
+        const labelResNo = StructureProperties.residue.label_seq_id(loc);
         for (let idx = 1; idx < len; idx++) {
             loc.element = es.unit.elements[OrderedSet.getAt(es.indices, idx)];
-            if (StructureProperties.residue.auth_seq_id(loc) !== description.resNo1) {
+            if (StructureProperties.residue.label_seq_id(loc) !== labelResNo) {
                 found = true;
                 break;
             }
@@ -74,26 +95,34 @@ export namespace Step {
             return void 0;
 
         description.resNo2 = StructureProperties.residue.auth_seq_id(loc);
-        description.comp2 = StructureProperties.atom.auth_comp_id(loc);
-        description.altId2 = StructureProperties.atom.label_alt_id(loc);
+        description.compId2 = StructureProperties.atom.auth_comp_id(loc);
+        description.altId2 = StructureProperties.atom.label_alt_id(loc) === '' ? void 0 : StructureProperties.atom.label_alt_id(loc);
         description.insCode2 = StructureProperties.residue.pdbx_PDB_ins_code(loc);
+        description.name = nameStep(
+            description.entryId,
+            description.model, description.chain,
+            description.resNo1, description.compId1, description.altId1, description.insCode1,
+            description.resNo2, description.compId2, description.altId2, description.insCode2,
+            multipleModels
+        );
 
         return description;
     }
 
     export function fromName(name: string) {
         const description: Description = {
+            name: '',
             model: -1,
             entryId: '',
             chain: '',
             resNo1: -1,
-            comp1: '',
+            compId1: '',
             altId1: void 0,
-            insCode1: void 0,
+            insCode1: '',
             resNo2: -1,
-            comp2: '',
+            compId2: '',
             altId2: void 0,
-            insCode2: void 0,
+            insCode2: '',
         };
 
         const toks = name.split('_');
@@ -140,13 +169,14 @@ export namespace Step {
         }
 
         description.resNo1 = res1.resNo;
-        description.comp1 = res1.comp;
+        description.compId1 = res1.comp;
         description.altId1 = res1.altId;
         description.insCode1 = res1.insCode;
         description.resNo2 = res2.resNo;
-        description.comp2 = res2.comp;
+        description.compId2 = res2.comp;
         description.altId2 = res2.altId;
         description.insCode2 = res2.insCode;
+        description.name = name;
 
         return description;
     }
@@ -169,12 +199,5 @@ export namespace Step {
         }
 
         return false;
-    }
-
-    export function name(description: Description, multipleModels: boolean) {
-        const res1 = nameResidue(description.resNo1, description.comp1, description.altId1, description.insCode1);
-        const res2 = nameResidue(description.resNo2, description.comp2, description.altId2, description.insCode2);
-
-        return `${description.entryId}${multipleModels ? `-m${description.model}` : ''}_${description.chain}_${res1}_${res2}`;
     }
 }
