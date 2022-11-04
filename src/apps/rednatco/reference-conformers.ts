@@ -1,6 +1,6 @@
 /* eslint-disable array-bracket-spacing, no-multi-spaces, indent */
 
-export type Ring = 'purine'|'pyrimidine';
+export type Ring = 'purine'|'pyrimidine'|'PSU';
 
 export const ReferenceCompounds: Record<string, [string, string]> = {
     AA00: [ 'A',  'G'],
@@ -102,7 +102,7 @@ export const ReferenceCompounds: Record<string, [string, string]> = {
 };
 export type ReferenceCompounds = typeof ReferenceCompounds;
 
-export const CompoundRings: Record<string, Ring> = {
+export const BaseAtomsKinds: Record<string, Ring> = {
     '0AD': 'purine',
     '0AV': 'purine',
     '0SP': 'purine',
@@ -427,14 +427,23 @@ export const CompoundRings: Record<string, Ring> = {
       'U': 'pyrimidine',
     'UMP': 'pyrimidine',
     '2DT': 'pyrimidine',
-    'CFZ': 'pyrimidine'
+    'CFZ': 'pyrimidine',
+
+    'PSU': 'PSU'
 };
-export type CompoundRings = typeof CompoundRings;
 
 export const BackboneAtoms = {
     first: ["C5'", "C4'", "O4'", "C3'", "O3'", "C1'"],
     /* eslint-disable @typescript-eslint/quotes */
     second: ["P", "O5'", "C5'", "C4'", "O4'", "C3'", "O3'", "C1'"],
+};
+
+export const BaseAtoms: Record<keyof typeof BaseAtomsKinds, string[]> = {
     purine: ['N9', 'C4'],
     pyrimidine: ['N1', 'C2'],
+    PSU: ['C5', 'C4'],
 };
+
+export function referenceAtoms(compId: keyof typeof BaseAtomsKinds, order: 'first'|'second') {
+    return [...BackboneAtoms[order], ...BaseAtoms[compId]];
+}

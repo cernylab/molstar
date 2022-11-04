@@ -1,6 +1,19 @@
 import { Filters } from './filters';
 
 export namespace ReDNATCOMspApi {
+    export namespace Payloads {
+        export type StepSelection = {
+            name: string;
+            reference?: {
+                NtC: string,
+                color: number,
+            };
+        }
+        function StepSelection(name: string, reference?: StepSelection['reference']): StepSelection {
+            return { name, reference };
+        }
+    }
+
     export namespace Commands {
         export type Type = 'deselect-step'|'filter'|'redraw'|'select-step'|'switch-model';
 
@@ -19,21 +32,12 @@ export namespace ReDNATCOMspApi {
 
         export type SelectStep = {
             type: 'select-step';
-            stepName: string;
-            prevStepName: string|undefined;
-            nextStepName: string|undefined;
-            referenceNtC: string;
-            references: ('sel'|'prev'|'next')[];
+            step: Payloads.StepSelection
+            prev?: Payloads.StepSelection;
+            next?: Payloads.StepSelection
         }
-        export function SelectStep(stepName: string, prevStepName: string|undefined, nextStepName: string|undefined, referenceNtC = '', references = ['sel', 'prev', 'next']): SelectStep {
-            return {
-                type: 'select-step',
-                stepName,
-                prevStepName,
-                nextStepName,
-                referenceNtC,
-                references: references as ('sel'|'prev'|'next')[],
-            };
+        export function SelectStep(step: Payloads.StepSelection, prev: Payloads.StepSelection|undefined, next: Payloads.StepSelection|undefined): SelectStep {
+            return { type: 'select-step', step, prev, next };
         }
 
         export type SwitchModel = { type: 'switch-model', model: number };
@@ -71,9 +75,9 @@ export namespace ReDNATCOMspApi {
             return { type: 'step-requested', name };
         }
 
-        export type StepSelected = { type: 'step-selected', success: boolean, name: string, rmsd?: number }
-        export function StepSelectedOk(name: string, rmsd?: number): StepSelected {
-            return { type: 'step-selected', success: true, name, rmsd };
+        export type StepSelected = { type: 'step-selected', success: boolean, name: string }
+        export function StepSelectedOk(name: string): StepSelected {
+            return { type: 'step-selected', success: true, name };
         }
         export function StepSelectedFail(): StepSelected {
             return { type: 'step-selected', success: false, name: '' };
@@ -105,9 +109,9 @@ export namespace ReDNATCOMspApi {
             return { type: 'current-model-number', num };
         }
 
-        export type SelectedStep = { type: 'selected-step', name: string, rmsd?: number }
-        export function SelectedStep(name: string, rmsd?: number): SelectedStep {
-            return { type: 'selected-step', name, rmsd };
+        export type SelectedStep = { type: 'selected-step', selected?: Payloads.StepSelection }
+        export function SelectedStep(selected?: Payloads.StepSelection): SelectedStep {
+            return { type: 'selected-step', selected };
         }
     }
     export type Response = Queries.CurrentFilter|Queries.CurrentModelNumber|Queries.SelectedStep;

@@ -1,5 +1,6 @@
 import * as IDs from './idents';
 import * as RefCfmr from './reference-conformers';
+import { ReDNATCOMspApi as Api } from './api';
 import { ReDNATCOMsp, Display, VisualRepresentations } from './index';
 import { NtCColors } from './colors';
 import { Filters } from './filters';
@@ -57,39 +58,32 @@ const SphereBoundaryHelper = new BoundaryHelper('98');
 type StepInfo = {
     name: string;
     assignedNtC: string;
-    closestNtC: string; // Fallback for cases where assignedNtC is NANT
+    closestNtC: string;
     chain: string;
     resNo1: number;
     resNo2: number;
+    compId1: string;
+    compId2: string;
     altId1?: string;
     altId2?: string;
+    insCode1: string;
+    insCode2: string;
     model: number;
 }
 
-type StepWithStructure = {
-    step: StepInfo;
-    loci: StructureElement.Loci;
-}
-
-function dinucleotideBackbone(loci: StructureElement.Loci, altId1?: string, altId2?: string) {
+function dinucleotideBackbone(loci: StructureElement.Loci) {
     const es = loci.elements[0];
     const loc = Location.create(loci.structure, es.unit, es.unit.elements[OrderedSet.getAt(es.indices, 0)]);
     const len = OrderedSet.size(es.indices);
     const indices = new Array<ElementIndex>();
 
-    const gather = (atoms: string[], start: number, end: number, altId?: string) => {
+    const gather = (atoms: string[], start: number, end: number) => {
         for (const atom of atoms) {
             let idx = start;
             for (; idx < end; idx++) {
                 loc.element = es.unit.elements[OrderedSet.getAt(es.indices, idx)];
                 const _atom = StructureProperties.atom.label_atom_id(loc);
                 if (atom === _atom) {
-                    if (altId) {
-                        const _altId = StructureProperties.atom.label_alt_id(loc);
-                        if (_altId !== '' && _altId !== altId)
-                            continue;
-                    }
-
                     indices.push(loc.element);
                     break;
                 }
@@ -117,23 +111,18 @@ function dinucleotideBackbone(loci: StructureElement.Loci, altId1?: string, altI
     if (secondIdx === -1)
         return [];
 
-    // Gather ElementIndices for backbone atoms of the first  residue
+    // Gather element indices for the first residue
     loc.element = es.unit.elements[OrderedSet.getAt(es.indices, 0)];
-    const ring1 = RefCfmr.CompoundRings[StructureProperties.atom.label_comp_id(loc) as keyof RefCfmr.CompoundRings];
-    if (!ring1)
+    const compId1 = StructureProperties.atom.label_comp_id(loc);
+    const atoms1 = RefCfmr.referenceAtoms(compId1.toUpperCase(), 'first');
+    if (!gather(atoms1, 0, secondIdx))
         return [];
 
-    const first = RefCfmr.BackboneAtoms.first.concat(RefCfmr.BackboneAtoms[ring1]);
-    if (!gather(first, 0, secondIdx, altId1))
-        return [];
-
+    // Gather element indices for the second residue
     loc.element = es.unit.elements[OrderedSet.getAt(es.indices, secondIdx)];
-    const ring2 = RefCfmr.CompoundRings[StructureProperties.atom.label_comp_id(loc) as keyof RefCfmr.CompoundRings];
-    if (!ring2)
-        return [];
-
-    const second = RefCfmr.BackboneAtoms.second.concat(RefCfmr.BackboneAtoms[ring2]);
-    if (!gather(second, secondIdx, len, altId2))
+    const compId2 = StructureProperties.atom.label_comp_id(loc);
+    const atoms2 = RefCfmr.referenceAtoms(compId2.toUpperCase(), 'second');
+    if (!gather(atoms2, secondIdx, len))
         return [];
 
     return indices;
@@ -307,8 +296,8 @@ export class ReDNATCOMspViewer {
         return parent.obj?.type.name === 'Structure' ? parent.obj : undefined;
     }
 
-    private ntcRef(step: StepInfo, where: 'sel'|'prev'|'next') {
-        return rcref(step.assignedNtC === 'NANT' ? step.closestNtC : step.assignedNtC, where);
+    private ntcRef(ntc: string, where: 'sel'|'prev'|'next') {
+        return rcref(ntc, where);
     }
 
     private pyramidsParams(colors: NtCColors.Conformers, visible: Map<string, boolean>, transparent: boolean) {
@@ -400,9 +389,9 @@ export class ReDNATCOMspViewer {
         }
     }
 
-    private superpose(reference: StructureElement.Loci, stru: StructureElement.Loci, altId1?: string, altId2?: string) {
+    private superpose(reference: StructureElement.Loci, stru: StructureElement.Loci) {
         const refElems = dinucleotideBackbone(reference);
-        const struElems = dinucleotideBackbone(stru, altId1, altId2);
+        const struElems = dinucleotideBackbone(stru);
 
         return Superpose.superposition(
             { elements: refElems, conformation: reference.elements[0].unit.conformation },
@@ -439,22 +428,18 @@ export class ReDNATCOMspViewer {
         }
     }
 
-    private toStepWithStructure(name: string, struLoci: StructureElement.Loci): StepWithStructure|undefined {
+    private toStepLoci(name: string, struLoci: StructureElement.Loci) {
         const step = this.stepFromName(name);
         if (!step)
-            return void 0;
+            return EmptyLoci;
 
-        const loci = Traverse.findStep(
+        return Traverse.findStep(
             step.chain,
-            step.resNo1,
-            step.altId1,
+            step.resNo1, step.altId1, step.insCode1,
+            step.resNo2, step.altId2, step.insCode2,
             struLoci,
             'auth'
         );
-        if (loci.kind === 'element-loci')
-            return { step, loci };
-
-        return void 0;
     }
 
     private waterVisuals(color: Color) {
@@ -704,51 +689,47 @@ export class ReDNATCOMspViewer {
             return void 0;
         }
 
-        const _ids = tableStep.getField('id');
-        const _names = tableStep.getField('name');
-        const _chains = tableStep.getField('auth_asym_id_1');
-        const _authSeqId1 = tableStep.getField('auth_seq_id_1');
-        const _authSeqId2 = tableStep.getField('auth_seq_id_2');
-        const _labelAltId1 = tableStep.getField('label_alt_id_1');
-        const _labelAltId2 = tableStep.getField('label_alt_id_2');
-        const _stepIds = tableSum.getField('step_id');
-        const _assignedNtCs = tableSum.getField('assigned_NtC');
-        const _closestNtCs = tableSum.getField('closest_NtC');
-        const _models = tableStep.getField('PDB_model_number');
-        if (!_ids || !_names || !_chains || !_stepIds || !_assignedNtCs || !_closestNtCs || !_labelAltId1 || !_labelAltId2 || !_authSeqId1 || !_authSeqId2 || !_models) {
+        const _ids = tableStep.getField('id')?.toIntArray();
+        const _names = tableStep.getField('name')?.toStringArray();
+        const _chains = tableStep.getField('auth_asym_id_1')?.toStringArray();
+        const _authSeqId1 = tableStep.getField('auth_seq_id_1')?.toIntArray();
+        const _authSeqId2 = tableStep.getField('auth_seq_id_2')?.toIntArray();
+        const _compId1 = tableStep.getField('label_comp_id_1')?.toStringArray();
+        const _compId2 = tableStep.getField('label_comp_id_2')?.toStringArray();
+        const _labelAltId1 = tableStep.getField('label_alt_id_1')?.toStringArray();
+        const _labelAltId2 = tableStep.getField('label_alt_id_2')?.toStringArray();
+        const _PDBinsCode1 = tableStep.getField('PDB_ins_code_1')?.toStringArray();
+        const _PDBinsCode2 = tableStep.getField('PDB_ins_code_2')?.toStringArray();
+        const _stepIds = tableSum.getField('step_id')?.toIntArray();
+        const _assignedNtCs = tableSum.getField('assigned_NtC')?.toStringArray();
+        const _closestNtCs = tableSum.getField('closest_NtC')?.toStringArray();
+        const _models = tableStep.getField('PDB_model_number')?.toIntArray();
+        if (!_ids || !_names || !_chains || !_stepIds || !_assignedNtCs || !_closestNtCs || !_labelAltId1 || !_labelAltId2 || !_authSeqId1 || !_authSeqId2 || !_compId1 || !_compId2 || !_PDBinsCode1 || !_PDBinsCode2 || !_models) {
             console.warn('Expected fields are not present in NtC categories');
             return void 0;
         }
 
-        const ids = _ids.toIntArray();
-        const names = _names.toStringArray();
-        const chains = _chains.toStringArray();
-        const authSeqId1 = _authSeqId1.toIntArray();
-        const authSeqId2 = _authSeqId2.toIntArray();
-        const labelAltId1 = _labelAltId1.toStringArray();
-        const labelAltId2 = _labelAltId2.toStringArray();
-        const stepIds = _stepIds.toIntArray();
-        const assignedNtCs = _assignedNtCs.toStringArray();
-        const closestNtCs = _closestNtCs.toStringArray();
-        const models = _models.toIntArray();
-        const len = ids.length;
-
+        const len = _ids.length;
         const stepNames = new Map<string, number>();
         const steps = new Array<StepInfo>(len);
 
         for (let idx = 0; idx < len; idx++) {
-            const id = ids[idx];
-            const name = names[idx];
+            const id = _ids[idx];
+            const name = _names[idx];
             for (let jdx = 0; jdx < len; jdx++) {
-                if (stepIds[jdx] === id) {
-                    const assignedNtC = assignedNtCs[jdx];
-                    const closestNtC = closestNtCs[jdx];
-                    const chain = chains[jdx];
-                    const resNo1 = authSeqId1[jdx];
-                    const resNo2 = authSeqId2[jdx];
-                    const altId1 = labelAltId1[jdx] === '' ? void 0 : labelAltId1[jdx];
-                    const altId2 = labelAltId2[jdx] === '' ? void 0 : labelAltId2[jdx];
-                    const model = models[jdx];
+                if (_stepIds[jdx] === id) {
+                    const assignedNtC = _assignedNtCs[jdx];
+                    const closestNtC = _closestNtCs[jdx];
+                    const chain = _chains[jdx];
+                    const resNo1 = _authSeqId1[jdx];
+                    const resNo2 = _authSeqId2[jdx];
+                    const compId1 = _compId1[jdx];
+                    const compId2 = _compId2[jdx];
+                    const altId1 = _labelAltId1[jdx] === '' ? void 0 : _labelAltId1[jdx];
+                    const altId2 = _labelAltId2[jdx] === '' ? void 0 : _labelAltId2[jdx];
+                    const insCode1 = _PDBinsCode1[jdx];
+                    const insCode2 = _PDBinsCode2[jdx];
+                    const model = _models[jdx];
 
                     // We're assuming that steps are ID'd with a contigious, monotonic sequence starting from 1
                     steps[id - 1] = {
@@ -758,8 +739,12 @@ export class ReDNATCOMspViewer {
                         chain,
                         resNo1,
                         resNo2,
+                        compId1,
+                        compId2,
                         altId1,
                         altId2,
+                        insCode1,
+                        insCode2,
                         model
                     };
                     stepNames.set(name, id - 1);
@@ -1019,15 +1004,15 @@ export class ReDNATCOMspViewer {
         this.resetCameraRadius();
     }
 
-    async actionSelectStep(stepName: string, stepNamePrev: string|undefined, stepNameNext: string|undefined, referenceNtc: string, references: ('sel'|'prev'|'next')[], display: Display): Promise<{ rmsd: number }|undefined> {
-        const stepCurrent = this.stepFromName(stepName);
-        if (!stepCurrent)
-            return void 0;
+    async actionSelectStep(stepSel: Api.Payloads.StepSelection, prevSel: Api.Payloads.StepSelection|undefined, nextSel: Api.Payloads.StepSelection|undefined, display: Display): Promise<{ rmsd: number }|undefined> {
+        const step = this.stepFromName(stepSel.name);
+        if (!step)
+            return;
 
         // Switch to a different model if the selected step is from a different model
         // This is the first thing we need to do
-        if (stepCurrent.model !== this.currentModelNumber())
-            await this.switchModel({ modelNumber: stepCurrent.model });
+        if (step.model !== this.currentModelNumber())
+            await this.switchModel({ modelNumber: step.model });
 
         const entireStruCell = this.plugin.state.data.cells.get(IDs.ID('structure', 'nucleic', BaseRef));
         if (!entireStruCell)
@@ -1035,29 +1020,23 @@ export class ReDNATCOMspViewer {
         const stru = entireStruCell.obj!.data!;
         const struLoci = StructureSelection.toLociWithSourceUnits(StructureSelection.Singletons(stru, stru));
 
-        const lociCurrent = Traverse.findStep(
-            stepCurrent.chain,
-            stepCurrent.resNo1,
-            stepCurrent.altId1,
-            struLoci,
-            'auth'
+        const stepLoci = Traverse.findStep(
+            step.chain,
+            step.resNo1, step.altId1, step.insCode1,
+            step.resNo2, step.altId2, step.insCode2,
+            struLoci, 'auth'
         );
-        if (lociCurrent.kind !== 'element-loci')
-            return void 0;
+        if (stepLoci.kind !== 'element-loci')
+            return;
 
-        const current = {
-            step: stepCurrent,
-            loci: lociCurrent,
-        };
+        const prevLoci = prevSel ? this.toStepLoci(prevSel.name, struLoci) : EmptyLoci;
+        const nextLoci = nextSel ? this.toStepLoci(nextSel.name, struLoci) : EmptyLoci;
 
-        const prev = stepNamePrev ? this.toStepWithStructure(stepNamePrev, struLoci) : undefined;
-        const next = stepNameNext ? this.toStepWithStructure(stepNameNext, struLoci) : undefined;
-
-        const toUnionize = [StructureElement.Loci.toStructure(current.loci)];
-        if (prev)
-            toUnionize.push(StructureElement.Loci.toStructure(prev.loci));
-        if (next)
-            toUnionize.push(StructureElement.Loci.toStructure(next.loci));
+        const toUnionize = [stepLoci.structure];
+        if (prevLoci.kind !== 'empty-loci')
+            toUnionize.push(prevLoci.structure);
+        if (nextLoci.kind !== 'empty-loci')
+            toUnionize.push(nextLoci.structure);
 
         const slice = structureUnion(stru, toUnionize);
         const stepBundle = StructureElement.Bundle.fromSubStructure(stru, slice);
@@ -1096,13 +1075,14 @@ export class ReDNATCOMspViewer {
                 .delete(IDs.ID('visual', 'nucleic', BaseRef));
         }
 
-        const rmsd = this.superposeReferences(b.toRoot(), current, prev, next, referenceNtc, references);
-        if (!rmsd)
-            return void 0;
+        this.superposeReferences(
+            b.toRoot(),
+            stepSel.reference ? { loci: stepLoci, reference: stepSel.reference } : void 0,
+            prevSel?.reference && prevLoci.kind === 'element-loci' ? { loci: prevLoci, reference: prevSel.reference } : void 0,
+            nextSel?.reference && nextLoci.kind === 'element-loci' ? { loci: nextLoci, reference: nextSel.reference } : void 0
+        );
 
         await b.commit();
-
-        return { rmsd };
     }
 
     async switchModel(display: Partial<Display>) {
@@ -1125,7 +1105,12 @@ export class ReDNATCOMspViewer {
         await b.commit();
     }
 
-    superposeReferences<A extends StateObject, T extends StateTransformer>(b: StateBuilder.To<A, T>, current: StepWithStructure, prev: StepWithStructure|undefined, next: StepWithStructure|undefined, referenceNtc: string, references: ('sel'|'prev'|'next')[]) {
+    superposeReferences<A extends StateObject, T extends StateTransformer>(
+        b: StateBuilder.To<A, T>,
+        step?: { loci: StructureElement.Loci, reference: Api.Payloads.StepSelection['reference'] },
+        prev?: { loci: StructureElement.Loci, reference: Api.Payloads.StepSelection['reference'] },
+        next?: { loci: StructureElement.Loci, reference: Api.Payloads.StepSelection['reference'] }
+    ) {
         const ReferenceVisuals = (color: number) => {
             return {
                 type: { name: 'ball-and-stick', params: { sizeFactor: 0.15, aromaticBonds: false } },
@@ -1133,49 +1118,43 @@ export class ReDNATCOMspViewer {
             };
         };
 
-        const ntcRefSel = this.ntcRef(current.step, 'sel')!;
-        const ntcRefPrev = prev ? this.ntcRef(prev.step, 'prev') : undefined;
-        const ntcRefNext = next ? this.ntcRef(next?.step, 'next') : undefined;
-
         b.delete(IDs.ID('superposition', '', NtCSupSel))
             .delete(IDs.ID('superposition', '', NtCSupPrev))
             .delete(IDs.ID('superposition', '', NtCSupNext));
 
-        const addReference = (ntcRef: string, superposRef: string, loci: StructureElement.Loci, altId1: string|undefined, altId2: string|undefined, color: number) => {
+        const addReference = (ntcRef: string, superposRef: string, stepLoci: StructureElement.Loci, color: number) => {
             const refStru = this.plugin.state.data.cells.get(IDs.ID('structure', '', ntcRef))!.obj!;
             const refLoci = StructureSelection.toLociWithSourceUnits(StructureSelection.Singletons(refStru.data, refStru.data));
 
-            if (Step.is(loci)) {
-                const { bTransform, rmsd } = this.superpose(refLoci, loci, altId1, altId2);
-                if (isNaN(bTransform[0])) {
-                    console.error(`Cannot superpose reference conformer ${ntcRef} onto selection`);
-                    return void 0;
-                }
-                b.to(IDs.ID('structure', '', ntcRef))
-                    .apply(
-                        StateTransforms.Model.TransformStructureConformation,
-                        { transform: { name: 'matrix', params: { data: bTransform, transpose: false } } },
-                        { ref: IDs.ID('superposition', '', superposRef) }
-                    ).apply(
-                        StateTransforms.Representation.StructureRepresentation3D,
-                        ReferenceVisuals(color),
-                        { ref: IDs.ID('visual', '', superposRef) }
-                    );
-                return rmsd;
+            const { bTransform } = this.superpose(refLoci, stepLoci);
+            if (isNaN(bTransform[0])) {
+                console.error(`Cannot superpose reference conformer ${ntcRef} onto selection`);
+                return;
             }
+            b.to(IDs.ID('structure', '', ntcRef))
+                .apply(
+                    StateTransforms.Model.TransformStructureConformation,
+                    { transform: { name: 'matrix', params: { data: bTransform, transpose: false } } },
+                    { ref: IDs.ID('superposition', '', superposRef) }
+                ).apply(
+                    StateTransforms.Representation.StructureRepresentation3D,
+                    ReferenceVisuals(color),
+                    { ref: IDs.ID('visual', '', superposRef) }
+                );
         };
 
-        const rmsd = addReference(ntcRefSel, NtCSupSel, current.loci, current.step.altId1, current.step.altId2, 0x008000);
-        if (ntcRefPrev) {
-            const { altId1, altId2 } = prev!.step;
-            addReference(ntcRefPrev, NtCSupPrev, prev!.loci, altId1, altId2, 0x0000FF);
+        if (step?.reference) {
+            const ref = this.ntcRef(step.reference.NtC, 'sel');
+            addReference(ref, NtCSupSel, step.loci, step.reference.color);
         }
-        if (ntcRefNext) {
-            const { altId1, altId2 } = next!.step;
-            addReference(ntcRefNext, NtCSupNext, next!.loci, altId1, altId2, 0x00FFFF);
+        if (prev?.reference) {
+            const ref = this.ntcRef(prev.reference.NtC, 'prev');
+            addReference(ref, NtCSupPrev, prev.loci, prev.reference.color);
         }
-
-        return rmsd;
+        if (next?.reference) {
+            const ref = this.ntcRef(next?.reference.NtC, 'next');
+            addReference(ref, NtCSupNext, next.loci, next.reference.color);
+        }
     }
 
     async toggleSubstructure(sub: IDs.Substructure, display: Display) {

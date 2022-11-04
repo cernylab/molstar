@@ -9,6 +9,7 @@ import { ColorPicker } from './color-picker';
 import { CollapsibleVertical, PushButton, ToggleButton } from './controls';
 import { luminance } from './util';
 import { Color } from '../../mol-util/color';
+import { assertUnreachable } from '../../mol-util/type-helpers';
 import './index.html';
 
 const ConformersByClass = {
@@ -77,7 +78,7 @@ export class ReDNATCOMsp extends React.Component<ReDNATCOMsp.Props, State> {
     private currentFilter: Filters.All = Filters.Empty();
     private presentConformers: string[] = [];
     private viewer: ReDNATCOMspViewer|undefined = undefined;
-    private selectedStep: { name: string, rmsd?: number }|undefined;
+    private selectedStep: Api.Payloads.StepSelection|undefined = undefined;
 
     constructor(props: ReDNATCOMsp.Props) {
         super(props);
@@ -148,19 +149,18 @@ export class ReDNATCOMsp extends React.Component<ReDNATCOMsp.Props, State> {
         this.setState({ ...this.state, display });
     }
 
-    apiQuery(type: Api.Queries.Type): Api.Response {
+    apiQuery(type: Api.Queries.Type) {
         if (type === 'current-filter') {
             return Api.Queries.CurrentFilter(this.currentFilter);
         } else if (type === 'current-model-number') {
             return Api.Queries.CurrentModelNumber(this.viewer!.currentModelNumber());
         } else if (type === 'selected-step') {
             if (this.selectedStep)
-                return Api.Queries.SelectedStep(this.selectedStep.name, this.selectedStep.rmsd);
-            return Api.Queries.SelectedStep('');
+                return Api.Queries.SelectedStep(this.selectedStep);
+            return Api.Queries.SelectedStep();
         }
 
-        // TODO: This cannot happen - figure out how to assert on this
-        return Api.Queries.SelectedStep('');
+        assertUnreachable(type);
     }
 
     async command(cmd: Api.Command) {
@@ -181,16 +181,16 @@ export class ReDNATCOMsp extends React.Component<ReDNATCOMsp.Props, State> {
             this.currentFilter = cmd.filter;
             ReDNATCOMspApi.event(Api.Events.FilterApplied());
         } else if (cmd.type === 'select-step') {
-            const ret = await this.viewer.actionSelectStep(cmd.stepName, cmd.prevStepName, cmd.nextStepName, cmd.referenceNtC, cmd.references, this.state.display);
+            const ret = await this.viewer.actionSelectStep(cmd.step, cmd.prev, cmd.next, this.state.display);
             if (!ret) {
                 ReDNATCOMspApi.event(Api.Events.StepSelectedFail());
                 return;
             }
 
             this.viewer.focusOnSelectedStep();
-            this.selectedStep = { name: cmd.stepName, rmsd: ret.rmsd };
+            this.selectedStep = cmd.step;
 
-            ReDNATCOMspApi.event(Api.Events.StepSelectedOk(this.selectedStep.name, this.selectedStep.rmsd));
+            ReDNATCOMspApi.event(Api.Events.StepSelectedOk(this.selectedStep.name));
         } else if (cmd.type === 'switch-model') {
             if (cmd.model < 1 || cmd.model > this.viewer.getModelCount())
                 return;
