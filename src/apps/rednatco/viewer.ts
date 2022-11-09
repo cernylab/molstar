@@ -447,7 +447,7 @@ export class ReDNATCOMspViewer {
                     ReDNATCOLociSelectionProvider,
                     {
                         bindings: ReDNATCOLociSelectionBindings,
-                        onDeselected: () => interactCtx.self!.onDeselected(),
+                        onDeselected: () => interactCtx.self!.notifyStepDeselected(),
                         onSelected: (loci) => interactCtx.self!.onLociSelected(loci),
                     }
                 ),
@@ -918,8 +918,12 @@ export class ReDNATCOMspViewer {
         await b.commit();
     }
 
-    async onDeselected() {
+    notifyStepDeselected() {
         this.app.viewerStepDeselected();
+    }
+
+    notifyStepSelected(name: string) {
+        this.app.viewerStepSelected(name);
     }
 
     async onLociSelected(selected: Representation.Loci) {
@@ -928,7 +932,7 @@ export class ReDNATCOMspViewer {
         if (loci.kind === 'element-loci') {
             const stepDesc = Step.describe(loci, this.haveMultipleModels);
             if (stepDesc && this.stepNames.has(stepDesc.name))
-                this.app.viewerStepSelected(stepDesc.name);
+                this.notifyStepSelected(stepDesc.name);
         }
     }
 

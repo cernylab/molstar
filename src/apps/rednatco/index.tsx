@@ -155,9 +155,7 @@ export class ReDNATCOMsp extends React.Component<ReDNATCOMsp.Props, State> {
         } else if (type === 'current-model-number') {
             return Api.Queries.CurrentModelNumber(this.viewer!.currentModelNumber());
         } else if (type === 'selected-step') {
-            if (this.selectedStep)
-                return Api.Queries.SelectedStep(this.selectedStep);
-            return Api.Queries.SelectedStep();
+            return this.selectedStep ? Api.Queries.SelectedStep(this.selectedStep) : Api.Queries.SelectedStep();
         }
 
         assertUnreachable(type);
@@ -171,6 +169,7 @@ export class ReDNATCOMsp extends React.Component<ReDNATCOMsp.Props, State> {
             window.dispatchEvent(new Event('resize'));
         else if (cmd.type === 'deselect-step') {
             await this.viewer.actionDeselectStep(this.state.display);
+            this.selectedStep = void 0;
         } else if (cmd.type === 'filter') {
             const ret = await this.viewer.actionApplyFilter(cmd.filter);
             if (!ret) {
@@ -216,6 +215,7 @@ export class ReDNATCOMsp extends React.Component<ReDNATCOMsp.Props, State> {
     }
 
     viewerStepDeselected() {
+        this.selectedStep = void 0;
         this.viewer!.actionDeselectStep(this.state.display);
         ReDNATCOMspApi.event(Api.Events.StepDeselected());
     }
