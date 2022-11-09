@@ -16,6 +16,7 @@ import { BoundaryHelper } from '../../mol-math/geometry/boundary-helper';
 import { Vec3 } from '../../mol-math/linear-algebra/3d';
 import { EmptyLoci, Loci } from '../../mol-model/loci';
 import { ElementIndex, Model, StructureElement, StructureProperties, StructureSelection, Trajectory } from '../../mol-model/structure';
+// import { Volume } from '../../mol-model/volume';
 import { structureUnion, structureSubtract } from '../../mol-model/structure/query/utils/structure-set';
 import { Location } from '../../mol-model/structure/structure/element/location';
 import { MmcifFormat } from '../../mol-model-formats/structure/mmcif';
@@ -799,16 +800,20 @@ export class ReDNATCOMspViewer {
         return this.has('structure', '', BaseRef);
     }
 
-    async loadStructure(data: string, type: 'pdb'|'cif', display: Display) {
+    async loadStructure(
+        coords: { data: string, type: 'pdb'|'cif' },
+        densityMap: { data: Uint8Array, type: 'ccp4'|'dsn6' }|null,
+        display: Display
+    ) {
         // TODO: Remove the currently loaded structure
 
         const chainColor = Color(display.chainColor);
         const waterColor = Color(display.waterColor);
 
-        const b = (t => type === 'pdb'
+        const b = (t => coords.type === 'pdb'
             ? t.apply(StateTransforms.Model.TrajectoryFromPDB, {}, { ref: IDs.ID('trajectory', '', BaseRef) })
             : t.apply(StateTransforms.Data.ParseCif).apply(StateTransforms.Model.TrajectoryFromMmCif, {}, { ref: IDs.ID('trajectory', '', BaseRef) })
-        )(this.plugin.state.data.build().toRoot().apply(RawData, { data }, { ref: IDs.ID('data', '', BaseRef) }))
+        )(this.plugin.state.data.build().toRoot().apply(RawData, { data: coords.data }, { ref: IDs.ID('data', '', BaseRef) }))
             .apply(StateTransforms.Model.ModelFromTrajectory, { modelIndex: display.modelNumber ? display.modelNumber - 1 : 0 }, { ref: IDs.ID('model', '', BaseRef) })
             .apply(StateTransforms.Model.StructureFromModel, {}, { ref: IDs.ID('entire-structure', '', BaseRef) })
             // Extract substructures
@@ -884,6 +889,38 @@ export class ReDNATCOMspViewer {
         }
 
         await b3.commit();
+
+        // Load density map, if any
+        if (densityMap) {
+            const [ParseTransform, VolumeTransform] = densityMap.type === 'ccp4'
+                ? [StateTransforms.Data.ParseCcp4, StateTransforms.Volume.VolumeFromCcp4]
+                : [StateTransforms.Data.ParseDsn6, StateTransforms.Volume.VolumeFromDsn6];
+            const b4 = this.plugin.state.data.build();
+            b4.toRoot()
+                .apply(RawData, { data: densityMap.data }, { ref: IDs.DensityID('data', BaseRef) })
+                .apply(ParseTransform)
+                .apply(VolumeTransform, {}, { ref: IDs.DensityID('volume', BaseRef) })
+                .apply(
+                    StateTransforms.Representation.VolumeRepresentation3D,
+                    {
+                        type: {
+                            name: 'isosurface',
+                            params: {
+                                alpha: 0.5,
+                                visuals: ['wireframe'],
+                                sizeFactor: 0.75,
+                            }
+                        },
+                        colorTheme: {
+                            name: 'uniform',
+                            params: { value: Color(0x000000) },
+                        },
+                    },
+                    { ref: IDs.DensityID('visual', BaseRef) }
+                );
+
+            await b4.commit();
+        }
 
         this.haveMultipleModels = this.getModelCount() > 1;
 
