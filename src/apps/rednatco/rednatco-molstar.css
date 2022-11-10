@@ -122,6 +122,44 @@
     margin: 0.15em;
 }
 
+.rmsp-range-slider {
+    -moz-appearance: none;
+    -webkit-appearance: none;
+    appearance: none;
+
+    background: #ccc;
+    height: 0.15em;
+    margin: auto 0 auto 0;
+    width: 100%;
+}
+.rmsp-range-slider::-moz-range-thumb {
+    background: white;
+    border-radius: 0;
+    border: 0.15em solid #aaa;
+    cursor: pointer;
+    height: 0.8em;
+    transition: background-color 222ms;
+    width: 0.8em;
+}
+.rmsp-range-slider::-moz-range-thumb:hover {
+    background-color: #ccc;
+}
+.rmsp-range-slider::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+
+    background: white;
+    border-radius: 0;
+    border: 0.15em solid #aaa;
+    cursor: pointer;
+    height: 1em;
+    transition: background-color 222ms;
+    width: 1em;
+}
+.rmsp-range-slider::-webkit-slider-thumb:hover {
+    background-color: #ccc;
+}
+
 .rmsp-spinbox-container {
     background-color: white;
     border: 0.15em solid #ccc;

@@ -56,6 +56,34 @@ export class ToggleButton extends React.Component<{ text: string, enabled: boole
     }
 }
 
+export class RangeSlider extends React.Component<RangeSlider.Props> {
+    render() {
+        return (
+            <input
+                className='rmsp-range-slider'
+                type='range'
+                value={this.props.value ? this.props.value : 0}
+                min={this.props.min}
+                max={this.props.max}
+                step={this.props.step}
+                onChange={evt => {
+                    const n = parseFloat(evt.currentTarget.value);
+                    this.props.onChange(isNaN(n) ? null : n);
+                }}
+            />
+        );
+    }
+}
+export namespace RangeSlider {
+    export interface Props {
+        min: number;
+        max: number;
+        step: number;
+        value: number|null;
+        onChange: (n: number|null) => void;
+    }
+}
+
 export class SpinBox extends React.Component<SpinBox.Props> {
     private clsDisabled() {
         return this.props.classNameDisabled ?? 'rmsp-spinbox-input-disabled';
@@ -88,7 +116,14 @@ export class SpinBox extends React.Component<SpinBox.Props> {
                     type='text'
                     className={this.props.disabled ? this.clsDisabled() : this.clsEnabled()}
                     value={this.props.formatter ? this.props.formatter(this.props.value) : this.props.value?.toString() ?? ''}
-                    onChange={evt => this.props.onChange(evt.currentTarget.value)}
+                    onChange={evt =>{
+                        const v = evt.currentTarget.value;
+                        const n = parseFloat(v);
+                        if (!isNaN(n) && (n < this.props.min || n > this.props.max))
+                            return;
+
+                        this.props.onChange(evt.currentTarget.value);
+                    }}
                     onWheel={evt => {
                         evt.stopPropagation();
                         if (this.props.value === null)

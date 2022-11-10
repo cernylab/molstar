@@ -9,6 +9,7 @@ import { ReferenceConformersPdbs } from './reference-conformers-pdbs';
 import { Step } from './step';
 import { Superpose } from './superpose';
 import { Traverse } from './traverse';
+import { isoBounds, prettyIso } from './util';
 import { DnatcoConfalPyramids } from '../../extensions/dnatco';
 import { ConfalPyramidsParams } from '../../extensions/dnatco/confal-pyramids/representation';
 import { OrderedSet } from '../../mol-data/int/ordered-set';
@@ -16,7 +17,7 @@ import { BoundaryHelper } from '../../mol-math/geometry/boundary-helper';
 import { Vec3 } from '../../mol-math/linear-algebra/3d';
 import { EmptyLoci, Loci } from '../../mol-model/loci';
 import { ElementIndex, Model, StructureElement, StructureProperties, StructureSelection, Trajectory } from '../../mol-model/structure';
-// import { Volume } from '../../mol-model/volume';
+import { Volume } from '../../mol-model/volume';
 import { structureUnion, structureSubtract } from '../../mol-model/structure/query/utils/structure-set';
 import { Location } from '../../mol-model/structure/structure/element/location';
 import { MmcifFormat } from '../../mol-model-formats/structure/mmcif';
@@ -241,6 +242,24 @@ export class ReDNATCOMspViewer {
     constructor(public plugin: PluginUIContext, interactionContext: { self?: ReDNATCOMspViewer }, app: ReDNATCOMsp) {
         interactionContext.self = this;
         this.app = app;
+    }
+
+    private densityMapVisuals(vis: Display['densityMap']) {
+        return {
+            type: {
+                name: 'isosurface',
+                params: {
+                    alpha: vis.alpha,
+                    isoValue: Volume.IsoValue.absolute(vis.isoValue),
+                    visuals: vis.representations,
+                    sizeFactor: 0.75,
+                }
+            },
+            colorTheme: {
+                name: 'uniform',
+                params: { value: Color(vis.color) },
+            },
+        };
     }
 
     private focusOnLoci(loci: StructureElement.Loci) {
@@ -489,7 +508,7 @@ export class ReDNATCOMspViewer {
     }
 
     async changeChainColor(display: Display) {
-        const color = Color(display.chainColor);
+        const color = Color(display.structures.chainColor);
 
         const b = this.plugin.state.data.build();
         for (const sub of ['nucleic', 'protein'] as IDs.Substructure[]) {
@@ -499,7 +518,7 @@ export class ReDNATCOMspViewer {
                         StateTransforms.Representation.StructureRepresentation3D,
                         old => ({
                             ...old,
-                            ...this.substructureVisuals(display.representation, color),
+                            ...this.substructureVisuals(display.structures.representation, color),
                         })
                     );
             }
@@ -521,7 +540,7 @@ export class ReDNATCOMspViewer {
                     StateTransforms.Representation.StructureRepresentation3D,
                     old => ({
                         ...old,
-                        ...this.substructureVisuals(display.representation, color),
+                        ...this.substructureVisuals(display.structures.representation, color),
                     })
                 );
         }
@@ -543,7 +562,7 @@ export class ReDNATCOMspViewer {
                     params: {
                         colors: {
                             name: 'custom',
-                            params: display.conformerColors ?? NtCColors.Conformers,
+                            params: display.structures.conformerColors ?? NtCColors.Conformers,
                         },
                     },
                 },
@@ -554,13 +573,13 @@ export class ReDNATCOMspViewer {
     }
 
     async changePyramids(display: Display) {
-        if (display.showPyramids) {
+        if (display.structures.showPyramids) {
             if (!this.has('pyramids', 'nucleic')) {
                 const b = this.getBuilder('structure', 'nucleic');
                 if (b) {
                     b.apply(
                         StateTransforms.Representation.StructureRepresentation3D,
-                        this.pyramidsParams(display.conformerColors ?? NtCColors.Conformers, new Map(), display.pyramidsTransparent ?? false),
+                        this.pyramidsParams(display.structures.conformerColors ?? NtCColors.Conformers, new Map(), display.structures.pyramidsTransparent ?? false),
                         { ref: IDs.ID('pyramids', 'nucleic', BaseRef) }
                     );
                     await b.commit();
@@ -571,7 +590,7 @@ export class ReDNATCOMspViewer {
                     StateTransforms.Representation.StructureRepresentation3D,
                     old => ({
                         ...old,
-                        ...this.pyramidsParams(display.conformerColors ?? NtCColors.Conformers, new Map(), display.pyramidsTransparent ?? false),
+                        ...this.pyramidsParams(display.structures.conformerColors ?? NtCColors.Conformers, new Map(), display.structures.pyramidsTransparent ?? false),
                     })
                 );
                 await b.commit();
@@ -581,7 +600,7 @@ export class ReDNATCOMspViewer {
     }
 
     async changeWaterColor(display: Display) {
-        const color = Color(display.waterColor);
+        const color = Color(display.structures.waterColor);
 
         const b = this.plugin.state.data.build();
         if (this.has('visual', 'water', BaseRef)) {
@@ -600,8 +619,8 @@ export class ReDNATCOMspViewer {
 
     async changeRepresentation(display: Display) {
         const b = this.plugin.state.data.build();
-        const repr = display.representation;
-        const color = Color(display.chainColor);
+        const repr = display.structures.representation;
+        const color = Color(display.structures.chainColor);
 
         for (const sub of ['nucleic', 'protein'] as IDs.Substructure[]) {
             if (this.has('visual', sub)) {
@@ -630,11 +649,38 @@ export class ReDNATCOMspViewer {
         await b.commit();
     }
 
+    async changeDensityMap(display: Display) {
+        if (!this.hasDensityMap())
+            return;
+
+        const b = this.plugin.state.data.build().to(IDs.DensityID('visual', BaseRef));
+        const vis = display.densityMap;
+
+        b.update(
+            StateTransforms.Representation.VolumeRepresentation3D,
+            old => ({
+                ...old,
+                ...this.densityMapVisuals(vis),
+            })
+        );
+
+        await b.commit();
+    }
+
     currentModelNumber() {
         const model = this.plugin.state.data.cells.get(IDs.ID('model', '', BaseRef))?.obj;
         if (!model)
             return -1;
         return (model as StateObject<Model>).data.modelNum;
+    }
+
+    densityMapIsoRange(ref = BaseRef): { min: number, max: number }|undefined {
+        const cell = this.plugin.state.data.cells.get(IDs.DensityID('volume', ref));
+        if (!cell || !cell.obj)
+            return void 0;
+
+        const grid = (cell.obj.data as Volume).grid;
+        return { min: grid.stats.min, max: grid.stats.max };
     }
 
     focusOnSelectedStep() {
@@ -796,6 +842,10 @@ export class ReDNATCOMspViewer {
         return !!this.plugin.state.data.cells.get(IDs.ID(id, sub, ref))?.obj?.data;
     }
 
+    hasDensityMap(ref = BaseRef) {
+        return !!this.plugin.state.data.cells.get(IDs.DensityID('volume', ref))?.obj?.data;
+    }
+
     isReady() {
         return this.has('structure', '', BaseRef);
     }
@@ -807,14 +857,14 @@ export class ReDNATCOMspViewer {
     ) {
         // TODO: Remove the currently loaded structure
 
-        const chainColor = Color(display.chainColor);
-        const waterColor = Color(display.waterColor);
+        const chainColor = Color(display.structures.chainColor);
+        const waterColor = Color(display.structures.waterColor);
 
         const b = (t => coords.type === 'pdb'
             ? t.apply(StateTransforms.Model.TrajectoryFromPDB, {}, { ref: IDs.ID('trajectory', '', BaseRef) })
             : t.apply(StateTransforms.Data.ParseCif).apply(StateTransforms.Model.TrajectoryFromMmCif, {}, { ref: IDs.ID('trajectory', '', BaseRef) })
         )(this.plugin.state.data.build().toRoot().apply(RawData, { data: coords.data }, { ref: IDs.ID('data', '', BaseRef) }))
-            .apply(StateTransforms.Model.ModelFromTrajectory, { modelIndex: display.modelNumber ? display.modelNumber - 1 : 0 }, { ref: IDs.ID('model', '', BaseRef) })
+            .apply(StateTransforms.Model.ModelFromTrajectory, { modelIndex: display.structures.modelNumber ? display.structures.modelNumber - 1 : 0 }, { ref: IDs.ID('model', '', BaseRef) })
             .apply(StateTransforms.Model.StructureFromModel, {}, { ref: IDs.ID('entire-structure', '', BaseRef) })
             // Extract substructures
             .apply(StateTransforms.Model.StructureComplexElement, { type: 'nucleic' }, { ref: IDs.ID('entire-structure', 'nucleic', BaseRef) })
@@ -855,23 +905,23 @@ export class ReDNATCOMspViewer {
 
         // Create default visuals
         const b3 = this.plugin.state.data.build();
-        if (display.showNucleic && this.has('structure', 'nucleic')) {
+        if (display.structures.showNucleic && this.has('structure', 'nucleic')) {
             b3.to(IDs.ID('structure', 'nucleic', BaseRef))
                 .apply(
                     StateTransforms.Representation.StructureRepresentation3D,
                     this.substructureVisuals('cartoon', chainColor),
                     { ref: IDs.ID('visual', 'nucleic', BaseRef) }
                 );
-            if (display.showPyramids) {
+            if (display.structures.showPyramids) {
                 b3.to(IDs.ID('structure', 'nucleic', BaseRef))
                     .apply(
                         StateTransforms.Representation.StructureRepresentation3D,
-                        this.pyramidsParams(display.conformerColors ?? NtCColors.Conformers, new Map(), false),
+                        this.pyramidsParams(display.structures.conformerColors ?? NtCColors.Conformers, new Map(), false),
                         { ref: IDs.ID('pyramids', 'nucleic', BaseRef) }
                     );
             }
         }
-        if (display.showProtein && this.has('structure', 'protein')) {
+        if (display.structures.showProtein && this.has('structure', 'protein')) {
             b3.to(IDs.ID('structure', 'protein', BaseRef))
                 .apply(
                     StateTransforms.Representation.StructureRepresentation3D,
@@ -879,7 +929,7 @@ export class ReDNATCOMspViewer {
                     { ref: IDs.ID('visual', 'protein', BaseRef) }
                 );
         }
-        if (display.showWater && this.has('structure', 'water')) {
+        if (display.structures.showWater && this.has('structure', 'water')) {
             b3.to(IDs.ID('structure', 'water', BaseRef))
                 .apply(
                     StateTransforms.Representation.StructureRepresentation3D,
@@ -899,27 +949,24 @@ export class ReDNATCOMspViewer {
             b4.toRoot()
                 .apply(RawData, { data: densityMap.data }, { ref: IDs.DensityID('data', BaseRef) })
                 .apply(ParseTransform)
-                .apply(VolumeTransform, {}, { ref: IDs.DensityID('volume', BaseRef) })
+                .apply(VolumeTransform, {}, { ref: IDs.DensityID('volume', BaseRef) });
+
+            await b4.commit(); // Load the density map now so we can probe the stats;
+            const isoRange = this.densityMapIsoRange()!;
+            const bounds = isoBounds(isoRange.min, isoRange.max);
+            const iso = prettyIso(((isoRange.max - isoRange.min) / 2) + isoRange.min, bounds.step);
+
+            const b5 = this.plugin.state.data.build().to(IDs.DensityID('volume', BaseRef))
                 .apply(
                     StateTransforms.Representation.VolumeRepresentation3D,
-                    {
-                        type: {
-                            name: 'isosurface',
-                            params: {
-                                alpha: 0.5,
-                                visuals: ['wireframe'],
-                                sizeFactor: 0.75,
-                            }
-                        },
-                        colorTheme: {
-                            name: 'uniform',
-                            params: { value: Color(0x000000) },
-                        },
-                    },
+                    this.densityMapVisuals(display.densityMap),
                     { ref: IDs.DensityID('visual', BaseRef) }
                 );
 
-            await b4.commit();
+            await b5.commit();
+
+            display.densityMap.representations = ['wireframe'];
+            display.densityMap.isoValue = iso;
         }
 
         this.haveMultipleModels = this.getModelCount() > 1;
@@ -1034,7 +1081,7 @@ export class ReDNATCOMspViewer {
         // Switch to a different model if the selected step is from a different model
         // This is the first thing we need to do
         if (step.model !== this.currentModelNumber())
-            await this.switchModel({ modelNumber: step.model });
+            await this.switchModel(step.model);
 
         const entireStruCell = this.plugin.state.data.cells.get(IDs.ID('structure', 'nucleic', BaseRef));
         if (!entireStruCell)
@@ -1066,7 +1113,7 @@ export class ReDNATCOMspViewer {
         const subtracted = structureSubtract(stru, slice);
         const remainderBundle = StructureElement.Bundle.fromSubStructure(stru, subtracted);
 
-        const chainColor = Color(display.chainColor);
+        const chainColor = Color(display.structures.chainColor);
         const b = this.plugin.state.data.build();
         b.to(entireStruCell)
             .apply(
@@ -1087,11 +1134,11 @@ export class ReDNATCOMspViewer {
             );
 
         // Only show the remainder if the nucleic substructure is shown
-        if (display.showNucleic) {
+        if (display.structures.showNucleic) {
             b.to(IDs.ID('structure', 'remainder-slice', BaseRef))
                 .apply(
                     StateTransforms.Representation.StructureRepresentation3D,
-                    this.substructureVisuals(display.representation, chainColor),
+                    this.substructureVisuals(display.structures.representation, chainColor),
                     { ref: IDs.ID('visual', 'remainder-slice', BaseRef) }
                 )
                 .delete(IDs.ID('visual', 'nucleic', BaseRef));
@@ -1108,8 +1155,8 @@ export class ReDNATCOMspViewer {
         return true;
     }
 
-    async switchModel(display: Partial<Display>) {
-        if (display.modelNumber && display.modelNumber === this.currentModelNumber())
+    async switchModel(modelNumber?: number) {
+        if (modelNumber && modelNumber === this.currentModelNumber())
             return;
 
         const b = this.plugin.state.data.build()
@@ -1121,7 +1168,7 @@ export class ReDNATCOMspViewer {
                 StateTransforms.Model.ModelFromTrajectory,
                 old => ({
                     ...old,
-                    modelIndex: display.modelNumber ? display.modelNumber - 1 : 0
+                    modelIndex: modelNumber ? modelNumber - 1 : 0
                 })
             );
 
@@ -1181,16 +1228,16 @@ export class ReDNATCOMspViewer {
     }
 
     async toggleSubstructure(sub: IDs.Substructure, display: Display) {
-        const show = sub === 'nucleic' ? !!display.showNucleic :
-            sub === 'protein' ? !!display.showProtein : !!display.showWater;
-        const repr = display.representation;
+        const show = sub === 'nucleic' ? !!display.structures.showNucleic :
+            sub === 'protein' ? !!display.structures.showProtein : !!display.structures.showWater;
+        const repr = display.structures.representation;
 
         if (sub === 'nucleic')
-            this.toggleNucleicSubstructure(show, repr, Color(display.chainColor));
+            this.toggleNucleicSubstructure(show, repr, Color(display.structures.chainColor));
         else {
             if (show) {
                 const b = this.getBuilder('structure', sub);
-                const visuals = sub === 'water' ? this.waterVisuals(Color(display.waterColor)) : this.substructureVisuals(repr, Color(display.chainColor));
+                const visuals = sub === 'water' ? this.waterVisuals(Color(display.structures.waterColor)) : this.substructureVisuals(repr, Color(display.structures.chainColor));
                 if (b) {
                     b.apply(
                         StateTransforms.Representation.StructureRepresentation3D,

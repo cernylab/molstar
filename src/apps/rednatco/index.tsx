@@ -2,12 +2,13 @@ import React from 'react';
 import ReactDOM from 'react-dom';
 import { ReDNATCOMspApi as Api } from './api';
 import { ReDNATCOMspApiImpl } from './api-impl';
+import { DensityMapControls } from './density-map-controls';
 import { Filters } from './filters';
 import { ReDNATCOMspViewer } from './viewer';
 import { NtCColors } from './colors';
 import { ColorPicker } from './color-picker';
 import { CollapsibleVertical, PushButton, ToggleButton } from './controls';
-import { luminance } from './util';
+import { isoBounds, luminance, toggleArray } from './util';
 import { Color } from '../../mol-util/color';
 import { assertUnreachable } from '../../mol-util/type-helpers';
 import './index.html';
@@ -26,27 +27,39 @@ const ConformersByClass = {
 type ConformersByClass = typeof ConformersByClass;
 
 const DefaultChainColor = Color(0xD9D9D9);
+const DefaultDensityMapAlpha = 0.5;
 const DefaultWaterColor = Color(0x0BB2FF);
 export type VisualRepresentations = 'ball-and-stick'|'cartoon';
+export type DensityMapRepresentation = 'wireframe'|'solid';
+
 const Display = {
-    representation: 'cartoon' as VisualRepresentations,
+    structures: {
+        representation: 'cartoon' as VisualRepresentations,
 
-    showNucleic: true,
-    showProtein: false,
-    showWater: false,
+        showNucleic: true,
+        showProtein: false,
+        showWater: false,
 
-    showPyramids: true,
-    pyramidsTransparent: false,
+        showPyramids: true,
+        pyramidsTransparent: false,
 
-    showBalls: false,
-    ballsTransparent: false,
+        showBalls: false,
+        ballsTransparent: false,
 
-    modelNumber: 1,
+        modelNumber: 1,
 
-    classColors: { ...NtCColors.Classes },
-    conformerColors: { ...NtCColors.Conformers },
-    chainColor: DefaultChainColor,
-    waterColor: DefaultWaterColor,
+        classColors: { ...NtCColors.Classes },
+        conformerColors: { ...NtCColors.Conformers },
+        chainColor: DefaultChainColor,
+        waterColor: DefaultWaterColor,
+    },
+    densityMap: {
+        representations: ['wireframe'] as DensityMapRepresentation[],
+        isoValue: 0,
+
+        alpha: DefaultDensityMapAlpha,
+        color: 0x000000
+    },
 };
 export type Display = typeof Display;
 
@@ -99,7 +112,10 @@ export class ReDNATCOMsp extends React.Component<ReDNATCOMsp.Props, State> {
     private updateChainColor(color: number) {
         const display: Display = {
             ...this.state.display,
-            chainColor: Color(color),
+            structures: {
+                ...this.state.display.structures,
+                chainColor: Color(color),
+            },
         };
 
         this.viewer!.changeChainColor(display);
@@ -107,7 +123,7 @@ export class ReDNATCOMsp extends React.Component<ReDNATCOMsp.Props, State> {
     }
 
     private updateClassColor(changes: { cls: keyof NtCColors.Classes, color: number }|{ cls: keyof NtCColors.Classes, color: number }[]) {
-        const classColors = { ...this.state.display.classColors };
+        const classColors = { ...this.state.display.structures.classColors };
 
         const isArray = Array.isArray(changes);
         if (isArray) {
@@ -116,7 +132,7 @@ export class ReDNATCOMsp extends React.Component<ReDNATCOMsp.Props, State> {
             classColors[changes.cls] = Color(changes.color);
 
         const conformerColors: NtCColors.Conformers = {
-            ...this.state.display.conformerColors,
+            ...this.state.display.structures.conformerColors,
             ...(isArray
                 ? changes.map(item => this.classColorToConformers(item.cls, Color(item.color)))
                 : this.classColorToConformers(changes.cls, Color(changes.color)))
@@ -128,7 +144,7 @@ export class ReDNATCOMsp extends React.Component<ReDNATCOMsp.Props, State> {
     }
 
     private updateConformerColor(changes: { conformer: keyof NtCColors.Conformers, color: number }|{ conformer: keyof NtCColors.Conformers, color: number }[]) {
-        const conformerColors = { ...this.state.display.conformerColors };
+        const conformerColors = { ...this.state.display.structures.conformerColors };
         if (Array.isArray(changes))
             changes.forEach(item => conformerColors[item.conformer] = Color(item.color));
         else
@@ -142,7 +158,10 @@ export class ReDNATCOMsp extends React.Component<ReDNATCOMsp.Props, State> {
     private updateWaterColor(color: number) {
         const display: Display = {
             ...this.state.display,
-            waterColor: Color(color),
+            structures: {
+                ...this.state.display.structures,
+                waterColor: Color(color),
+            },
         };
 
         this.viewer!.changeWaterColor(display);
@@ -196,10 +215,13 @@ export class ReDNATCOMsp extends React.Component<ReDNATCOMsp.Props, State> {
 
             const display: Display = {
                 ...this.state.display,
-                modelNumber: cmd.model,
+                structures: {
+                    ...this.state.display.structures,
+                    modelNumber: cmd.model,
+                },
             };
 
-            this.viewer.switchModel(display);
+            this.viewer.switchModel(display.structures.modelNumber);
             this.setState({ ...this.state, display });
         }
     }
@@ -244,6 +266,9 @@ export class ReDNATCOMsp extends React.Component<ReDNATCOMsp.Props, State> {
         const hasProtein = this.viewer?.has('structure', 'protein') ?? false;
         const hasWater = this.viewer?.has('structure', 'water') ?? false;
 
+        const isoRange = this.viewer?.densityMapIsoRange();
+        const _isoBounds = isoRange ? isoBounds(isoRange.min, isoRange.max) : { min: 0, max: 0, step: 0 };
+
         return (
             <div className='rmsp-app'>
                 <div id={this.props.elemId + '-viewer'} className='rmsp-viewer'></div>
@@ -253,12 +278,16 @@ export class ReDNATCOMsp extends React.Component<ReDNATCOMsp.Props, State> {
                         <div className='rmsp-controls-line'>
                             <div className='rmsp-control-item'>
                                 <PushButton
-                                    text={capitalize(this.state.display.representation)}
+                                    text={capitalize(this.state.display.structures.representation)}
                                     enabled={ready}
                                     onClick={() => {
                                         const display: Display = {
                                             ...this.state.display,
-                                            representation: this.state.display.representation === 'cartoon' ? 'ball-and-stick' : 'cartoon',
+                                            structures: {
+                                                ...this.state.display.structures,
+                                                representation: this.state.display.structures.representation === 'cartoon'
+                                                    ? 'ball-and-stick' : 'cartoon',
+                                            },
                                         };
                                         this.viewer!.changeRepresentation(display);
                                         this.setState({ ...this.state, display });
@@ -273,11 +302,14 @@ export class ReDNATCOMsp extends React.Component<ReDNATCOMsp.Props, State> {
                                 <ToggleButton
                                     text='Nucleic'
                                     enabled={hasNucleic}
-                                    switchedOn={this.state.display.showNucleic}
+                                    switchedOn={this.state.display.structures.showNucleic}
                                     onClick={() => {
                                         const display: Display = {
                                             ...this.state.display,
-                                            showNucleic: !this.state.display.showNucleic,
+                                            structures: {
+                                                ...this.state.display.structures,
+                                                showNucleic: !this.state.display.structures.showNucleic,
+                                            }
                                         };
                                         this.viewer!.toggleSubstructure('nucleic', display);
                                         this.setState({ ...this.state, display });
@@ -288,11 +320,14 @@ export class ReDNATCOMsp extends React.Component<ReDNATCOMsp.Props, State> {
                                 <ToggleButton
                                     text='Protein'
                                     enabled={hasProtein}
-                                    switchedOn={this.state.display.showProtein}
+                                    switchedOn={this.state.display.structures.showProtein}
                                     onClick={() => {
                                         const display: Display = {
                                             ...this.state.display,
-                                            showProtein: !this.state.display.showProtein,
+                                            structures: {
+                                                ...this.state.display.structures,
+                                                showProtein: !this.state.display.structures.showProtein,
+                                            },
                                         };
                                         this.viewer!.toggleSubstructure('protein', display);
                                         this.setState({ ...this.state, display });
@@ -303,11 +338,14 @@ export class ReDNATCOMsp extends React.Component<ReDNATCOMsp.Props, State> {
                                 <ToggleButton
                                     text='Water'
                                     enabled={hasWater}
-                                    switchedOn={this.state.display.showWater}
+                                    switchedOn={this.state.display.structures.showWater}
                                     onClick={() => {
                                         const display: Display = {
                                             ...this.state.display,
-                                            showWater: !this.state.display.showWater,
+                                            structures: {
+                                                ...this.state.display.structures,
+                                                showWater: !this.state.display.structures.showWater,
+                                            },
                                         };
                                         this.viewer!.toggleSubstructure('water', display);
                                         this.setState({ ...this.state, display });
@@ -323,11 +361,14 @@ export class ReDNATCOMsp extends React.Component<ReDNATCOMsp.Props, State> {
                                     <ToggleButton
                                         text='Pyramids'
                                         enabled={ready}
-                                        switchedOn={this.state.display.showPyramids}
+                                        switchedOn={this.state.display.structures.showPyramids}
                                         onClick={() => {
                                             const display: Display = {
                                                 ...this.state.display,
-                                                showPyramids: !this.state.display.showPyramids,
+                                                structures: {
+                                                    ...this.state.display.structures,
+                                                    showPyramids: !this.state.display.structures.showPyramids,
+                                                }
                                             };
                                             this.viewer!.changePyramids(display);
                                             this.setState({ ...this.state, display });
@@ -336,12 +377,15 @@ export class ReDNATCOMsp extends React.Component<ReDNATCOMsp.Props, State> {
                                 </div>
                                 <div className='rmsp-control-item'>
                                     <PushButton
-                                        text={this.state.display.pyramidsTransparent ? 'Transparent' : 'Solid'}
-                                        enabled={this.state.display.showPyramids}
+                                        text={this.state.display.structures.pyramidsTransparent ? 'Transparent' : 'Solid'}
+                                        enabled={this.state.display.structures.showPyramids}
                                         onClick={() => {
                                             const display: Display = {
                                                 ...this.state.display,
-                                                pyramidsTransparent: !this.state.display.pyramidsTransparent,
+                                                structures: {
+                                                    ...this.state.display.structures,
+                                                    pyramidsTransparent: !this.state.display.structures.pyramidsTransparent,
+                                                }
                                             };
                                             this.viewer!.changePyramids(display);
                                             this.setState({ ...this.state, display });
@@ -360,12 +404,15 @@ export class ReDNATCOMsp extends React.Component<ReDNATCOMsp.Props, State> {
                                 </div>
                                 <div className='rmsp-control-item'>
                                     <PushButton
-                                        text={this.state.display.ballsTransparent ? 'Transparent' : 'Solid'}
-                                        enabled={this.state.display.showBalls}
+                                        text={this.state.display.structures.ballsTransparent ? 'Transparent' : 'Solid'}
+                                        enabled={this.state.display.structures.showBalls}
                                         onClick={() => {
                                             const display: Display = {
                                                 ...this.state.display,
-                                                ballsTransparent: !this.state.display.ballsTransparent,
+                                                structures: {
+                                                    ...this.state.display.structures,
+                                                    ballsTransparent: !this.state.display.structures.ballsTransparent,
+                                                },
                                             };
                                             /* No balls today... */
                                             this.setState({ ...this.state, display });
@@ -383,11 +430,11 @@ export class ReDNATCOMsp extends React.Component<ReDNATCOMsp.Props, State> {
                                         className='rmsp-control-item'
                                         onClick={evt => ColorPicker.create(
                                             evt,
-                                            this.state.display.classColors[k],
+                                            this.state.display.structures.classColors[k],
                                             color => this.updateClassColor({ cls: k, color })
                                         )}
                                     >
-                                        <ColorBox caption={k} color={this.state.display.classColors[k]} />
+                                        <ColorBox caption={k} color={this.state.display.structures.classColors[k]} />
                                     </div>
                                     <PushButton
                                         text='R'
@@ -411,21 +458,21 @@ export class ReDNATCOMsp extends React.Component<ReDNATCOMsp.Props, State> {
                                                 className='rmsp-control-item'
                                                 onClick={evt => ColorPicker.create(
                                                     evt,
-                                                    this.state.display.conformerColors[uprKey],
+                                                    this.state.display.structures.conformerColors[uprKey],
                                                     color => this.updateConformerColor({ conformer: uprKey, color })
                                                 )}
                                             >
-                                                <ColorBox caption={`${ntc.slice(0, 2)}`} color={this.state.display.conformerColors[uprKey]} />
+                                                <ColorBox caption={`${ntc.slice(0, 2)}`} color={this.state.display.structures.conformerColors[uprKey]} />
                                             </div>
                                             <div
                                                 className='rmsp-control-item'
                                                 onClick={evt => ColorPicker.create(
                                                     evt,
-                                                    this.state.display.conformerColors[lwrKey],
+                                                    this.state.display.structures.conformerColors[lwrKey],
                                                     color => this.updateConformerColor({ conformer: lwrKey, color })
                                                 )}
                                             >
-                                                <ColorBox caption={`${ntc.slice(2)}`} color={this.state.display.conformerColors[lwrKey]} />
+                                                <ColorBox caption={`${ntc.slice(2)}`} color={this.state.display.structures.conformerColors[lwrKey]} />
                                             </div>
                                             <PushButton
                                                 text='R'
@@ -450,11 +497,11 @@ export class ReDNATCOMsp extends React.Component<ReDNATCOMsp.Props, State> {
                                     className='rmsp-control-item'
                                     onClick={evt => ColorPicker.create(
                                         evt,
-                                        this.state.display.chainColor,
+                                        this.state.display.structures.chainColor,
                                         color => this.updateChainColor(color)
                                     )}
                                 >
-                                    <ColorBox caption='Chains' color={this.state.display.chainColor} />
+                                    <ColorBox caption='Chains' color={this.state.display.structures.chainColor} />
                                 </div>
                                 <PushButton
                                     text='R'
@@ -467,11 +514,11 @@ export class ReDNATCOMsp extends React.Component<ReDNATCOMsp.Props, State> {
                                     className='rmsp-control-item'
                                     onClick={evt => ColorPicker.create(
                                         evt,
-                                        this.state.display.waterColor,
+                                        this.state.display.structures.waterColor,
                                         color => this.updateWaterColor(color)
                                     )}
                                 >
-                                    <ColorBox caption='Waters' color={this.state.display.waterColor} />
+                                    <ColorBox caption='Waters' color={this.state.display.structures.waterColor} />
                                 </div>
                                 <PushButton
                                     text='R'
@@ -483,6 +530,49 @@ export class ReDNATCOMsp extends React.Component<ReDNATCOMsp.Props, State> {
                         </div>
                     </div>
                 </CollapsibleVertical>
+                {this.viewer?.hasDensityMap()
+                    ? <DensityMapControls
+                        wireframe={this.state.display.densityMap.representations.includes('wireframe')}
+                        toggleWireframe={() => {
+                            const display = { ...this.state.display };
+                            display.densityMap.representations = toggleArray(display.densityMap.representations, 'wireframe');
+
+                            this.viewer!.changeDensityMap(display);
+                            this.setState({ ...this.state, display });
+                        }}
+
+                        solid={this.state.display.densityMap.representations.includes('solid')}
+                        toggleSolid={() => {
+                            const display = { ...this.state.display };
+                            display.densityMap.representations = toggleArray(display.densityMap.representations, 'solid');
+
+                            this.viewer!.changeDensityMap(display);
+                            this.setState({ ...this.state, display });
+                        }}
+
+                        isoMin={_isoBounds.min}
+                        isoMax={_isoBounds.max}
+                        isoStep={_isoBounds.step}
+                        iso={this.state.display.densityMap.isoValue}
+                        changeIso={(v) => {
+                            const display = { ...this.state.display };
+                            display.densityMap.isoValue = v;
+
+                            this.viewer!.changeDensityMap(display);
+                            this.setState({ ...this.state, display });
+                        }}
+
+                        alpha={this.state.display.densityMap.alpha}
+                        changeAlpha={(alpha) => {
+                            const display = { ...this.state.display };
+                            display.densityMap.alpha = alpha;
+
+                            this.viewer!.changeDensityMap(display);
+                            this.setState({ ...this.state, display });
+                        }}
+                    />
+                    : undefined
+                }
             </div>
         );
     }
