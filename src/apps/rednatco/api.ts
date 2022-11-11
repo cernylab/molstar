@@ -126,7 +126,7 @@ export namespace ReDNATCOMspApi {
         event: (evt: Event) => void;
         init: (elemId: string, onEvent?: (evt: Event) => void) => void;
         isReady: () => boolean;
-        loadStructure: (coords: { data: string, type: 'cif'|'pdb'}, densityMap: { data: Uint8Array, type: 'ccp4'|'dsn6' }|null) => void;
+        loadStructure: (coords: { data: string, type: 'cif'|'pdb'}, densityMap: { data: Uint8Array, type: 'ccp4'|'dsn6'|'ds' }|null) => void;
         query: <T extends Queries.Type>(type: T) => ResponseTypes[T];
     }
 }

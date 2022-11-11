@@ -852,7 +852,7 @@ export class ReDNATCOMspViewer {
 
     async loadStructure(
         coords: { data: string, type: 'pdb'|'cif' },
-        densityMap: { data: Uint8Array, type: 'ccp4'|'dsn6' }|null,
+        densityMap: { data: Uint8Array, type: 'ccp4'|'dsn6'|'ds' }|null,
         display: Display
     ) {
         // TODO: Remove the currently loaded structure
@@ -942,28 +942,38 @@ export class ReDNATCOMspViewer {
 
         // Load density map, if any
         if (densityMap) {
-            const [ParseTransform, VolumeTransform] = densityMap.type === 'ccp4'
-                ? [StateTransforms.Data.ParseCcp4, StateTransforms.Volume.VolumeFromCcp4]
-                : [StateTransforms.Data.ParseDsn6, StateTransforms.Volume.VolumeFromDsn6];
-            const b4 = this.plugin.state.data.build();
-            b4.toRoot()
-                .apply(RawData, { data: densityMap.data }, { ref: IDs.DensityID('data', BaseRef) })
-                .apply(ParseTransform)
-                .apply(VolumeTransform, {}, { ref: IDs.DensityID('volume', BaseRef) });
+            // This is ridiculous but anything saner breaks type checker
+            if (densityMap.type === 'ccp4') {
+                await this.plugin.state.data.build().toRoot()
+                    .apply(RawData, { data: densityMap.data }, { ref: IDs.DensityID('data', BaseRef) })
+                    .apply(StateTransforms.Data.ParseCcp4)
+                    .apply(StateTransforms.Volume.VolumeFromCcp4, {}, { ref: IDs.DensityID('volume', BaseRef) })
+                    .commit();
+            } else if (densityMap.type === 'dsn6') {
+                await this.plugin.state.data.build().toRoot()
+                    .apply(RawData, { data: densityMap.data }, { ref: IDs.DensityID('data', BaseRef) })
+                    .apply(StateTransforms.Data.ParseDsn6)
+                    .apply(StateTransforms.Volume.VolumeFromDsn6, {}, { ref: IDs.DensityID('volume', BaseRef) })
+                    .commit();
+            } else if (densityMap.type === 'ds') {
+                await this.plugin.state.data.build().toRoot()
+                    .apply(RawData, { data: densityMap.data }, { ref: IDs.DensityID('data', BaseRef) })
+                    .apply(StateTransforms.Data.ParseCif)
+                    .apply(StateTransforms.Volume.VolumeFromDensityServerCif, {}, { ref: IDs.DensityID('volume', BaseRef) })
+                    .commit();
+            }
 
-            await b4.commit(); // Load the density map now so we can probe the stats;
             const isoRange = this.densityMapIsoRange()!;
             const bounds = isoBounds(isoRange.min, isoRange.max);
             const iso = prettyIso(((isoRange.max - isoRange.min) / 2) + isoRange.min, bounds.step);
 
-            const b5 = this.plugin.state.data.build().to(IDs.DensityID('volume', BaseRef))
+            await this.plugin.state.data.build().to(IDs.DensityID('volume', BaseRef))
                 .apply(
                     StateTransforms.Representation.VolumeRepresentation3D,
                     this.densityMapVisuals(display.densityMap),
                     { ref: IDs.DensityID('visual', BaseRef) }
-                );
-
-            await b5.commit();
+                )
+                .commit();
 
             display.densityMap.representations = ['wireframe'];
             display.densityMap.isoValue = iso;

@@ -226,7 +226,7 @@ export class ReDNATCOMsp extends React.Component<ReDNATCOMsp.Props, State> {
         }
     }
 
-    loadStructure(coords: { data: string, type: 'pdb'|'cif' }, densityMap: { data: Uint8Array, type: 'ccp4'|'dsn6' }|null) {
+    loadStructure(coords: { data: string, type: 'pdb'|'cif' }, densityMap: { data: Uint8Array, type: 'ccp4'|'dsn6'|'ds' }|null) {
         if (this.viewer) {
             this.viewer.loadStructure(coords, densityMap, this.state.display).then(() => {
                 this.presentConformers = this.viewer!.getPresentConformers();
