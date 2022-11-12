@@ -286,14 +286,8 @@ export class ReDNATCOMsp extends React.Component<ReDNATCOMsp.Props, State> {
                                     text={capitalize(this.state.display.structures.representation)}
                                     enabled={ready}
                                     onClick={() => {
-                                        const display: Display = {
-                                            ...this.state.display,
-                                            structures: {
-                                                ...this.state.display.structures,
-                                                representation: this.state.display.structures.representation === 'cartoon'
-                                                    ? 'ball-and-stick' : 'cartoon',
-                                            },
-                                        };
+                                        const display = { ...this.state.display };
+                                        display.structures.representation = display.structures.representation === 'cartoon' ? 'ball-and-stick' : 'cartoon';
                                         this.viewer!.changeRepresentation(display);
                                         this.setState({ ...this.state, display });
                                     }}
@@ -309,13 +303,8 @@ export class ReDNATCOMsp extends React.Component<ReDNATCOMsp.Props, State> {
                                     enabled={hasNucleic}
                                     switchedOn={this.state.display.structures.showNucleic}
                                     onClick={() => {
-                                        const display: Display = {
-                                            ...this.state.display,
-                                            structures: {
-                                                ...this.state.display.structures,
-                                                showNucleic: !this.state.display.structures.showNucleic,
-                                            }
-                                        };
+                                        const display = { ...this.state.display };
+                                        display.structures.showNucleic = !display.structures.showNucleic,
                                         this.viewer!.toggleSubstructure('nucleic', display);
                                         this.setState({ ...this.state, display });
                                     }}
@@ -327,13 +316,8 @@ export class ReDNATCOMsp extends React.Component<ReDNATCOMsp.Props, State> {
                                     enabled={hasProtein}
                                     switchedOn={this.state.display.structures.showProtein}
                                     onClick={() => {
-                                        const display: Display = {
-                                            ...this.state.display,
-                                            structures: {
-                                                ...this.state.display.structures,
-                                                showProtein: !this.state.display.structures.showProtein,
-                                            },
-                                        };
+                                        const display = { ...this.state.display };
+                                        display.structures.showProtein = !display.structures.showProtein,
                                         this.viewer!.toggleSubstructure('protein', display);
                                         this.setState({ ...this.state, display });
                                     }}
@@ -345,13 +329,8 @@ export class ReDNATCOMsp extends React.Component<ReDNATCOMsp.Props, State> {
                                     enabled={hasWater}
                                     switchedOn={this.state.display.structures.showWater}
                                     onClick={() => {
-                                        const display: Display = {
-                                            ...this.state.display,
-                                            structures: {
-                                                ...this.state.display.structures,
-                                                showWater: !this.state.display.structures.showWater,
-                                            },
-                                        };
+                                        const display = { ...this.state.display };
+                                        display.structures.showWater = !this.state.display.structures.showWater;
                                         this.viewer!.toggleSubstructure('water', display);
                                         this.setState({ ...this.state, display });
                                     }}
