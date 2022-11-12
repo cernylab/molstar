@@ -1,4 +1,20 @@
 import React from 'react';
+import { stof } from './util';
+
+const Zero = '0'.charCodeAt(0);
+const Nine = '9'.charCodeAt(0);
+const Minus = '-'.charCodeAt(0);
+const Period = '.'.charCodeAt(0);
+
+function maybeNumeric(s: string) {
+    for (let idx = 0; idx < s.length; idx++) {
+        const cc = s.charCodeAt(idx);
+        if (!((cc >= Zero && cc <= Nine) || cc === Minus || cc === Period))
+            return false;
+    }
+
+    return true;
+}
 
 export class CollapsibleVertical extends React.Component<CollapsibleVertical.Props, { collapsed: boolean }> {
     constructor(props: CollapsibleVertical.Props) {
@@ -67,8 +83,9 @@ export class RangeSlider extends React.Component<RangeSlider.Props> {
                 max={this.props.max}
                 step={this.props.step}
                 onChange={evt => {
-                    const n = parseFloat(evt.currentTarget.value);
-                    this.props.onChange(isNaN(n) ? null : n);
+                    const n = stof(evt.currentTarget.value);
+                    if (n !== undefined)
+                        this.props.onChange(n);
                 }}
             />
         );
@@ -84,7 +101,20 @@ export namespace RangeSlider {
     }
 }
 
-export class SpinBox extends React.Component<SpinBox.Props> {
+interface SpinBoxState {
+    displayedValue: string
+}
+export class SpinBox extends React.Component<SpinBox.Props, SpinBoxState> {
+    constructor(props: SpinBox.Props) {
+        super(props);
+
+        this.state = {
+            displayedValue: this.props.formatter
+                ? this.props.formatter(this.props.value.toString())
+                : this.props.value.toString(),
+        };
+    }
+
     private clsDisabled() {
         return this.props.classNameDisabled ?? 'rmsp-spinbox-input-disabled';
     }
@@ -94,19 +124,46 @@ export class SpinBox extends React.Component<SpinBox.Props> {
     }
 
     private decrease() {
-        if (this.props.value === null)
+        const n = stof(this.state.displayedValue);
+        if (n === undefined)
             return;
-        const nv = this.props.value - this.props.step;
+        const nv = n - this.props.step;
         if (nv >= this.props.min)
-            this.props.onChange(nv.toString());
+            this.props.onChange(n);
     }
 
     private increase() {
-        if (this.props.value === null)
+        const n = stof(this.state.displayedValue);
+        if (n === undefined)
             return;
-        const nv = this.props.value + this.props.step;
+        const nv = n + this.props.step;
         if (nv >= this.props.min)
-            this.props.onChange(nv.toString());
+            this.props.onChange(n);
+    }
+
+    private handleChange(value: string) {
+        const n = stof(value);
+
+        if (
+            n !== undefined &&
+            n !== this.props.value &&
+            (this.props.min <= n && n <= this.props.max) &&
+            value[value.length - 1] !== '.'
+        ) {
+            this.props.onChange(n);
+        } else {
+            if (maybeNumeric(value))
+                this.setState({ ...this.state, displayedValue: value });
+        }
+    }
+
+    componentDidUpdate(prevProps: SpinBox.Props) {
+        if (this.props !== prevProps) {
+            const displayedValue = this.props.formatter
+                ? this.props.formatter(this.props.value.toString())
+                : this.props.value.toString();
+            this.setState({ ...this.state, displayedValue });
+        }
     }
 
     render() {
@@ -115,27 +172,21 @@ export class SpinBox extends React.Component<SpinBox.Props> {
                 <input
                     type='text'
                     className={this.props.disabled ? this.clsDisabled() : this.clsEnabled()}
-                    value={this.props.formatter ? this.props.formatter(this.props.value) : this.props.value?.toString() ?? ''}
-                    onChange={evt =>{
-                        const v = evt.currentTarget.value;
-                        const n = parseFloat(v);
-                        if (!isNaN(n) && (n < this.props.min || n > this.props.max))
-                            return;
-
-                        this.props.onChange(evt.currentTarget.value);
-                    }}
+                    value={this.state.displayedValue}
+                    onChange={evt => this.handleChange(evt.currentTarget.value)}
                     onWheel={evt => {
                         evt.stopPropagation();
-                        if (this.props.value === null)
+                        const n = stof(this.state.displayedValue);
+                        if (n === undefined)
                             return;
                         if (evt.deltaY < 0) {
-                            const nv = this.props.value + this.props.step;
+                            const nv = n + this.props.step;
                             if (nv <= this.props.max)
-                                this.props.onChange(nv.toString());
+                                this.props.onChange(nv);
                         } else if (evt.deltaY > 0) {
-                            const nv = this.props.value - this.props.step;
+                            const nv = n - this.props.step;
                             if (nv >= this.props.min)
-                                this.props.onChange(nv.toString());
+                                this.props.onChange(nv);
                         }
                     }}
                 />
@@ -155,15 +206,15 @@ export class SpinBox extends React.Component<SpinBox.Props> {
 }
 export namespace SpinBox {
     export interface Formatter {
-        (v: number|null): string;
+        (v: string): string;
     }
 
     export interface OnChange {
-        (newValue: string): void;
+        (newValue: number): void;
     }
 
     export interface Props {
-        value: number|null;
+        value: number;
         onChange: OnChange;
         min: number;
         max: number;

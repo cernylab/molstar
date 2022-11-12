@@ -138,7 +138,10 @@ export class ReDNATCOMsp extends React.Component<ReDNATCOMsp.Props, State> {
                 : this.classColorToConformers(changes.cls, Color(changes.color)))
         };
 
-        const display = { ...this.state.display, classColors, conformerColors };
+        const display = { ...this.state.display };
+        display.structures.classColors = classColors;
+        display.structures.conformerColors = conformerColors;
+
         this.viewer!.changeNtCColors(display);
         this.setState({ ...this.state, display });
     }
@@ -150,7 +153,9 @@ export class ReDNATCOMsp extends React.Component<ReDNATCOMsp.Props, State> {
         else
             conformerColors[changes.conformer] = Color(changes.color);
 
-        const display = { ...this.state.display, conformerColors };
+        const display = { ...this.state.display };
+        display.structures.conformerColors = conformerColors;
+
         this.viewer!.changeNtCColors(display);
         this.setState({ ...this.state, display });
     }
