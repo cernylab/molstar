@@ -1,5 +1,5 @@
 import React from 'react';
-import { stof } from './util';
+import { numDecimals, stof } from './util';
 
 const Zero = '0'.charCodeAt(0);
 const Nine = '9'.charCodeAt(0);
@@ -142,6 +142,9 @@ export class SpinBox extends React.Component<SpinBox.Props, SpinBoxState> {
     }
 
     private handleChange(value: string) {
+        if (this.props.maxNumDecimals !== undefined && numDecimals(value) > this.props.maxNumDecimals)
+            return;
+
         const n = stof(value);
 
         if (
@@ -224,5 +227,6 @@ export namespace SpinBox {
         className?: string;
         classNameDisabled?: string;
         formatter?: Formatter;
+        maxNumDecimals?: number;
     }
 }

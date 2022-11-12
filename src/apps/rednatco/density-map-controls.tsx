@@ -48,6 +48,7 @@ export class DensityMapControls extends React.Component<DensityMapControls.Props
                                     min={this.props.isoMin}
                                     max={this.props.isoMax}
                                     step={this.props.isoStep}
+                                    maxNumDecimals={Math.log10(this.props.isoStep) >= 0 ? 0 : -Math.log10(this.props.isoStep)}
                                     value={isoToFixed(this.props.iso, this.props.isoStep)}
                                     onChange={(n) => this.props.changeIso(n)}
                                     pathPrefix=''
@@ -76,6 +77,7 @@ export class DensityMapControls extends React.Component<DensityMapControls.Props
                                     min={0}
                                     max={1}
                                     step={0.1}
+                                    maxNumDecimals={1}
                                     value={(1.0 - this.props.alpha)}
                                     onChange={(n) => this.props.changeAlpha(1.0 - n)}
                                     pathPrefix=''

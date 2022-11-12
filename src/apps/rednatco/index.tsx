@@ -368,13 +368,8 @@ export class ReDNATCOMsp extends React.Component<ReDNATCOMsp.Props, State> {
                                         enabled={ready}
                                         switchedOn={this.state.display.structures.showPyramids}
                                         onClick={() => {
-                                            const display: Display = {
-                                                ...this.state.display,
-                                                structures: {
-                                                    ...this.state.display.structures,
-                                                    showPyramids: !this.state.display.structures.showPyramids,
-                                                }
-                                            };
+                                            const display = { ...this.state.display };
+                                            display.structures.showPyramids = !display.structures.showPyramids;
                                             this.viewer!.changePyramids(display);
                                             this.setState({ ...this.state, display });
                                         }}
@@ -385,13 +380,8 @@ export class ReDNATCOMsp extends React.Component<ReDNATCOMsp.Props, State> {
                                         text={this.state.display.structures.pyramidsTransparent ? 'Transparent' : 'Solid'}
                                         enabled={this.state.display.structures.showPyramids}
                                         onClick={() => {
-                                            const display: Display = {
-                                                ...this.state.display,
-                                                structures: {
-                                                    ...this.state.display.structures,
-                                                    pyramidsTransparent: !this.state.display.structures.pyramidsTransparent,
-                                                }
-                                            };
+                                            const display = { ...this.state.display };
+                                            display.structures.pyramidsTransparent = !display.structures.pyramidsTransparent;
                                             this.viewer!.changePyramids(display);
                                             this.setState({ ...this.state, display });
                                         }}
@@ -412,13 +402,9 @@ export class ReDNATCOMsp extends React.Component<ReDNATCOMsp.Props, State> {
                                         text={this.state.display.structures.ballsTransparent ? 'Transparent' : 'Solid'}
                                         enabled={this.state.display.structures.showBalls}
                                         onClick={() => {
-                                            const display: Display = {
-                                                ...this.state.display,
-                                                structures: {
-                                                    ...this.state.display.structures,
-                                                    ballsTransparent: !this.state.display.structures.ballsTransparent,
-                                                },
-                                            };
+                                            const display = { ...this.state.display };
+                                            display.structures.showBalls = !display.structures.showBalls;
+
                                             /* No balls today... */
                                             this.setState({ ...this.state, display });
                                         }}

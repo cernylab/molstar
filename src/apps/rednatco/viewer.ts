@@ -847,7 +847,7 @@ export class ReDNATCOMspViewer {
     }
 
     isReady() {
-        return this.has('structure', '', BaseRef);
+        return this.has('entire-structure', '', BaseRef);
     }
 
     async loadStructure(
@@ -967,6 +967,9 @@ export class ReDNATCOMspViewer {
             const bounds = isoBounds(isoRange.min, isoRange.max);
             const iso = prettyIso(((isoRange.max - isoRange.min) / 2) + isoRange.min, bounds.step);
 
+            display.densityMap.representations = ['wireframe'];
+            display.densityMap.isoValue = iso;
+
             await this.plugin.state.data.build().to(IDs.DensityID('volume', BaseRef))
                 .apply(
                     StateTransforms.Representation.VolumeRepresentation3D,
@@ -974,9 +977,6 @@ export class ReDNATCOMspViewer {
                     { ref: IDs.DensityID('visual', BaseRef) }
                 )
                 .commit();
-
-            display.densityMap.representations = ['wireframe'];
-            display.densityMap.isoValue = iso;
         }
 
         this.haveMultipleModels = this.getModelCount() > 1;
