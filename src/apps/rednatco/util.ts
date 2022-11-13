@@ -1,6 +1,21 @@
 import { Color } from '../../mol-util/color';
 import { parseInt as parseIntMS, parseFloat as parseFloatMS } from '../../mol-io/reader/common/text/number-parser';
 
+const Zero = '0'.charCodeAt(0);
+const Period = '.'.charCodeAt(0);
+
+export function clampDecimals(s: string, maxNumDecimals: number) {
+    const idx = s.lastIndexOf('.');
+    if (idx < 0)
+        return s;
+    return maxNumDecimals === 0 ? s.substring(0, idx) : s.substring(0, idx + maxNumDecimals + 1);
+}
+
+export function fuzzyCmp(a: number, b: number, relativeTolerance = 0.00001) {
+    const TOL = a * relativeTolerance;
+    return Math.abs(a - b) <= TOL;
+}
+
 export function isoBounds(min: number, max: number): { min: number, max: number, step: number } {
     let diff = max - min;
     if (diff <= 0.0)
@@ -39,6 +54,23 @@ export function numDecimals(s: string) {
 
 export function prettyIso(iso: number, step: number) {
     return Math.floor((iso - step) / step) * step + step;
+}
+
+export function reduceDecimals(s: string) {
+    const delimIdx = s.lastIndexOf('.');
+    if (delimIdx < 0)
+        return s;
+    else if (delimIdx === s.length - 1)
+        return s.substring(0, s.length - 1);
+
+    let idx = s.length - 1;
+    for (; idx > delimIdx; idx--) {
+        if (s.charCodeAt(idx) !== Zero)
+            break;
+    }
+    const noDot = s.charCodeAt(idx) === Period ? 0 : 1
+
+    return s.substring(0, idx + noDot);
 }
 
 export function stof(s: string) {

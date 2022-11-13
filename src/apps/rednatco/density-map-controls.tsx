@@ -1,6 +1,6 @@
 import React from 'react';
 import { CollapsibleVertical, RangeSlider, SpinBox, ToggleButton } from './controls';
-import { isoToFixed, numDecimals, stof } from './util';
+import { isoToFixed } from './util';
 
 export class DensityMapControls extends React.Component<DensityMapControls.Props> {
     render() {
@@ -65,28 +65,22 @@ export class DensityMapControls extends React.Component<DensityMapControls.Props
                         <div className='rmsp-control-item'>
                             <RangeSlider
                                 min={0}
-                                max={1}
-                                step={0.1}
-                                value={(1.0 - this.props.alpha)}
-                                onChange={(v) => this.props.changeAlpha(1.0 - v!)}
+                                max={100}
+                                step={1}
+                                value={(1.0 - this.props.alpha) * 100}
+                                onChange={(n) => this.props.changeAlpha(1.0 - (n! / 100))}
                             />
                         </div>
                         <div className='rmsp-control-item'>
                             <div style={{ display: 'grid', gridTemplateColumns: '4em 1fr' }}>
                                 <SpinBox
                                     min={0}
-                                    max={1}
-                                    step={0.1}
-                                    maxNumDecimals={1}
-                                    value={(1.0 - this.props.alpha)}
-                                    onChange={(n) => this.props.changeAlpha(1.0 - n)}
+                                    max={100}
+                                    step={1}
+                                    maxNumDecimals={0}
+                                    value={(1.0 - this.props.alpha) * 100}
+                                    onChange={(n) => this.props.changeAlpha(1.0 - (n / 100))}
                                     pathPrefix=''
-                                    formatter={v => {
-                                        const n = stof(v);
-                                        if (n !== undefined && numDecimals(v) > 1)
-                                            return n.toFixed(1);
-                                        return v;
-                                    }}
                                 />
                             </div>
                         </div>

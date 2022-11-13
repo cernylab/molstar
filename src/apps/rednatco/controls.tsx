@@ -1,18 +1,29 @@
 import React from 'react';
-import { numDecimals, stof } from './util';
+import { fuzzyCmp, numDecimals, reduceDecimals, stof } from './util';
 
 const Zero = '0'.charCodeAt(0);
 const Nine = '9'.charCodeAt(0);
 const Minus = '-'.charCodeAt(0);
 const Period = '.'.charCodeAt(0);
 
-function maybeNumeric(s: string) {
+function isAllowedNumericInput(s: string, maxNumDecimals?: number) {
+    let havePeriod = false;
     for (let idx = 0; idx < s.length; idx++) {
         const cc = s.charCodeAt(idx);
-        if (!((cc >= Zero && cc <= Nine) || cc === Minus || cc === Period))
+        if (cc === Period) {
+            if (havePeriod)
+                return false;
+            else
+                havePeriod = true;
+        } else if (cc === Minus) {
+            if (idx > 0)
+                return false;
+        } else if (!(cc >= Zero && cc <= Nine))
             return false;
     }
 
+    if (maxNumDecimals !== undefined)
+        return numDecimals(s) <= maxNumDecimals;
     return true;
 }
 
@@ -109,9 +120,7 @@ export class SpinBox extends React.Component<SpinBox.Props, SpinBoxState> {
         super(props);
 
         this.state = {
-            displayedValue: this.props.formatter
-                ? this.props.formatter(this.props.value.toString())
-                : this.props.value.toString(),
+            displayedValue: this.formatValue(this.props.value),
         };
     }
 
@@ -129,7 +138,21 @@ export class SpinBox extends React.Component<SpinBox.Props, SpinBoxState> {
             return;
         const nv = n - this.props.step;
         if (nv >= this.props.min)
-            this.props.onChange(n);
+            this.notifyChange(nv);
+    }
+
+    private formatValue(n: number, padToDecimals?: number) {
+        if (this.props.maxNumDecimals !== undefined) {
+            if (padToDecimals !== undefined) {
+                const padded = n.toFixed(padToDecimals);
+                if (fuzzyCmp(n, stof(padded)!))
+                    return padded;
+            }
+
+            const fn = n.toFixed(this.props.maxNumDecimals);
+            return reduceDecimals(fn);
+        }
+        return n.toString();
     }
 
     private increase() {
@@ -137,11 +160,11 @@ export class SpinBox extends React.Component<SpinBox.Props, SpinBoxState> {
         if (n === undefined)
             return;
         const nv = n + this.props.step;
-        if (nv >= this.props.min)
-            this.props.onChange(n);
+        if (nv <= this.props.max)
+            this.notifyChange(nv);
     }
 
-    private handleChange(value: string) {
+    private maybeNotifyUpdate(value: string) {
         if (this.props.maxNumDecimals !== undefined && numDecimals(value) > this.props.maxNumDecimals)
             return;
 
@@ -149,23 +172,33 @@ export class SpinBox extends React.Component<SpinBox.Props, SpinBoxState> {
 
         if (
             n !== undefined &&
-            n !== this.props.value &&
-            (this.props.min <= n && n <= this.props.max) &&
-            value[value.length - 1] !== '.'
+            !fuzzyCmp(n, this.props.value) &&
+            (this.props.min <= n && n <= this.props.max)
         ) {
-            this.props.onChange(n);
-        } else {
-            if (maybeNumeric(value))
-                this.setState({ ...this.state, displayedValue: value });
+            this.notifyChange(n);
         }
     }
 
-    componentDidUpdate(prevProps: SpinBox.Props) {
-        if (this.props !== prevProps) {
-            const displayedValue = this.props.formatter
-                ? this.props.formatter(this.props.value.toString())
-                : this.props.value.toString();
-            this.setState({ ...this.state, displayedValue });
+    private notifyChange(n: number) {
+        if (this.props.maxNumDecimals !== undefined) {
+            const Factor = Math.pow(10, this.props.maxNumDecimals);
+            this.props.onChange(Math.round(n * Factor) / Factor);
+        } else
+            this.props.onChange(n);
+    }
+
+    componentDidUpdate(prevProps: SpinBox.Props, prevState: SpinBoxState) {
+        if (this.props !== prevProps && this.props.value !== prevProps.value) {
+            const padToDecimals = stof(this.state.displayedValue) !== undefined ? numDecimals(this.state.displayedValue) : void 0;
+            const displayedValue = this.formatValue(this.props.value, padToDecimals);
+            if (
+                displayedValue !== this.state.displayedValue &&
+                displayedValue !== this.state.displayedValue.substring(0, this.state.displayedValue.length - 1)
+            )
+                this.setState({ ...this.state, displayedValue });
+        } else {
+            if (this.state.displayedValue !== prevState.displayedValue)
+                this.maybeNotifyUpdate(this.state.displayedValue);
         }
     }
 
@@ -176,7 +209,11 @@ export class SpinBox extends React.Component<SpinBox.Props, SpinBoxState> {
                     type='text'
                     className={this.props.disabled ? this.clsDisabled() : this.clsEnabled()}
                     value={this.state.displayedValue}
-                    onChange={evt => this.handleChange(evt.currentTarget.value)}
+                    onChange={evt => {
+                        const v = evt.currentTarget.value;
+                        if (isAllowedNumericInput(v, this.props.maxNumDecimals))
+                            this.setState({ ...this.state, displayedValue: v });
+                    }}
                     onWheel={evt => {
                         evt.stopPropagation();
                         const n = stof(this.state.displayedValue);
@@ -185,11 +222,11 @@ export class SpinBox extends React.Component<SpinBox.Props, SpinBoxState> {
                         if (evt.deltaY < 0) {
                             const nv = n + this.props.step;
                             if (nv <= this.props.max)
-                                this.props.onChange(nv);
+                                this.notifyChange(nv);
                         } else if (evt.deltaY > 0) {
                             const nv = n - this.props.step;
                             if (nv >= this.props.min)
-                                this.props.onChange(nv);
+                                this.notifyChange(nv);
                         }
                     }}
                 />
@@ -209,7 +246,7 @@ export class SpinBox extends React.Component<SpinBox.Props, SpinBoxState> {
 }
 export namespace SpinBox {
     export interface Formatter {
-        (v: string): string;
+        (v: number): string;
     }
 
     export interface OnChange {
@@ -226,7 +263,6 @@ export namespace SpinBox {
         disabled?: boolean;
         className?: string;
         classNameDisabled?: string;
-        formatter?: Formatter;
         maxNumDecimals?: number;
     }
 }
