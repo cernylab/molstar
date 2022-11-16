@@ -79,6 +79,9 @@
     flex: 1;
 }
 
+.rmsp-control-item-squished {
+}
+
 .rmsp-controls-line {
     align-items: center;
     display: flex;

@@ -18,9 +18,10 @@ export function ID(id: ID, sub: Substructure|'', ref: string) {
 }
 
 export type DensityID = 'data'|'volume'|'visual';
+// export type DensityKind = 'absolute'|'difference-positive'|'difference-negative';
 
-export function DensityID(id: DensityID, ref: string) {
-    return `${ref}_density-map_${id}`;
+export function DensityID(index: number, id: DensityID, ref: string) {
+    return `${ref}_density-map_${index}_${id}`;
 }
 
 export function isVisual(ident: string) {

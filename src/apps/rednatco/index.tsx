@@ -7,8 +7,8 @@ import { Filters } from './filters';
 import { ReDNATCOMspViewer } from './viewer';
 import { NtCColors } from './colors';
 import { ColorPicker } from './color-picker';
-import { CollapsibleVertical, PushButton, ToggleButton } from './controls';
-import { isoBounds, luminance, toggleArray } from './util';
+import { CollapsibleVertical, ColorBox, PushButton, ToggleButton } from './controls';
+import { toggleArray } from './util';
 import { Color } from '../../mol-util/color';
 import { assertUnreachable } from '../../mol-util/type-helpers';
 import './index.html';
@@ -27,10 +27,24 @@ const ConformersByClass = {
 type ConformersByClass = typeof ConformersByClass;
 
 const DefaultChainColor = Color(0xD9D9D9);
-const DefaultDensityMapAlpha = 0.5;
+const DefaultDensityMapAlpha = 0.25;
 const DefaultWaterColor = Color(0x0BB2FF);
 export type VisualRepresentations = 'ball-and-stick'|'cartoon';
 export type DensityMapRepresentation = 'wireframe'|'solid';
+export type DensityMapKind = '2fo-fc'|'fo-fc'|'em';
+
+export const DefaultDensityDifferencePositiveColor = Color(0x00C300);
+export const DefaultDensityDifferenceNegativeColor = Color(0xC30000);
+export const DefaultDensityMapColor = Color(0x009DFF);
+const DefaultDensityMapDisplay = {
+    kind: '2fo-fc' as DensityMapKind,
+    representations: ['solid'] as DensityMapRepresentation[],
+    isoValue: 0,
+
+    alpha: DefaultDensityMapAlpha,
+    colors: [{ color: DefaultDensityMapColor, name: 'Color' }],
+};
+export type DensityMapDisplay = typeof DefaultDensityMapDisplay;
 
 const Display = {
     structures: {
@@ -53,13 +67,7 @@ const Display = {
         chainColor: DefaultChainColor,
         waterColor: DefaultWaterColor,
     },
-    densityMap: {
-        representations: ['wireframe'] as DensityMapRepresentation[],
-        isoValue: 0,
-
-        alpha: DefaultDensityMapAlpha,
-        color: 0x000000
-    },
+    densityMaps: [] as DensityMapDisplay[],
 };
 export type Display = typeof Display;
 
@@ -67,20 +75,6 @@ function capitalize(s: string) {
     if (s.length === 0)
         return s;
     return s[0].toLocaleUpperCase() + s.slice(1);
-}
-
-class ColorBox extends React.Component<{ caption: string, color: Color }> {
-    render() {
-        const lum = luminance(this.props.color);
-        return (
-            <div
-                className='rmsp-color-box'
-                style={{ backgroundColor: Color.toStyle(this.props.color) }}
-            >
-                <span style={{ color: lum > 0.6 ? 'black' : 'white' }}>{this.props.caption}</span>
-            </div>
-        );
-    }
 }
 
 interface State {
@@ -231,11 +225,32 @@ export class ReDNATCOMsp extends React.Component<ReDNATCOMsp.Props, State> {
         }
     }
 
-    loadStructure(coords: { data: string, type: 'pdb'|'cif' }, densityMap: { data: Uint8Array, type: 'ccp4'|'dsn6'|'ds' }|null) {
+    loadStructure(coords: { data: string, type: 'pdb'|'cif' }, densityMaps: { data: Uint8Array, type: 'ccp4'|'dsn6', kind: '2fo-fc'|'fo-fc'|'em' }[]|null) {
         if (this.viewer) {
-            this.viewer.loadStructure(coords, densityMap, this.state.display).then(() => {
+            const display = { ...this.state.display };
+            if (densityMaps) {
+                display.densityMaps.length = densityMaps.length;
+                for (let idx = 0; idx < densityMaps.length; idx++) {
+                    const dm = densityMaps[idx];
+
+                    if (dm.kind === 'fo-fc') {
+                        display.densityMaps[idx] = {
+                            ...DefaultDensityMapDisplay,
+                            kind: dm.kind,
+                            colors: [
+                                { color: DefaultDensityDifferencePositiveColor, name: '+ color' },
+                                { color: DefaultDensityDifferenceNegativeColor, name: '- color' },
+                            ],
+                        };
+                    } else
+                        display.densityMaps[idx] = { ...DefaultDensityMapDisplay, kind: dm.kind };
+                }
+            } else
+                display.densityMaps.length = 0;
+
+            this.viewer.loadStructure(coords, densityMaps, display).then(() => {
                 this.presentConformers = this.viewer!.getPresentConformers();
-                this.forceUpdate();
+                this.setState({ ...this.state, display });
                 ReDNATCOMspApi.event(Api.Events.StructureLoaded());
             });
         }
@@ -270,9 +285,6 @@ export class ReDNATCOMsp extends React.Component<ReDNATCOMsp.Props, State> {
         const hasNucleic = this.viewer?.has('structure', 'nucleic') ?? false;
         const hasProtein = this.viewer?.has('structure', 'protein') ?? false;
         const hasWater = this.viewer?.has('structure', 'water') ?? false;
-
-        const isoRange = this.viewer?.densityMapIsoRange();
-        const _isoBounds = isoRange ? isoBounds(isoRange.min, isoRange.max) : { min: 0, max: 0, step: 0 };
 
         return (
             <div className='rmsp-app'>
@@ -500,44 +512,44 @@ export class ReDNATCOMsp extends React.Component<ReDNATCOMsp.Props, State> {
                         </div>
                     </div>
                 </CollapsibleVertical>
-                {this.viewer?.hasDensityMap()
+                {this.viewer?.hasDensityMaps()
                     ? <DensityMapControls
-                        wireframe={this.state.display.densityMap.representations.includes('wireframe')}
-                        toggleWireframe={() => {
+                        viewer={this.viewer}
+                        display={this.state.display.densityMaps}
+                        toggleWireframe={(index) => {
                             const display = { ...this.state.display };
-                            display.densityMap.representations = toggleArray(display.densityMap.representations, 'wireframe');
+                            display.densityMaps[index].representations = toggleArray(display.densityMaps[index].representations, 'wireframe');
 
-                            this.viewer!.changeDensityMap(display);
+                            this.viewer!.changeDensityMap(index, display);
                             this.setState({ ...this.state, display });
                         }}
 
-                        solid={this.state.display.densityMap.representations.includes('solid')}
-                        toggleSolid={() => {
+                        toggleSolid={(index) => {
                             const display = { ...this.state.display };
-                            display.densityMap.representations = toggleArray(display.densityMap.representations, 'solid');
+                            display.densityMaps[index].representations = toggleArray(display.densityMaps[index].representations, 'solid');
 
-                            this.viewer!.changeDensityMap(display);
+                            this.viewer!.changeDensityMap(index, display);
                             this.setState({ ...this.state, display });
                         }}
-
-                        isoMin={_isoBounds.min}
-                        isoMax={_isoBounds.max}
-                        isoStep={_isoBounds.step}
-                        iso={this.state.display.densityMap.isoValue}
-                        changeIso={(v) => {
+                        changeIso={(index, v) => {
                             const display = { ...this.state.display };
-                            display.densityMap.isoValue = v;
+                            display.densityMaps[index].isoValue = v;
 
-                            this.viewer!.changeDensityMap(display);
+                            this.viewer!.changeDensityMap(index, display);
                             this.setState({ ...this.state, display });
                         }}
-
-                        alpha={this.state.display.densityMap.alpha}
-                        changeAlpha={(alpha) => {
+                        changeAlpha={(index, alpha) => {
                             const display = { ...this.state.display };
-                            display.densityMap.alpha = alpha;
+                            display.densityMaps[index].alpha = alpha;
 
-                            this.viewer!.changeDensityMap(display);
+                            this.viewer!.changeDensityMap(index, display);
+                            this.setState({ ...this.state, display });
+                        }}
+                        changeColors={(index, colors) => {
+                            const display = { ...this.state.display };
+                            display.densityMaps[index].colors = colors;
+
+                            this.viewer!.changeDensityMap(index, display);
                             this.setState({ ...this.state, display });
                         }}
                     />

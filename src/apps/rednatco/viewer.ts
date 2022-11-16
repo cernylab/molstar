@@ -244,20 +244,28 @@ export class ReDNATCOMspViewer {
         this.app = app;
     }
 
-    private densityMapVisuals(vis: Display['densityMap']) {
+    private densityMapVisuals(vis: Display['densityMaps'][0], visKind: 'absolute'|'positive'|'negative') {
+        const isoValue = visKind === 'absolute'
+            ? Volume.IsoValue.absolute(vis.isoValue)
+            : visKind === 'positive'
+                ? Volume.IsoValue.relative(vis.isoValue) : Volume.IsoValue.relative(-vis.isoValue);
+
+        const color = visKind === 'absolute' || visKind === 'positive'
+            ? vis.colors[0] : vis.colors[1]
+
         return {
             type: {
                 name: 'isosurface',
                 params: {
                     alpha: vis.alpha,
-                    isoValue: Volume.IsoValue.absolute(vis.isoValue),
+                    isoValue,
                     visuals: vis.representations,
                     sizeFactor: 0.75,
                 }
             },
             colorTheme: {
                 name: 'uniform',
-                params: { value: Color(vis.color) },
+                params: { value: Color(color.color) },
             },
         };
     }
@@ -649,22 +657,41 @@ export class ReDNATCOMspViewer {
         await b.commit();
     }
 
-    async changeDensityMap(display: Display) {
-        if (!this.hasDensityMap())
+    async changeDensityMap(index: number, display: Display) {
+        if (!this.hasDensityMaps())
             return;
 
-        const b = this.plugin.state.data.build().to(IDs.DensityID('visual', BaseRef));
-        const vis = display.densityMap;
+        const dm = display.densityMaps[index];
 
-        b.update(
-            StateTransforms.Representation.VolumeRepresentation3D,
-            old => ({
-                ...old,
-                ...this.densityMapVisuals(vis),
-            })
-        );
-
-        await b.commit();
+        if (dm.kind === 'fo-fc') {
+            await this.plugin.state.data.build().to(IDs.DensityID(index, 'visual', BaseRef + '_pos'))
+                .update(
+                    StateTransforms.Representation.VolumeRepresentation3D,
+                    old => ({
+                        ...old,
+                        ...this.densityMapVisuals(dm, 'positive'),
+                    })
+                )
+                .to(IDs.DensityID(index, 'visual', BaseRef + '_neg'))
+                .update(
+                    StateTransforms.Representation.VolumeRepresentation3D,
+                    old => ({
+                        ...old,
+                        ...this.densityMapVisuals(dm, 'negative'),
+                    })
+                )
+                .commit();
+        } else {
+            await this.plugin.state.data.build().to(IDs.DensityID(index, 'visual', BaseRef))
+                .update(
+                    StateTransforms.Representation.VolumeRepresentation3D,
+                    old => ({
+                        ...old,
+                        ...this.densityMapVisuals(dm, 'absolute'),
+                    })
+                )
+                .commit();
+        }
     }
 
     currentModelNumber() {
@@ -674,8 +701,8 @@ export class ReDNATCOMspViewer {
         return (model as StateObject<Model>).data.modelNum;
     }
 
-    densityMapIsoRange(ref = BaseRef): { min: number, max: number }|undefined {
-        const cell = this.plugin.state.data.cells.get(IDs.DensityID('volume', ref));
+    densityMapIsoRange(index: number, ref = BaseRef): { min: number, max: number }|undefined {
+        const cell = this.plugin.state.data.cells.get(IDs.DensityID(index, 'volume', ref));
         if (!cell || !cell.obj)
             return void 0;
 
@@ -842,8 +869,8 @@ export class ReDNATCOMspViewer {
         return !!this.plugin.state.data.cells.get(IDs.ID(id, sub, ref))?.obj?.data;
     }
 
-    hasDensityMap(ref = BaseRef) {
-        return !!this.plugin.state.data.cells.get(IDs.DensityID('volume', ref))?.obj?.data;
+    hasDensityMaps(ref = BaseRef) {
+        return !!this.plugin.state.data.cells.get(IDs.DensityID(0, 'volume', ref))?.obj?.data;
     }
 
     isReady() {
@@ -852,7 +879,7 @@ export class ReDNATCOMspViewer {
 
     async loadStructure(
         coords: { data: string, type: 'pdb'|'cif' },
-        densityMap: { data: Uint8Array, type: 'ccp4'|'dsn6'|'ds' }|null,
+        densityMaps: { data: Uint8Array, type: 'ccp4'|'dsn6', kind: '2fo-fc'|'fo-fc'|'em' }[]|null,
         display: Display
     ) {
         // TODO: Remove the currently loaded structure
@@ -941,42 +968,54 @@ export class ReDNATCOMspViewer {
         await b3.commit();
 
         // Load density map, if any
-        if (densityMap) {
-            // This is ridiculous but anything saner breaks type checker
-            if (densityMap.type === 'ccp4') {
-                await this.plugin.state.data.build().toRoot()
-                    .apply(RawData, { data: densityMap.data }, { ref: IDs.DensityID('data', BaseRef) })
-                    .apply(StateTransforms.Data.ParseCcp4)
-                    .apply(StateTransforms.Volume.VolumeFromCcp4, {}, { ref: IDs.DensityID('volume', BaseRef) })
-                    .commit();
-            } else if (densityMap.type === 'dsn6') {
-                await this.plugin.state.data.build().toRoot()
-                    .apply(RawData, { data: densityMap.data }, { ref: IDs.DensityID('data', BaseRef) })
-                    .apply(StateTransforms.Data.ParseDsn6)
-                    .apply(StateTransforms.Volume.VolumeFromDsn6, {}, { ref: IDs.DensityID('volume', BaseRef) })
-                    .commit();
-            } else if (densityMap.type === 'ds') {
-                await this.plugin.state.data.build().toRoot()
-                    .apply(RawData, { data: densityMap.data }, { ref: IDs.DensityID('data', BaseRef) })
-                    .apply(StateTransforms.Data.ParseCif)
-                    .apply(StateTransforms.Volume.VolumeFromDensityServerCif, {}, { ref: IDs.DensityID('volume', BaseRef) })
-                    .commit();
+        if (densityMaps) {
+            for (let idx = 0; idx < densityMaps.length; idx++) {
+                const dm = densityMaps[idx];
+                if (dm.type === 'ccp4') {
+                    await this.plugin.state.data.build().toRoot()
+                        .apply(RawData, { data: dm.data }, { ref: IDs.DensityID(idx, 'data', BaseRef) })
+                        .apply(StateTransforms.Data.ParseCcp4)
+                        .apply(StateTransforms.Volume.VolumeFromCcp4, {}, { ref: IDs.DensityID(idx, 'volume', BaseRef) })
+                        .commit();
+                } else if (dm.type === 'dsn6') {
+                    await this.plugin.state.data.build().toRoot()
+                        .apply(RawData, { data: dm.data }, { ref: IDs.DensityID(idx, 'data', BaseRef) })
+                        .apply(StateTransforms.Data.ParseDsn6)
+                        .apply(StateTransforms.Volume.VolumeFromDsn6, {}, { ref: IDs.DensityID(idx, 'volume', BaseRef) })
+                        .commit();
+                }
+
+                const isoRange = this.densityMapIsoRange(idx)!;
+                const bounds = isoBounds(isoRange.min, isoRange.max);
+
+                if (dm.kind === 'fo-fc') {
+                    display.densityMaps[idx].isoValue = prettyIso(isoRange.max * 0.67, bounds.step);
+
+                    this.plugin.state.data.build().to(IDs.DensityID(idx, 'volume', BaseRef))
+                        .apply(
+                            StateTransforms.Representation.VolumeRepresentation3D,
+                            this.densityMapVisuals(display.densityMaps[idx], 'positive'),
+                            { ref: IDs.DensityID(idx, 'visual', BaseRef + '_pos') }
+                        )
+                        .to(IDs.DensityID(idx, 'volume', BaseRef))
+                        .apply(
+                            StateTransforms.Representation.VolumeRepresentation3D,
+                            this.densityMapVisuals(display.densityMaps[idx], 'negative'),
+                            { ref: IDs.DensityID(idx, 'visual', BaseRef + '_neg') }
+                        )
+                        .commit();
+                } else {
+                    display.densityMaps[idx].isoValue = prettyIso(((isoRange.max - isoRange.min) / 2) + isoRange.min, bounds.step);
+
+                    await this.plugin.state.data.build().to(IDs.DensityID(idx, 'volume', BaseRef))
+                        .apply(
+                            StateTransforms.Representation.VolumeRepresentation3D,
+                            this.densityMapVisuals(display.densityMaps[idx], 'absolute'),
+                            { ref: IDs.DensityID(idx, 'visual', BaseRef) }
+                        )
+                        .commit();
+                }
             }
-
-            const isoRange = this.densityMapIsoRange()!;
-            const bounds = isoBounds(isoRange.min, isoRange.max);
-            const iso = prettyIso(((isoRange.max - isoRange.min) / 2) + isoRange.min, bounds.step);
-
-            display.densityMap.representations = ['wireframe'];
-            display.densityMap.isoValue = iso;
-
-            await this.plugin.state.data.build().to(IDs.DensityID('volume', BaseRef))
-                .apply(
-                    StateTransforms.Representation.VolumeRepresentation3D,
-                    this.densityMapVisuals(display.densityMap),
-                    { ref: IDs.DensityID('visual', BaseRef) }
-                )
-                .commit();
         }
 
         this.haveMultipleModels = this.getModelCount() > 1;

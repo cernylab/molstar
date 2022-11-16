@@ -1,5 +1,6 @@
 import React from 'react';
-import { fuzzyCmp, numDecimals, reduceDecimals, stof } from './util';
+import { fuzzyCmp, luminance, numDecimals, reduceDecimals, stof } from './util';
+import { Color } from '../../mol-util/color';
 
 const Zero = '0'.charCodeAt(0);
 const Nine = '9'.charCodeAt(0);
@@ -54,6 +55,20 @@ export namespace CollapsibleVertical {
     export interface Props {
         caption: string;
         children?: React.ReactNode;
+    }
+}
+
+export class ColorBox extends React.Component<{ caption: string, color: Color }> {
+    render() {
+        const lum = luminance(this.props.color);
+        return (
+            <div
+                className='rmsp-color-box'
+                style={{ backgroundColor: Color.toStyle(this.props.color) }}
+            >
+                <span style={{ color: lum > 0.6 ? 'black' : 'white', margin: '0.15em' }}>{this.props.caption}</span>
+            </div>
+        );
     }
 }
 
