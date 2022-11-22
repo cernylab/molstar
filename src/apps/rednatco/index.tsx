@@ -38,7 +38,7 @@ export const DefaultDensityDifferenceNegativeColor = Color(0xC30000);
 export const DefaultDensityMapColor = Color(0x009DFF);
 const DefaultDensityMapDisplay = {
     kind: '2fo-fc' as DensityMapKind,
-    representations: ['solid'] as DensityMapRepresentation[],
+    representations: [] as DensityMapRepresentation[],
     isoValue: 0,
 
     alpha: DefaultDensityMapAlpha,
