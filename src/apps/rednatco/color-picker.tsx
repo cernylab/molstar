@@ -640,7 +640,7 @@ export class ColorPicker extends React.Component<ColorPicker.Props, State> {
                 >
                     <PushButton
                         text='OK'
-                        onClick={() => {
+                        onClicked={() => {
                             this.props.onColorPicked(Colors.colorFromHsv(this.state.h, this.state.s, this.state.v));
                             this.dispose();
                         }}
@@ -648,7 +648,7 @@ export class ColorPicker extends React.Component<ColorPicker.Props, State> {
                     />
                     <PushButton
                         text='Preview'
-                        onClick={() => {
+                        onClicked={() => {
                             this.props.onColorPicked(Colors.colorFromHsv(this.state.h, this.state.s, this.state.v));
                             this.setState({ ...this.state, restoreOnCancel: true });
                         }}
@@ -656,7 +656,7 @@ export class ColorPicker extends React.Component<ColorPicker.Props, State> {
                     />
                     <PushButton
                         text='Cancel'
-                        onClick={() => {
+                        onClicked={() => {
                             if (this.state.restoreOnCancel)
                                 this.props.onColorPicked(this.props.initialColor);
                             this.dispose();

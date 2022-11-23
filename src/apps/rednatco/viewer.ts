@@ -1204,6 +1204,13 @@ export class ReDNATCOMspViewer {
         return true;
     }
 
+    redraw() {
+        setTimeout(
+            () => window.dispatchEvent(new Event('resize')),
+            0
+        );
+    }
+
     async switchModel(modelNumber?: number) {
         if (modelNumber && modelNumber === this.currentModelNumber())
             return;

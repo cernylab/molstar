@@ -66,18 +66,43 @@ export class ColorBox extends React.Component<{ caption: string, color: Color }>
                 className='rmsp-color-box'
                 style={{ backgroundColor: Color.toStyle(this.props.color) }}
             >
-                <span style={{ color: lum > 0.6 ? 'black' : 'white', margin: '0.15em' }}>{this.props.caption}</span>
+                <span
+                    style={{
+                        color: lum > 0.6 ? 'black' : 'white',
+                        fontWeight: 'bold',
+                        margin: '0.15em',
+                        whiteSpace: 'nowrap',
+                    }}
+                >
+                    {this.props.caption}
+                </span>
             </div>
         );
     }
 }
 
-export class PushButton extends React.Component<{ text: string, enabled: boolean, onClick: () => void }> {
+export class IconButton extends React.Component<{ img: string, enabled: boolean, onClicked: () => void }> {
+    render() {
+        return (
+            <div
+                className={`rmsp-icon-button ${this.props.enabled ? '' : 'rmsp-icon-button-disabled'}`}
+                onClick={() => this.props.onClicked()}
+            >
+                <img
+                    className='rmsp-icon-button-icon'
+                    src={this.props.img}
+                />
+            </div>
+        );
+    }
+}
+
+export class PushButton extends React.Component<{ text: string, enabled: boolean, onClicked: () => void }> {
     render() {
         return (
             <div
                 className={`rmsp-pushbutton ${this.props.enabled ? '' : 'rmsp-pushbutton-disabled'}`}
-                onClick={() => this.props.enabled ? this.props.onClick() : {}}
+                onClick={() => this.props.enabled ? this.props.onClicked() : {}}
             >
                 <div className={`${this.props.enabled ? 'rmsp-pushbutton-text' : 'rmsp-pushbutton-text-disabled'}`}>{this.props.text}</div>
             </div>
@@ -85,12 +110,12 @@ export class PushButton extends React.Component<{ text: string, enabled: boolean
     }
 }
 
-export class ToggleButton extends React.Component<{ text: string, enabled: boolean, switchedOn: boolean, onClick: () => void }> {
+export class ToggleButton extends React.Component<{ text: string, enabled: boolean, switchedOn: boolean, onClicked: () => void }> {
     render() {
         return (
             <div
-                className={`rmsp-pushbutton ${this.props.enabled ? (this.props.switchedOn ? 'rmsp-togglebutton-switched-on' : 'rmsp-togglebutton-switched-off') : 'rmsp-pushbutton-disabled'}`}
-                onClick={() => this.props.enabled ? this.props.onClick() : {}}
+                className={`rmsp-pushbutton rmsp-togglebutton ${this.props.enabled ? (this.props.switchedOn ? 'rmsp-togglebutton-switched-on' : 'rmsp-togglebutton-switched-off') : 'rmsp-pushbutton-disabled'}`}
+                onClick={() => this.props.enabled ? this.props.onClicked() : {}}
             >
                 <div className={`${this.props.enabled ? 'rmsp-pushbutton-text' : 'rmsp-pushbutton-text-disabled'}`}>{this.props.text}</div>
             </div>

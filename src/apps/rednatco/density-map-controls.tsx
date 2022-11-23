@@ -1,6 +1,6 @@
 import React from 'react';
 import { ColorPicker } from './color-picker';
-import { CollapsibleVertical, ColorBox, RangeSlider, SpinBox, ToggleButton } from './controls';
+import { ColorBox, RangeSlider, SpinBox, ToggleButton } from './controls';
 import { DensityMapDisplay, DensityMapKind } from './index';
 import { isoBounds, isoToFixed } from './util';
 import { ReDNATCOMspViewer as Viewer } from './viewer';
@@ -48,15 +48,15 @@ export class DensityMapControls extends React.Component<DensityMapControls.Props
             const d = display[idx];
             const elem = (
                 <React.Fragment key={idx}>
-                    <div className='rmsp-controls-section-caption'>
+                    <div className='rmsp-control-section-caption'>
                         {this.mapName(d.kind)}
                     </div>
-                    <div className='rmsp-controls-line'>
+                    <div className='rmsp-control-line'>
                         <div className='rmsp-control-item'>
                             <ToggleButton
-                                text='Wireframe'
+                                text='Wire'
                                 switchedOn={d.representations.includes('wireframe')}
-                                onClick={() => this.props.toggleWireframe(idx)}
+                                onClicked={() => this.props.toggleWireframe(idx)}
                                 enabled={true}
                             />
                         </div>
@@ -64,17 +64,17 @@ export class DensityMapControls extends React.Component<DensityMapControls.Props
                             <ToggleButton
                                 text='Solid'
                                 switchedOn={d.representations.includes('solid')}
-                                onClick={() => this.props.toggleSolid(idx)}
+                                onClicked={() => this.props.toggleSolid(idx)}
                                 enabled={true}
                             />
                         </div>
                         { this.colors(idx, d.colors) }
                     </div>
 
-                    <div className='rmsp-controls-section-caption'>
+                    <div className='rmsp-control-section-caption'>
                         Iso:
                     </div>
-                    <div className='rmsp-controls-line'>
+                    <div className='rmsp-control-line'>
                         <div className='rmsp-control-item'>
                             <RangeSlider
                                 min={_isoBounds.min}
@@ -100,10 +100,10 @@ export class DensityMapControls extends React.Component<DensityMapControls.Props
                         </div>
                     </div>
 
-                    <div className='rmsp-controls-section-caption'>
-                        Transparency:
+                    <div className='rmsp-control-section-caption'>
+                        Transp:
                     </div>
-                    <div className='rmsp-controls-line'>
+                    <div className='rmsp-control-line'>
                         <div className='rmsp-control-item'>
                             <RangeSlider
                                 min={0}
@@ -148,11 +148,14 @@ export class DensityMapControls extends React.Component<DensityMapControls.Props
 
     render() {
         return (
-            <CollapsibleVertical caption='Density map'>
-                <div className='rmsp-controls'>
-                    {this.controls(this.props.display)}
-                </div>
-            </CollapsibleVertical>
+            <div className='rmsp-controls'>
+                {this.controls(this.props.display).map((x, idx) => (
+                    <React.Fragment key={idx}>
+                        {x}
+                        <div className='rmsp-control-vertical-spacer' /><div />
+                    </React.Fragment>
+                ))}
+            </div>
         );
     }
 }

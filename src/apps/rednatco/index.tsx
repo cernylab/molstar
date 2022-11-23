@@ -7,10 +7,15 @@ import { Filters } from './filters';
 import { ReDNATCOMspViewer } from './viewer';
 import { NtCColors } from './colors';
 import { ColorPicker } from './color-picker';
-import { CollapsibleVertical, ColorBox, PushButton, ToggleButton } from './controls';
+import { ColorBox, IconButton, PushButton, ToggleButton } from './controls';
 import { toggleArray } from './util';
+import { ToolBar, ToolBarContent } from './tool-bar';
 import { Color } from '../../mol-util/color';
 import { assertUnreachable } from '../../mol-util/type-helpers';
+import './assets/imgs/density-wireframe.svg';
+import './assets/imgs/nucleic.svg';
+import './assets/imgs/palette.svg';
+import './assets/imgs/pyramid.svg';
 import './index.html';
 
 const ConformersByClass = {
@@ -25,6 +30,9 @@ const ConformersByClass = {
     N: ['NANT_Upr', 'NANT_Lwr'],
 };
 type ConformersByClass = typeof ConformersByClass;
+
+type ToolBarItems = 'structure'|'ntc'|'colors'|'density-maps';
+const ViewerToolBar = ToolBar.Specialize<ToolBarItems>();
 
 const DefaultChainColor = Color(0xD9D9D9);
 const DefaultDensityMapAlpha = 0.25;
@@ -238,8 +246,8 @@ export class ReDNATCOMsp extends React.Component<ReDNATCOMsp.Props, State> {
                             ...DefaultDensityMapDisplay,
                             kind: dm.kind,
                             colors: [
-                                { color: DefaultDensityDifferencePositiveColor, name: '+ color' },
-                                { color: DefaultDensityDifferenceNegativeColor, name: '- color' },
+                                { color: DefaultDensityDifferencePositiveColor, name: '+' },
+                                { color: DefaultDensityDifferenceNegativeColor, name: '-' },
                             ],
                         };
                     } else
@@ -288,273 +296,336 @@ export class ReDNATCOMsp extends React.Component<ReDNATCOMsp.Props, State> {
 
         return (
             <div className='rmsp-app'>
-                <div id={this.props.elemId + '-viewer'} className='rmsp-viewer'></div>
-                <CollapsibleVertical caption={'Controls'}>
-                    <div className='rmsp-controls'>
-                        <div className='rmsp-controls-section-caption'>Representation</div>
-                        <div className='rmsp-controls-line'>
-                            <div className='rmsp-control-item'>
-                                <PushButton
-                                    text={capitalize(this.state.display.structures.representation)}
-                                    enabled={ready}
-                                    onClick={() => {
-                                        const display = { ...this.state.display };
-                                        display.structures.representation = display.structures.representation === 'cartoon' ? 'ball-and-stick' : 'cartoon';
-                                        this.viewer!.changeRepresentation(display);
-                                        this.setState({ ...this.state, display });
-                                    }}
-                                />
-                            </div>
-                        </div>
-
-                        <div className='rmsp-controls-section-caption'>Substructure parts</div>
-                        <div className='rmsp-controls-line'>
-                            <div className='rmsp-control-item'>
-                                <ToggleButton
-                                    text='Nucleic'
-                                    enabled={hasNucleic}
-                                    switchedOn={this.state.display.structures.showNucleic}
-                                    onClick={() => {
-                                        const display = { ...this.state.display };
-                                        display.structures.showNucleic = !display.structures.showNucleic,
-                                        this.viewer!.toggleSubstructure('nucleic', display);
-                                        this.setState({ ...this.state, display });
-                                    }}
-                                />
-                            </div>
-                            <div className='rmsp-control-item'>
-                                <ToggleButton
-                                    text='Protein'
-                                    enabled={hasProtein}
-                                    switchedOn={this.state.display.structures.showProtein}
-                                    onClick={() => {
-                                        const display = { ...this.state.display };
-                                        display.structures.showProtein = !display.structures.showProtein,
-                                        this.viewer!.toggleSubstructure('protein', display);
-                                        this.setState({ ...this.state, display });
-                                    }}
-                                />
-                            </div>
-                            <div className='rmsp-control-item'>
-                                <ToggleButton
-                                    text='Water'
-                                    enabled={hasWater}
-                                    switchedOn={this.state.display.structures.showWater}
-                                    onClick={() => {
-                                        const display = { ...this.state.display };
-                                        display.structures.showWater = !this.state.display.structures.showWater;
-                                        this.viewer!.toggleSubstructure('water', display);
-                                        this.setState({ ...this.state, display });
-                                    }}
-                                />
-                            </div>
-                        </div>
-
-                        <div className='rmsp-controls-section-caption'>NtC visuals</div>
-                        <div className='rmsp-controls-line'>
-                            <div className='rmsp-control-item-group'>
-                                <div className='rmsp-control-item'>
-                                    <ToggleButton
-                                        text='Pyramids'
-                                        enabled={ready}
-                                        switchedOn={this.state.display.structures.showPyramids}
-                                        onClick={() => {
-                                            const display = { ...this.state.display };
-                                            display.structures.showPyramids = !display.structures.showPyramids;
-                                            this.viewer!.changePyramids(display);
-                                            this.setState({ ...this.state, display });
-                                        }}
-                                    />
-                                </div>
-                                <div className='rmsp-control-item'>
-                                    <PushButton
-                                        text={this.state.display.structures.pyramidsTransparent ? 'Transparent' : 'Solid'}
-                                        enabled={this.state.display.structures.showPyramids}
-                                        onClick={() => {
-                                            const display = { ...this.state.display };
-                                            display.structures.pyramidsTransparent = !display.structures.pyramidsTransparent;
-                                            this.viewer!.changePyramids(display);
-                                            this.setState({ ...this.state, display });
-                                        }}
-                                    />
-                                </div>
-                            </div>
-                            <div className='rmsp-control-item-group'>
-                                <div className='rmsp-control-item'>
-                                    <ToggleButton
-                                        text='Balls'
-                                        enabled={false}
-                                        switchedOn={false}
-                                        onClick={() => {}}
-                                    />
-                                </div>
-                                <div className='rmsp-control-item'>
-                                    <PushButton
-                                        text={this.state.display.structures.ballsTransparent ? 'Transparent' : 'Solid'}
-                                        enabled={this.state.display.structures.showBalls}
-                                        onClick={() => {
-                                            const display = { ...this.state.display };
-                                            display.structures.showBalls = !display.structures.showBalls;
-
-                                            /* No balls today... */
-                                            this.setState({ ...this.state, display });
-                                        }}
-                                    />
-                                </div>
-                            </div>
-                        </div>
-
-                        <div className='rmsp-controls-section-caption'>NtC classes colors</div>
-                        <div className='rmsp-controls-line'>
-                            {(['A', 'B', 'BII', 'miB', 'Z', 'IC', 'OPN', 'SYN', 'N'] as (keyof NtCColors.Classes)[]).map(k =>
-                                <div className='rmsp-control-item-group' key={k}>
-                                    <div
-                                        className='rmsp-control-item'
-                                        onClick={evt => ColorPicker.create(
-                                            evt,
-                                            this.state.display.structures.classColors[k],
-                                            color => this.updateClassColor({ cls: k, color })
-                                        )}
-                                    >
-                                        <ColorBox caption={k} color={this.state.display.structures.classColors[k]} />
-                                    </div>
-                                    <PushButton
-                                        text='R'
-                                        onClick={() => this.updateClassColor({ cls: k, color: NtCColors.Classes[k] })}
-                                        enabled={true}
-                                    />
-                                </div>
-                            )}
-                        </div>
-
-                        <div className='rmsp-controls-section-caption'>NtC colors</div>
-                        <div className='rmsp-controls-line'>
-                            {this.presentConformers.map(ntc => {
-                                const uprKey = ntc + '_Upr' as keyof NtCColors.Conformers;
-                                const lwrKey = ntc + '_Lwr' as keyof NtCColors.Conformers;
-
-                                return (
-                                    <div className='rmsp-control-item' key={ntc}>
-                                        <div className='rmsp-control-item-group'>
-                                            <div
-                                                className='rmsp-control-item'
-                                                onClick={evt => ColorPicker.create(
-                                                    evt,
-                                                    this.state.display.structures.conformerColors[uprKey],
-                                                    color => this.updateConformerColor({ conformer: uprKey, color })
-                                                )}
-                                            >
-                                                <ColorBox caption={`${ntc.slice(0, 2)}`} color={this.state.display.structures.conformerColors[uprKey]} />
+                <div style={{ display: 'flex', flexDirection: 'row', height: '100%' }}>
+                    <ViewerToolBar
+                        orientation='vertical'
+                        onBlockChanged={() => this.viewer?.redraw()}
+                        controlBlocks={[
+                            {
+                                id: 'structure',
+                                icon: './imgs/nucleic.svg',
+                                content:
+                                    <ToolBarContent style={{ width: '10em' }}>
+                                        <div className='rmsp-control-line'>
+                                            <div className='rmsp-control-item'>
+                                                <PushButton
+                                                    text={capitalize(this.state.display.structures.representation)}
+                                                    enabled={ready}
+                                                    onClicked={() => {
+                                                        const display = { ...this.state.display };
+                                                        display.structures.representation = display.structures.representation === 'cartoon' ? 'ball-and-stick' : 'cartoon';
+                                                        this.viewer!.changeRepresentation(display);
+                                                        this.setState({ ...this.state, display });
+                                                    }}
+                                                />
                                             </div>
-                                            <div
-                                                className='rmsp-control-item'
-                                                onClick={evt => ColorPicker.create(
-                                                    evt,
-                                                    this.state.display.structures.conformerColors[lwrKey],
-                                                    color => this.updateConformerColor({ conformer: lwrKey, color })
-                                                )}
-                                            >
-                                                <ColorBox caption={`${ntc.slice(2)}`} color={this.state.display.structures.conformerColors[lwrKey]} />
-                                            </div>
-                                            <PushButton
-                                                text='R'
-                                                onClick={() => {
-                                                    this.updateConformerColor([
-                                                        { conformer: uprKey, color: NtCColors.Conformers[uprKey] },
-                                                        { conformer: lwrKey, color: NtCColors.Conformers[lwrKey] }
-                                                    ]);
-                                                }}
-                                                enabled={true}
-                                            />
                                         </div>
-                                    </div>
-                                );
-                            })}
-                        </div>
 
-                        <div className='rmsp-controls-section-caption'>Structure colors</div>
-                        <div className='rmsp-controls-line'>
-                            <div className='rmsp-control-item-group'>
-                                <div
-                                    className='rmsp-control-item'
-                                    onClick={evt => ColorPicker.create(
-                                        evt,
-                                        this.state.display.structures.chainColor,
-                                        color => this.updateChainColor(color)
-                                    )}
-                                >
-                                    <ColorBox caption='Chains' color={this.state.display.structures.chainColor} />
-                                </div>
-                                <PushButton
-                                    text='R'
-                                    onClick={() => this.updateChainColor(DefaultChainColor)}
-                                    enabled={true}
-                                />
-                            </div>
-                            <div className='rmsp-control-item-group'>
-                                <div
-                                    className='rmsp-control-item'
-                                    onClick={evt => ColorPicker.create(
-                                        evt,
-                                        this.state.display.structures.waterColor,
-                                        color => this.updateWaterColor(color)
-                                    )}
-                                >
-                                    <ColorBox caption='Waters' color={this.state.display.structures.waterColor} />
-                                </div>
-                                <PushButton
-                                    text='R'
-                                    onClick={() => this.updateChainColor(DefaultWaterColor)}
-                                    enabled={true}
-                                />
-                            </div>
+                                        <div className='rmsp-control-vertical-spacer' />
 
-                        </div>
-                    </div>
-                </CollapsibleVertical>
-                {this.viewer?.hasDensityMaps()
-                    ? <DensityMapControls
-                        viewer={this.viewer}
-                        display={this.state.display.densityMaps}
-                        toggleWireframe={(index) => {
-                            const display = { ...this.state.display };
-                            display.densityMaps[index].representations = toggleArray(display.densityMaps[index].representations, 'wireframe');
+                                        <div className='rmsp-control-line'>
+                                            <div className='rmsp-control-item'>
+                                                <ToggleButton
+                                                    text='Nucleic'
+                                                    enabled={hasNucleic}
+                                                    switchedOn={this.state.display.structures.showNucleic}
+                                                    onClicked={() => {
+                                                        const display = { ...this.state.display };
+                                                        display.structures.showNucleic = !display.structures.showNucleic,
+                                                        this.viewer!.toggleSubstructure('nucleic', display);
+                                                        this.setState({ ...this.state, display });
+                                                    }}
+                                                />
+                                            </div>
+                                        </div>
+                                        <div className='rmsp-control-line'>
+                                            <div className='rmsp-control-item'>
+                                                <ToggleButton
+                                                    text='Protein'
+                                                    enabled={hasProtein}
+                                                    switchedOn={this.state.display.structures.showProtein}
+                                                    onClicked={() => {
+                                                        const display = { ...this.state.display };
+                                                        display.structures.showProtein = !display.structures.showProtein,
+                                                        this.viewer!.toggleSubstructure('protein', display);
+                                                        this.setState({ ...this.state, display });
+                                                    }}
+                                                />
+                                            </div>
+                                        </div>
+                                        <div className='rmsp-control-line'>
+                                            <div className='rmsp-control-item'>
+                                                <ToggleButton
+                                                    text='Water'
+                                                    enabled={hasWater}
+                                                    switchedOn={this.state.display.structures.showWater}
+                                                    onClicked={() => {
+                                                        const display = { ...this.state.display };
+                                                        display.structures.showWater = !this.state.display.structures.showWater;
+                                                        this.viewer!.toggleSubstructure('water', display);
+                                                        this.setState({ ...this.state, display });
+                                                    }}
+                                                />
+                                            </div>
+                                        </div>
+                                    </ToolBarContent>
+                            },
+                            {
+                                id: 'ntc',
+                                icon: './imgs/pyramid.svg',
+                                content:
+                                    <ToolBarContent style={{ width: '10em' }}>
+                                        <div className='rmsp-control-vertical-section-caption'>
+                                            Pyramids
+                                        </div>
+                                        <div className='rmsp-control-line'>
+                                            <div className='rmsp-control-item'>
+                                                <ToggleButton
+                                                    text={this.state.display.structures.showPyramids ? 'Shown' : 'Hidden'}
+                                                    enabled={ready}
+                                                    switchedOn={this.state.display.structures.showPyramids}
+                                                    onClicked={() => {
+                                                        const display = { ...this.state.display };
+                                                        display.structures.showPyramids = !display.structures.showPyramids;
+                                                        this.viewer!.changePyramids(display);
+                                                        this.setState({ ...this.state, display });
+                                                    }}
+                                                />
+                                            </div>
+                                        </div>
+                                        <div className='rmsp-control-line'>
+                                            <div className='rmsp-control-item'>
+                                                <PushButton
+                                                    text={this.state.display.structures.pyramidsTransparent ? 'Transp.' : 'Solid'}
+                                                    enabled={this.state.display.structures.showPyramids}
+                                                    onClicked={() => {
+                                                        const display = { ...this.state.display };
+                                                        display.structures.pyramidsTransparent = !display.structures.pyramidsTransparent;
+                                                        this.viewer!.changePyramids(display);
+                                                        this.setState({ ...this.state, display });
+                                                    }}
+                                                />
+                                            </div>
+                                        </div>
 
-                            this.viewer!.changeDensityMap(index, display);
-                            this.setState({ ...this.state, display });
-                        }}
+                                        <div className='rmsp-control-vertical-spacer' />
 
-                        toggleSolid={(index) => {
-                            const display = { ...this.state.display };
-                            display.densityMaps[index].representations = toggleArray(display.densityMaps[index].representations, 'solid');
+                                        <div className='rmsp-control-vertical-section-caption'>
+                                            Balls
+                                        </div>
+                                        <div className='rmsp-control-line'>
+                                            <div className='rmsp-control-item'>
+                                                <ToggleButton
+                                                    text='Balls'
+                                                    enabled={false}
+                                                    switchedOn={false}
+                                                    onClicked={() => {}}
+                                                />
+                                            </div>
+                                        </div>
+                                        <div className='rmsp-control-line'>
+                                            <div className='rmsp-control-item'>
+                                                <PushButton
+                                                    text={this.state.display.structures.ballsTransparent ? 'Transp.' : 'Solid'}
+                                                    enabled={this.state.display.structures.showBalls}
+                                                    onClicked={() => {
+                                                        const display = { ...this.state.display };
+                                                        display.structures.showBalls = !display.structures.showBalls;
 
-                            this.viewer!.changeDensityMap(index, display);
-                            this.setState({ ...this.state, display });
-                        }}
-                        changeIso={(index, v) => {
-                            const display = { ...this.state.display };
-                            display.densityMaps[index].isoValue = v;
+                                                        /* No balls today... */
+                                                        this.setState({ ...this.state, display });
+                                                    }}
+                                                />
+                                            </div>
+                                        </div>
+                                    </ToolBarContent>
+                            },
+                            {
+                                id: 'colors',
+                                icon: './imgs/palette.svg',
+                                content:
+                                    <ToolBarContent>
+                                        <div className='rmsp-control-vertical-section-caption'>
+                                            NtC classes
+                                        </div>
+                                        {(['A', 'B', 'BII', 'miB', 'Z', 'IC', 'OPN', 'SYN', 'N'] as (keyof NtCColors.Classes)[]).map(k =>
+                                            <div className='rmsp-control-line' key={k}>
+                                                <div className='rmsp-control-item-group'>
+                                                    <div
+                                                        className='rmsp-control-item'
+                                                        onClick={evt => ColorPicker.create(
+                                                            evt,
+                                                            this.state.display.structures.classColors[k],
+                                                            color => this.updateClassColor({ cls: k, color })
+                                                        )}
+                                                    >
+                                                        <ColorBox caption={k} color={this.state.display.structures.classColors[k]} />
+                                                    </div>
 
-                            this.viewer!.changeDensityMap(index, display);
-                            this.setState({ ...this.state, display });
-                        }}
-                        changeAlpha={(index, alpha) => {
-                            const display = { ...this.state.display };
-                            display.densityMaps[index].alpha = alpha;
+                                                    <div className='rmsp-control-horitontal-spacer'>{'\u00A0'}</div>
 
-                            this.viewer!.changeDensityMap(index, display);
-                            this.setState({ ...this.state, display });
-                        }}
-                        changeColors={(index, colors) => {
-                            const display = { ...this.state.display };
-                            display.densityMaps[index].colors = colors;
+                                                    <IconButton
+                                                        img='imgs/reload.svg'
+                                                        onClicked={() => this.updateClassColor({ cls: k, color: NtCColors.Classes[k] })}
+                                                        enabled={true}
+                                                    />
+                                                </div>
+                                            </div>
+                                        )}
 
-                            this.viewer!.changeDensityMap(index, display);
-                            this.setState({ ...this.state, display });
-                        }}
+                                        <div className='rmsp-control-vertical-spacer' />
+
+                                        <div className='rmsp-control-vertical-section-caption'>
+                                            Conformers
+                                        </div>
+                                        {this.presentConformers.map(ntc => {
+                                            const uprKey = ntc + '_Upr' as keyof NtCColors.Conformers;
+                                            const lwrKey = ntc + '_Lwr' as keyof NtCColors.Conformers;
+
+                                            return (
+                                                <div className='rmsp-control-line' key={ntc}>
+                                                    <div className='rmsp-control-item-group'>
+                                                        <div
+                                                            className='rmsp-control-item'
+                                                            onClick={evt => ColorPicker.create(
+                                                                evt,
+                                                                this.state.display.structures.conformerColors[uprKey],
+                                                                color => this.updateConformerColor({ conformer: uprKey, color })
+                                                            )}
+                                                        >
+                                                            <ColorBox caption={`${ntc.slice(0, 2)}`} color={this.state.display.structures.conformerColors[uprKey]} />
+                                                        </div>
+                                                        <div
+                                                            className='rmsp-control-item'
+                                                            onClick={evt => ColorPicker.create(
+                                                                evt,
+                                                                this.state.display.structures.conformerColors[lwrKey],
+                                                                color => this.updateConformerColor({ conformer: lwrKey, color })
+                                                            )}
+                                                        >
+                                                            <ColorBox caption={`${ntc.slice(2)}`} color={this.state.display.structures.conformerColors[lwrKey]} />
+                                                        </div>
+
+                                                        <div className='rmsp-control-horitontal-spacer'>{'\u00A0'}</div>
+
+                                                        <IconButton
+                                                            img='imgs/reload.svg'
+                                                            onClicked={() => {
+                                                                this.updateConformerColor([
+                                                                    { conformer: uprKey, color: NtCColors.Conformers[uprKey] },
+                                                                    { conformer: lwrKey, color: NtCColors.Conformers[lwrKey] }
+                                                                ]);
+                                                            }}
+                                                            enabled={true}
+                                                        />
+                                                    </div>
+                                                </div>
+                                            );
+                                        })}
+
+                                        <div className='rmsp-control-vertical-spacer' />
+
+                                        <div className='rmsp-control-vertical-section-caption'>
+                                            Structure
+                                        </div>
+                                        <div className='rmsp-control-line'>
+                                            <div className='rmsp-control-item-group'>
+                                                <div
+                                                    className='rmsp-control-item'
+                                                    onClick={evt => ColorPicker.create(
+                                                        evt,
+                                                        this.state.display.structures.chainColor,
+                                                        color => this.updateChainColor(color)
+                                                    )}
+                                                >
+                                                    <ColorBox caption='Chains' color={this.state.display.structures.chainColor} />
+                                                </div>
+
+                                                <div className='rmsp-control-horitontal-spacer'>{'\u00A0'}</div>
+
+                                                <IconButton
+                                                    img='imgs/reload.svg'
+                                                    onClicked={() => this.updateChainColor(DefaultChainColor)}
+                                                    enabled={true}
+                                                />
+                                            </div>
+                                        </div>
+                                        <div className='rmsp-control-line'>
+                                            <div className='rmsp-control-item-group'>
+                                                <div
+                                                    className='rmsp-control-item'
+                                                    onClick={evt => ColorPicker.create(
+                                                        evt,
+                                                        this.state.display.structures.waterColor,
+                                                        color => this.updateWaterColor(color)
+                                                    )}
+                                                >
+                                                    <ColorBox caption='Waters' color={this.state.display.structures.waterColor} />
+                                                </div>
+
+                                                <div className='rmsp-control-horitontal-spacer'>{'\u00A0'}</div>
+
+                                                <IconButton
+                                                    img='imgs/reload.svg'
+                                                    onClicked={() => this.updateChainColor(DefaultWaterColor)}
+                                                    enabled={true}
+                                                />
+                                            </div>
+                                        </div>
+                                    </ToolBarContent>
+                            },
+                            {
+                                id: 'density-maps',
+                                icon: './imgs/density-wireframe.svg',
+                                content:
+                                    <ToolBarContent>
+                                        <DensityMapControls
+                                            viewer={this.viewer!}
+                                            display={this.state.display.densityMaps}
+                                            toggleWireframe={(index) => {
+                                                const display = { ...this.state.display };
+                                                display.densityMaps[index].representations = toggleArray(display.densityMaps[index].representations, 'wireframe');
+
+                                                this.viewer!.changeDensityMap(index, display);
+                                                this.setState({ ...this.state, display });
+                                            }}
+
+                                            toggleSolid={(index) => {
+                                                const display = { ...this.state.display };
+                                                display.densityMaps[index].representations = toggleArray(display.densityMaps[index].representations, 'solid');
+
+                                                this.viewer!.changeDensityMap(index, display);
+                                                this.setState({ ...this.state, display });
+                                            }}
+                                            changeIso={(index, v) => {
+                                                const display = { ...this.state.display };
+                                                display.densityMaps[index].isoValue = v;
+
+                                                this.viewer!.changeDensityMap(index, display);
+                                                this.setState({ ...this.state, display });
+                                            }}
+                                            changeAlpha={(index, alpha) => {
+                                                const display = { ...this.state.display };
+                                                display.densityMaps[index].alpha = alpha;
+
+                                                this.viewer!.changeDensityMap(index, display);
+                                                this.setState({ ...this.state, display });
+                                            }}
+                                            changeColors={(index, colors) => {
+                                                const display = { ...this.state.display };
+                                                display.densityMaps[index].colors = colors;
+
+                                                this.viewer!.changeDensityMap(index, display);
+                                                this.setState({ ...this.state, display });
+                                            }}
+                                        />
+                                    </ToolBarContent>,
+                                disabled: !this.viewer?.hasDensityMaps()
+                            }
+                        ]}
                     />
-                    : undefined
-                }
+                    <div id={this.props.elemId + '-viewer'} className='rmsp-viewer'></div>
+                </div>
             </div>
         );
     }
