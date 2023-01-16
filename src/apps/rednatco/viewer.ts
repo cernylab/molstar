@@ -10,7 +10,7 @@ import { Step } from './step';
 import { Superpose } from './superpose';
 import { Traverse } from './traverse';
 import { isoBounds, prettyIso } from './util';
-import { DnatcoConfalPyramids } from '../../extensions/dnatco';
+import { DnatcoNtCs } from '../../extensions/dnatco';
 import { ConfalPyramidsParams } from '../../extensions/dnatco/confal-pyramids/representation';
 import { OrderedSet } from '../../mol-data/int/ordered-set';
 import { BoundaryHelper } from '../../mol-math/geometry/boundary-helper';
@@ -46,7 +46,7 @@ import './molstar.css';
 import './rednatco-molstar.css';
 
 const Extensions = {
-    'ntc-balls-pyramids-prop': PluginSpec.Behavior(DnatcoConfalPyramids),
+    'ntcs-prop': PluginSpec.Behavior(DnatcoNtCs),
 };
 
 const AnimationDurationMsec = 150;
@@ -120,7 +120,7 @@ function superpositionAtomsIndices(loci: StructureElement.Loci) {
     return indices;
 }
 
-function rcref(c: string, where: 'sel'|'prev'|'next'|'' = '') {
+function rcref(c: string, where: 'sel' | 'prev' | 'next' | '' = '') {
     return `${RCRef}-${c}-${where}`;
 }
 
@@ -244,14 +244,14 @@ export class ReDNATCOMspViewer {
         this.app = app;
     }
 
-    private densityMapVisuals(vis: Display['densityMaps'][0], visKind: 'absolute'|'positive'|'negative') {
+    private densityMapVisuals(vis: Display['densityMaps'][0], visKind: 'absolute' | 'positive' | 'negative') {
         const isoValue = visKind === 'absolute'
             ? Volume.IsoValue.absolute(vis.isoValue)
             : visKind === 'positive'
                 ? Volume.IsoValue.relative(vis.isoValue) : Volume.IsoValue.relative(-vis.isoValue);
 
         const color = visKind === 'absolute' || visKind === 'positive'
-            ? vis.colors[0] : vis.colors[1]
+            ? vis.colors[0] : vis.colors[1];
 
         return {
             type: {
@@ -294,7 +294,7 @@ export class ReDNATCOMspViewer {
         PluginCommands.Camera.SetSnapshot(this.plugin, { snapshot, durationMs: AnimationDurationMsec });
     }
 
-    private getBuilder(id: IDs.ID, sub: IDs.Substructure|'' = '', ref = BaseRef) {
+    private getBuilder(id: IDs.ID, sub: IDs.Substructure | '' = '', ref = BaseRef) {
         return this.plugin.state.data.build().to(IDs.ID(id, sub, ref));
     }
 
@@ -307,7 +307,7 @@ export class ReDNATCOMspViewer {
         return parent.obj?.type.name === 'Structure' ? parent.obj : undefined;
     }
 
-    private ntcRef(ntc: string, where: 'sel'|'prev'|'next') {
+    private ntcRef(ntc: string, where: 'sel' | 'prev' | 'next') {
         return rcref(ntc, where);
     }
 
@@ -374,7 +374,7 @@ export class ReDNATCOMspViewer {
         return this.steps[idx];
     }
 
-    private substructureVisuals(representation: 'ball-and-stick'|'cartoon', color: Color) {
+    private substructureVisuals(representation: 'ball-and-stick' | 'cartoon', color: Color) {
         switch (representation) {
             case 'cartoon':
                 return {
@@ -701,7 +701,7 @@ export class ReDNATCOMspViewer {
         return (model as StateObject<Model>).data.modelNum;
     }
 
-    densityMapIsoRange(index: number, ref = BaseRef): { min: number, max: number }|undefined {
+    densityMapIsoRange(index: number, ref = BaseRef): { min: number, max: number } | undefined {
         const cell = this.plugin.state.data.cells.get(IDs.DensityID(index, 'volume', ref));
         if (!cell || !cell.obj)
             return void 0;
@@ -729,7 +729,7 @@ export class ReDNATCOMspViewer {
         this.focusOnLoci(focusOn);
     }
 
-    gatherStepInfo(): { steps: Step.ExtendedDescription[], stepNames: Map<string, number> }|undefined {
+    gatherStepInfo(): { steps: Step.ExtendedDescription[], stepNames: Map<string, number> } | undefined {
         const obj = this.plugin.state.data.cells.get(IDs.ID('model', '', BaseRef))?.obj;
         if (!obj)
             return void 0;
@@ -865,7 +865,7 @@ export class ReDNATCOMspViewer {
         return [];
     }
 
-    has(id: IDs.ID, sub: IDs.Substructure|'' = '', ref = BaseRef) {
+    has(id: IDs.ID, sub: IDs.Substructure | '' = '', ref = BaseRef) {
         return !!this.plugin.state.data.cells.get(IDs.ID(id, sub, ref))?.obj?.data;
     }
 
@@ -878,8 +878,8 @@ export class ReDNATCOMspViewer {
     }
 
     async loadStructure(
-        coords: { data: string, type: 'pdb'|'cif' },
-        densityMaps: { data: Uint8Array, type: 'ccp4'|'dsn6', kind: '2fo-fc'|'fo-fc'|'em' }[]|null,
+        coords: { data: string, type: 'pdb' | 'cif' },
+        densityMaps: { data: Uint8Array, type: 'ccp4' | 'dsn6', kind: '2fo-fc' | 'fo-fc' | 'em' }[] | null,
         display: Display
     ) {
         // TODO: Remove the currently loaded structure
@@ -1122,7 +1122,7 @@ export class ReDNATCOMspViewer {
         this.resetCameraRadius();
     }
 
-    async actionSelectStep(stepSel: Api.Payloads.StepSelection, prevSel: Api.Payloads.StepSelection|undefined, nextSel: Api.Payloads.StepSelection|undefined, display: Display) {
+    async actionSelectStep(stepSel: Api.Payloads.StepSelection, prevSel: Api.Payloads.StepSelection | undefined, nextSel: Api.Payloads.StepSelection | undefined, display: Display) {
         const step = this.stepFromName(stepSel.name);
         if (!step)
             return false;
