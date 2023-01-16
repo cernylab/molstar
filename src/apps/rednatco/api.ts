@@ -15,7 +15,7 @@ export namespace ReDNATCOMspApi {
     }
 
     export namespace Commands {
-        export type Type = 'deselect-step'|'filter'|'redraw'|'select-step'|'switch-model';
+        export type Type = 'deselect-step' | 'filter' | 'redraw' | 'select-step' | 'switch-model';
 
         export type DeselectStep = { type: 'deselect-step' }
         export function DeselectStep(): DeselectStep {
@@ -36,7 +36,7 @@ export namespace ReDNATCOMspApi {
             prev?: Payloads.StepSelection;
             next?: Payloads.StepSelection
         }
-        export function SelectStep(step: Payloads.StepSelection, prev: Payloads.StepSelection|undefined, next: Payloads.StepSelection|undefined): SelectStep {
+        export function SelectStep(step: Payloads.StepSelection, prev: Payloads.StepSelection | undefined, next: Payloads.StepSelection | undefined): SelectStep {
             return { type: 'select-step', step, prev, next };
         }
 
@@ -51,7 +51,7 @@ export namespace ReDNATCOMspApi {
         Commands.SwitchModel;
 
     export namespace Events {
-        export type Type = 'filter'|'ready'|'step-deselected'|'step-requested'|'step-selected'|'structure-loaded';
+        export type Type = 'filter' | 'ready' | 'step-deselected' | 'step-requested' | 'step-selected' | 'structure-loaded';
 
         export type Filter = { type: 'filter', success: boolean, message: string }
         export function FilterApplied(): Filter {
@@ -97,7 +97,7 @@ export namespace ReDNATCOMspApi {
         Events.StructureLoaded;
 
     export namespace Queries {
-        export type Type = 'current-filter'|'current-model-number'|'selected-step';
+        export type Type = 'current-filter' | 'current-model-number' | 'selected-step';
 
         export type CurrentFilter = { type: 'current-filter', filter: Filters.All }
         export function CurrentFilter(filter: Filters.All): CurrentFilter {
@@ -114,7 +114,7 @@ export namespace ReDNATCOMspApi {
             return { type: 'selected-step', selected };
         }
     }
-    export type Response = Queries.CurrentFilter|Queries.CurrentModelNumber|Queries.SelectedStep;
+    export type Response = Queries.CurrentFilter | Queries.CurrentModelNumber | Queries.SelectedStep;
     export type ResponseTypes = {
         'current-filter': Queries.CurrentFilter,
         'current-model-number': Queries.CurrentModelNumber,
@@ -126,7 +126,7 @@ export namespace ReDNATCOMspApi {
         event: (evt: Event) => void;
         init: (elemId: string, onEvent?: (evt: Event) => void) => void;
         isReady: () => boolean;
-        loadStructure: (coords: { data: string, type: 'cif'|'pdb'}, densityMaps: { data: Uint8Array, type: 'ccp4'|'dsn6', kind: '2fo-fc'|'fo-fc'|'em' }[]|null) => void;
+        loadStructure: (coords: { data: string, type: 'cif' | 'pdb'}, densityMaps: { data: Uint8Array, type: 'ccp4' | 'dsn6', kind: '2fo-fc' | 'fo-fc' | 'em' }[] | null) => void;
         query: <T extends Queries.Type>(type: T) => ResponseTypes[T];
     }
 }

@@ -2,8 +2,8 @@ import { ReDNATCOMsp } from './index';
 import { ReDNATCOMspApi } from './api';
 
 export class ReDNATCOMspApiImpl implements ReDNATCOMspApi.Object {
-    private target: ReDNATCOMsp|undefined = undefined;
-    private onEvent: ((evt: ReDNATCOMspApi.Event) => void)|undefined;
+    private target: ReDNATCOMsp | undefined = undefined;
+    private onEvent: ((evt: ReDNATCOMspApi.Event) => void) | undefined;
 
     private check() {
         if (!this.target)
@@ -34,7 +34,7 @@ export class ReDNATCOMspApiImpl implements ReDNATCOMspApi.Object {
         return !!this.target;
     }
 
-    loadStructure(coords: { data: string, type: 'cif'|'pdb' }, densityMaps: { data: Uint8Array, type: 'ccp4'|'dsn6', kind: '2fo-fc'|'fo-fc'|'em' }[]|null) {
+    loadStructure(coords: { data: string, type: 'cif' | 'pdb' }, densityMaps: { data: Uint8Array, type: 'ccp4' | 'dsn6', kind: '2fo-fc' | 'fo-fc' | 'em' }[] | null) {
         this.check();
         this.target!.loadStructure(coords, densityMaps);
     }

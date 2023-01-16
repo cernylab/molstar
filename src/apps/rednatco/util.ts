@@ -68,7 +68,7 @@ export function reduceDecimals(s: string) {
         if (s.charCodeAt(idx) !== Zero)
             break;
     }
-    const noDot = s.charCodeAt(idx) === Period ? 0 : 1
+    const noDot = s.charCodeAt(idx) === Period ? 0 : 1;
 
     return s.substring(0, idx + noDot);
 }
