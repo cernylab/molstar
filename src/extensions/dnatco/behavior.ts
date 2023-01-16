@@ -56,4 +56,3 @@ export const DnatcoNtCs = PluginBehavior.create<{ autoAttach: boolean, showToolT
         showToolTip: PD.Boolean(true)
     })
 });
-

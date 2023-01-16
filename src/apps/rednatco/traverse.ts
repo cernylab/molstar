@@ -23,7 +23,7 @@ export namespace Traverse {
 
     // TODO: We will be able to use a function from DnatcoUtils once it gets upstreamed
     const _loc = StructureElement.Location.create();
-    export function findResidue(asymId: string, seqId: number, altId: string|undefined, insCode: string, loci: StructureElement.Loci, source: 'label'|'auth') {
+    export function findResidue(asymId: string, seqId: number, altId: string | undefined, insCode: string, loci: StructureElement.Loci, source: 'label' | 'auth') {
         _loc.structure = loci.structure;
         for (const e of loci.elements) {
             _loc.unit = e.unit;
@@ -76,9 +76,9 @@ export namespace Traverse {
 
     export function findStep(
         asymId: string,
-        seqId1: number, altId1: string|undefined, insCode1: string,
-        seqId2: number, altId2: string|undefined, insCode2: string,
-        loci: StructureElement.Loci, source: 'label'|'auth'
+        seqId1: number, altId1: string | undefined, insCode1: string,
+        seqId2: number, altId2: string | undefined, insCode2: string,
+        loci: StructureElement.Loci, source: 'label' | 'auth'
     ) {
         const first = findResidue(asymId, seqId1, altId1, insCode1, loci, source);
         if (first.kind === 'empty-loci')

@@ -1,6 +1,10 @@
 import { Filters } from './filters';
 
 export namespace ReDNATCOMspApi {
+    export type CoordinatesFormat = 'cif' | 'pdb';
+    export type DensityMapFormat = 'ccp4' | 'dsn6';
+    export type DensityMapKind = '2fo-fc' | 'fo-fc' | 'em';
+
     export namespace Payloads {
         export type StepSelection = {
             name: string;
@@ -126,7 +130,7 @@ export namespace ReDNATCOMspApi {
         event: (evt: Event) => void;
         init: (elemId: string, onEvent?: (evt: Event) => void) => void;
         isReady: () => boolean;
-        loadStructure: (coords: { data: string, type: 'cif' | 'pdb'}, densityMaps: { data: Uint8Array, type: 'ccp4' | 'dsn6', kind: '2fo-fc' | 'fo-fc' | 'em' }[] | null) => void;
+        loadStructure: (coords: { data: string, type: CoordinatesFormat }, densityMaps: { data: Uint8Array, type: DensityMapFormat, kind: DensityMapKind }[] | null) => void;
         query: <T extends Queries.Type>(type: T) => ResponseTypes[T];
     }
 }

@@ -1,7 +1,8 @@
 import React from 'react';
+import { ReDNATCOMspApi as Api } from './api';
 import { ColorPicker } from './color-picker';
 import { ColorBox, RangeSlider, SpinBox, ToggleButton } from './controls';
-import { DensityMapDisplay, DensityMapKind } from './index';
+import { DensityMapDisplay } from './index';
 import { isoBounds, isoToFixed } from './util';
 import { ReDNATCOMspViewer as Viewer } from './viewer';
 import { Color } from '../../mol-util/color';
@@ -135,7 +136,7 @@ export class DensityMapControls extends React.Component<DensityMapControls.Props
         return ctrls;
     }
 
-    private mapName(kind: DensityMapKind) {
+    private mapName(kind: Api.DensityMapKind) {
         switch (kind) {
             case '2fo-fc':
                 return <span>2Fo-Fc</span>;

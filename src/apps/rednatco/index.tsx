@@ -31,21 +31,20 @@ const ConformersByClass = {
 };
 type ConformersByClass = typeof ConformersByClass;
 
-type ToolBarItems = 'structure'|'ntc'|'colors'|'density-maps';
+type ToolBarItems = 'structure' | 'ntc' | 'colors' | 'density-maps';
 const ViewerToolBar = ToolBar.Specialize<ToolBarItems>();
 
 const DefaultChainColor = Color(0xD9D9D9);
 const DefaultDensityMapAlpha = 0.25;
 const DefaultWaterColor = Color(0x0BB2FF);
-export type VisualRepresentations = 'ball-and-stick'|'cartoon';
-export type DensityMapRepresentation = 'wireframe'|'solid';
-export type DensityMapKind = '2fo-fc'|'fo-fc'|'em';
+export type VisualRepresentations = 'ball-and-stick' | 'cartoon' | 'ntc-tube';
+export type DensityMapRepresentation = 'wireframe' | 'solid';
 
 export const DefaultDensityDifferencePositiveColor = Color(0x00C300);
 export const DefaultDensityDifferenceNegativeColor = Color(0xC30000);
 export const DefaultDensityMapColor = Color(0x009DFF);
 const DefaultDensityMapDisplay = {
-    kind: '2fo-fc' as DensityMapKind,
+    kind: '2fo-fc' as Api.DensityMapKind,
     representations: [] as DensityMapRepresentation[],
     isoValue: 0,
 
@@ -56,17 +55,16 @@ export type DensityMapDisplay = typeof DefaultDensityMapDisplay;
 
 const Display = {
     structures: {
-        representation: 'cartoon' as VisualRepresentations,
-
+        nucleicRepresentation: 'cartoon' as VisualRepresentations,
         showNucleic: true,
+
+        proteinRepresentation: 'cartoon' as Omit<VisualRepresentations, 'ntc-tube'>,
         showProtein: false,
+
         showWater: false,
 
         showPyramids: true,
         pyramidsTransparent: false,
-
-        showBalls: false,
-        ballsTransparent: false,
 
         modelNumber: 1,
 
@@ -79,12 +77,6 @@ const Display = {
 };
 export type Display = typeof Display;
 
-function capitalize(s: string) {
-    if (s.length === 0)
-        return s;
-    return s[0].toLocaleUpperCase() + s.slice(1);
-}
-
 interface State {
     display: Display;
     showControls: boolean;
@@ -92,8 +84,8 @@ interface State {
 export class ReDNATCOMsp extends React.Component<ReDNATCOMsp.Props, State> {
     private currentFilter: Filters.All = Filters.Empty();
     private presentConformers: string[] = [];
-    private viewer: ReDNATCOMspViewer|undefined = undefined;
-    private selectedStep: Api.Payloads.StepSelection|undefined = undefined;
+    private viewer: ReDNATCOMspViewer | undefined = undefined;
+    private selectedStep: Api.Payloads.StepSelection | undefined = undefined;
 
     constructor(props: ReDNATCOMsp.Props) {
         super(props);
@@ -111,6 +103,17 @@ export class ReDNATCOMsp extends React.Component<ReDNATCOMsp.Props, State> {
         return updated;
     }
 
+    private finalizeNtCColorUpdate(display: Display) {
+        this.viewer!.changeNtCColors(display).then(() => {
+            if (display.structures.showNucleic && display.structures.nucleicRepresentation === 'ntc-tube') {
+                this.viewer!.changeChainColor(['nucleic'], display).then(() => {
+                    this.setState({ ...this.state, display });
+                });
+            } else
+                this.setState({ ...this.state, display });
+        });
+    }
+
     private updateChainColor(color: number) {
         const display: Display = {
             ...this.state.display,
@@ -120,11 +123,11 @@ export class ReDNATCOMsp extends React.Component<ReDNATCOMsp.Props, State> {
             },
         };
 
-        this.viewer!.changeChainColor(display);
+        this.viewer!.changeChainColor(['nucleic', 'protein'], display);
         this.setState({ ...this.state, display });
     }
 
-    private updateClassColor(changes: { cls: keyof NtCColors.Classes, color: number }|{ cls: keyof NtCColors.Classes, color: number }[]) {
+    private updateClassColor(changes: { cls: keyof NtCColors.Classes, color: number } | { cls: keyof NtCColors.Classes, color: number }[]) {
         const classColors = { ...this.state.display.structures.classColors };
 
         const isArray = Array.isArray(changes);
@@ -144,11 +147,10 @@ export class ReDNATCOMsp extends React.Component<ReDNATCOMsp.Props, State> {
         display.structures.classColors = classColors;
         display.structures.conformerColors = conformerColors;
 
-        this.viewer!.changeNtCColors(display);
-        this.setState({ ...this.state, display });
+        this.finalizeNtCColorUpdate(display);
     }
 
-    private updateConformerColor(changes: { conformer: keyof NtCColors.Conformers, color: number }|{ conformer: keyof NtCColors.Conformers, color: number }[]) {
+    private updateConformerColor(changes: { conformer: keyof NtCColors.Conformers, color: number } | { conformer: keyof NtCColors.Conformers, color: number }[]) {
         const conformerColors = { ...this.state.display.structures.conformerColors };
         if (Array.isArray(changes))
             changes.forEach(item => conformerColors[item.conformer] = Color(item.color));
@@ -158,8 +160,7 @@ export class ReDNATCOMsp extends React.Component<ReDNATCOMsp.Props, State> {
         const display = { ...this.state.display };
         display.structures.conformerColors = conformerColors;
 
-        this.viewer!.changeNtCColors(display);
-        this.setState({ ...this.state, display });
+        this.finalizeNtCColorUpdate(display);
     }
 
     private updateWaterColor(color: number) {
@@ -190,6 +191,10 @@ export class ReDNATCOMsp extends React.Component<ReDNATCOMsp.Props, State> {
     async command(cmd: Api.Command) {
         if (!this.viewer)
             return;
+
+        for (const p in cmd) {
+            console.log(`${p}: ${cmd[p as keyof typeof cmd]}`);
+        }
 
         if (cmd.type === 'redraw')
             window.dispatchEvent(new Event('resize'));
@@ -233,7 +238,7 @@ export class ReDNATCOMsp extends React.Component<ReDNATCOMsp.Props, State> {
         }
     }
 
-    loadStructure(coords: { data: string, type: 'pdb'|'cif' }, densityMaps: { data: Uint8Array, type: 'ccp4'|'dsn6', kind: '2fo-fc'|'fo-fc'|'em' }[]|null) {
+    loadStructure(coords: { data: string, type: Api.CoordinatesFormat }, densityMaps: { data: Uint8Array, type: Api.DensityMapFormat, kind: Api.DensityMapKind }[] | null) {
         if (this.viewer) {
             const display = { ...this.state.display };
             if (densityMaps) {
@@ -308,14 +313,71 @@ export class ReDNATCOMsp extends React.Component<ReDNATCOMsp.Props, State> {
                                     <ToolBarContent style={{ width: '10em' }}>
                                         <div className='rmsp-control-line'>
                                             <div className='rmsp-control-item'>
-                                                <PushButton
-                                                    text={capitalize(this.state.display.structures.representation)}
-                                                    enabled={ready}
+                                                <ToggleButton
+                                                    text='Nucleic'
+                                                    enabled={hasNucleic}
+                                                    switchedOn={this.state.display.structures.showNucleic}
                                                     onClicked={() => {
                                                         const display = { ...this.state.display };
-                                                        display.structures.representation = display.structures.representation === 'cartoon' ? 'ball-and-stick' : 'cartoon';
-                                                        this.viewer!.changeRepresentation(display);
-                                                        this.setState({ ...this.state, display });
+                                                        display.structures.showNucleic = !display.structures.showNucleic,
+                                                        this.viewer!.toggleSubstructure('nucleic', display).then(() => {
+                                                            this.setState({ ...this.state, display });
+                                                        });
+                                                    }}
+                                                />
+                                            </div>
+                                        </div>
+                                        <div className='rmsp-control-line'>
+                                            <div className='rmsp-control-item'>
+                                                <PushButton
+                                                    text='Cartoon'
+                                                    enabled={ready && this.state.display.structures.showNucleic}
+                                                    onClicked={() => {
+                                                        const display = { ...this.state.display };
+                                                        if (display.structures.nucleicRepresentation !== 'cartoon') {
+                                                            display.structures.nucleicRepresentation = 'cartoon';
+                                                            this.viewer!.changeRepresentation('nucleic', display).then(() => {
+                                                                this.setState({ ...this.state, display });
+                                                            });
+                                                        }
+                                                    }}
+                                                />
+                                            </div>
+                                        </div>
+                                        <div className='rmsp-control-line'>
+                                            <div className='rmsp-control-item'>
+                                                <PushButton
+                                                    text='Ball-and-stick'
+                                                    enabled={ready && this.state.display.structures.showNucleic}
+                                                    onClicked={() => {
+                                                        const display = { ...this.state.display };
+                                                        if (display.structures.nucleicRepresentation !== 'ball-and-stick') {
+                                                            display.structures.nucleicRepresentation = 'ball-and-stick';
+                                                            this.viewer!.changeRepresentation('nucleic', display).then(() => {
+                                                                this.setState({ ...this.state, display });
+                                                            });
+                                                        }
+                                                    }}
+                                                />
+                                            </div>
+                                        </div>
+                                        <div className='rmsp-control-line'>
+                                            <div className='rmsp-control-item'>
+                                                <PushButton
+                                                    text='NtC tube'
+                                                    enabled={ready && this.state.display.structures.showNucleic}
+                                                    onClicked={() => {
+                                                        const display = { ...this.state.display };
+                                                        if (display.structures.nucleicRepresentation !== 'ntc-tube') {
+                                                            display.structures.nucleicRepresentation = 'ntc-tube';
+                                                            this.viewer!.changeRepresentation('nucleic', display).then(() => {
+                                                                display.structures.showPyramids = false;
+
+                                                                this.viewer!.changePyramids(display).then(() => {
+                                                                    this.setState({ ...this.state, display });
+                                                                });
+                                                            });
+                                                        }
                                                     }}
                                                 />
                                             </div>
@@ -326,33 +388,56 @@ export class ReDNATCOMsp extends React.Component<ReDNATCOMsp.Props, State> {
                                         <div className='rmsp-control-line'>
                                             <div className='rmsp-control-item'>
                                                 <ToggleButton
-                                                    text='Nucleic'
-                                                    enabled={hasNucleic}
-                                                    switchedOn={this.state.display.structures.showNucleic}
-                                                    onClicked={() => {
-                                                        const display = { ...this.state.display };
-                                                        display.structures.showNucleic = !display.structures.showNucleic,
-                                                        this.viewer!.toggleSubstructure('nucleic', display);
-                                                        this.setState({ ...this.state, display });
-                                                    }}
-                                                />
-                                            </div>
-                                        </div>
-                                        <div className='rmsp-control-line'>
-                                            <div className='rmsp-control-item'>
-                                                <ToggleButton
                                                     text='Protein'
                                                     enabled={hasProtein}
                                                     switchedOn={this.state.display.structures.showProtein}
                                                     onClicked={() => {
                                                         const display = { ...this.state.display };
                                                         display.structures.showProtein = !display.structures.showProtein,
-                                                        this.viewer!.toggleSubstructure('protein', display);
-                                                        this.setState({ ...this.state, display });
+                                                        this.viewer!.toggleSubstructure('protein', display).then(() => {
+                                                            this.setState({ ...this.state, display });
+                                                        });
                                                     }}
                                                 />
                                             </div>
                                         </div>
+                                        <div className='rmsp-control-line'>
+                                            <div className='rmsp-control-item'>
+                                                <PushButton
+                                                    text='Cartoon'
+                                                    enabled={ready && this.state.display.structures.showProtein}
+                                                    onClicked={() => {
+                                                        const display = { ...this.state.display };
+                                                        if (display.structures.proteinRepresentation !== 'cartoon') {
+                                                            display.structures.proteinRepresentation = 'cartoon';
+                                                            this.viewer!.changeRepresentation('protein', display).then(() => {
+                                                                this.setState({ ...this.state, display });
+                                                            });
+                                                        }
+                                                    }}
+                                                />
+                                            </div>
+                                        </div>
+                                        <div className='rmsp-control-line'>
+                                            <div className='rmsp-control-item'>
+                                                <PushButton
+                                                    text='Ball-and-stick'
+                                                    enabled={ready && this.state.display.structures.showProtein}
+                                                    onClicked={() => {
+                                                        const display = { ...this.state.display };
+                                                        if (display.structures.proteinRepresentation !== 'ball-and-stick') {
+                                                            display.structures.proteinRepresentation = 'ball-and-stick';
+                                                            this.viewer!.changeRepresentation('protein', display).then(() => {
+                                                                this.setState({ ...this.state, display });
+                                                            });
+                                                        }
+                                                    }}
+                                                />
+                                            </div>
+                                        </div>
+
+                                        <div className='rmsp-control-vertical-spacer' />
+
                                         <div className='rmsp-control-line'>
                                             <div className='rmsp-control-item'>
                                                 <ToggleButton
@@ -362,8 +447,9 @@ export class ReDNATCOMsp extends React.Component<ReDNATCOMsp.Props, State> {
                                                     onClicked={() => {
                                                         const display = { ...this.state.display };
                                                         display.structures.showWater = !this.state.display.structures.showWater;
-                                                        this.viewer!.toggleSubstructure('water', display);
-                                                        this.setState({ ...this.state, display });
+                                                        this.viewer!.toggleSubstructure('water', display).then(() => {
+                                                            this.setState({ ...this.state, display });
+                                                        });
                                                     }}
                                                 />
                                             </div>
@@ -387,8 +473,9 @@ export class ReDNATCOMsp extends React.Component<ReDNATCOMsp.Props, State> {
                                                     onClicked={() => {
                                                         const display = { ...this.state.display };
                                                         display.structures.showPyramids = !display.structures.showPyramids;
-                                                        this.viewer!.changePyramids(display);
-                                                        this.setState({ ...this.state, display });
+                                                        this.viewer!.changePyramids(display).then(() => {
+                                                            this.setState({ ...this.state, display });
+                                                        });
                                                     }}
                                                 />
                                             </div>
@@ -401,39 +488,9 @@ export class ReDNATCOMsp extends React.Component<ReDNATCOMsp.Props, State> {
                                                     onClicked={() => {
                                                         const display = { ...this.state.display };
                                                         display.structures.pyramidsTransparent = !display.structures.pyramidsTransparent;
-                                                        this.viewer!.changePyramids(display);
-                                                        this.setState({ ...this.state, display });
-                                                    }}
-                                                />
-                                            </div>
-                                        </div>
-
-                                        <div className='rmsp-control-vertical-spacer' />
-
-                                        <div className='rmsp-control-vertical-section-caption'>
-                                            Balls
-                                        </div>
-                                        <div className='rmsp-control-line'>
-                                            <div className='rmsp-control-item'>
-                                                <ToggleButton
-                                                    text='Balls'
-                                                    enabled={false}
-                                                    switchedOn={false}
-                                                    onClicked={() => {}}
-                                                />
-                                            </div>
-                                        </div>
-                                        <div className='rmsp-control-line'>
-                                            <div className='rmsp-control-item'>
-                                                <PushButton
-                                                    text={this.state.display.structures.ballsTransparent ? 'Transp.' : 'Solid'}
-                                                    enabled={this.state.display.structures.showBalls}
-                                                    onClicked={() => {
-                                                        const display = { ...this.state.display };
-                                                        display.structures.showBalls = !display.structures.showBalls;
-
-                                                        /* No balls today... */
-                                                        this.setState({ ...this.state, display });
+                                                        this.viewer!.changePyramids(display).then(() => {
+                                                            this.setState({ ...this.state, display });
+                                                        });
                                                     }}
                                                 />
                                             </div>

@@ -34,7 +34,7 @@ export class ReDNATCOMspApiImpl implements ReDNATCOMspApi.Object {
         return !!this.target;
     }
 
-    loadStructure(coords: { data: string, type: 'cif' | 'pdb' }, densityMaps: { data: Uint8Array, type: 'ccp4' | 'dsn6', kind: '2fo-fc' | 'fo-fc' | 'em' }[] | null) {
+    loadStructure(coords: { data: string, type: ReDNATCOMspApi.CoordinatesFormat }, densityMaps: { data: Uint8Array, type: ReDNATCOMspApi.DensityMapFormat, kind: ReDNATCOMspApi.DensityMapKind }[] | null) {
         this.check();
         this.target!.loadStructure(coords, densityMaps);
     }
