@@ -192,10 +192,6 @@ export class ReDNATCOMsp extends React.Component<ReDNATCOMsp.Props, State> {
         if (!this.viewer)
             return;
 
-        for (const p in cmd) {
-            console.log(`${p}: ${cmd[p as keyof typeof cmd]}`);
-        }
-
         if (cmd.type === 'redraw')
             window.dispatchEvent(new Event('resize'));
         else if (cmd.type === 'deselect-step') {
