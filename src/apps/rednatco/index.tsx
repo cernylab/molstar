@@ -77,6 +77,22 @@ const Display = {
 };
 export type Display = typeof Display;
 
+class Locker {
+    private isLocked = false;
+
+    tryLock() {
+        if (this.isLocked)
+            return false;
+        this.isLocked = true;
+
+        return true;
+    }
+
+    unlock() {
+        this.isLocked = false;
+    }
+}
+
 interface State {
     display: Display;
     showControls: boolean;
@@ -85,6 +101,8 @@ export class ReDNATCOMsp extends React.Component<ReDNATCOMsp.Props, State> {
     private currentFilter: Filters.All = Filters.Empty();
     private presentConformers: string[] = [];
     private viewer: ReDNATCOMspViewer | undefined = undefined;
+    // Used to lock out access to the viewer when it might be busy modifying its state tree
+    private viewerLocker = new Locker();
     private selectedStep: Api.Payloads.StepSelection | undefined = undefined;
 
     constructor(props: ReDNATCOMsp.Props) {
@@ -314,11 +332,16 @@ export class ReDNATCOMsp extends React.Component<ReDNATCOMsp.Props, State> {
                                                     enabled={hasNucleic}
                                                     switchedOn={this.state.display.structures.showNucleic}
                                                     onClicked={() => {
+                                                        if (!this.viewerLocker.tryLock())
+                                                            return;
+
                                                         const display = { ...this.state.display };
                                                         display.structures.showNucleic = !display.structures.showNucleic,
+
                                                         this.viewer!.toggleSubstructure('nucleic', display).then(() => {
                                                             this.setState({ ...this.state, display });
-                                                        });
+                                                            this.viewerLocker.unlock();
+                                                        }).catch(() => this.viewerLocker.unlock());
                                                     }}
                                                 />
                                             </div>
@@ -329,12 +352,16 @@ export class ReDNATCOMsp extends React.Component<ReDNATCOMsp.Props, State> {
                                                     text='Cartoon'
                                                     enabled={ready && this.state.display.structures.showNucleic}
                                                     onClicked={() => {
+                                                        if (!this.viewerLocker.tryLock())
+                                                            return;
+
                                                         const display = { ...this.state.display };
                                                         if (display.structures.nucleicRepresentation !== 'cartoon') {
                                                             display.structures.nucleicRepresentation = 'cartoon';
                                                             this.viewer!.changeRepresentation('nucleic', display).then(() => {
                                                                 this.setState({ ...this.state, display });
-                                                            });
+                                                                this.viewerLocker.unlock();
+                                                            }).catch(() => this.viewerLocker.unlock());
                                                         }
                                                     }}
                                                 />
@@ -346,12 +373,16 @@ export class ReDNATCOMsp extends React.Component<ReDNATCOMsp.Props, State> {
                                                     text='Ball-and-stick'
                                                     enabled={ready && this.state.display.structures.showNucleic}
                                                     onClicked={() => {
+                                                        if (!this.viewerLocker.tryLock())
+                                                            return;
+
                                                         const display = { ...this.state.display };
                                                         if (display.structures.nucleicRepresentation !== 'ball-and-stick') {
                                                             display.structures.nucleicRepresentation = 'ball-and-stick';
                                                             this.viewer!.changeRepresentation('nucleic', display).then(() => {
                                                                 this.setState({ ...this.state, display });
-                                                            });
+                                                                this.viewerLocker.unlock();
+                                                            }).catch(() => this.viewerLocker.unlock());
                                                         }
                                                     }}
                                                 />
@@ -363,16 +394,20 @@ export class ReDNATCOMsp extends React.Component<ReDNATCOMsp.Props, State> {
                                                     text='NtC tube'
                                                     enabled={ready && this.state.display.structures.showNucleic}
                                                     onClicked={() => {
+                                                        if (!this.viewerLocker.tryLock())
+                                                            return;
+
                                                         const display = { ...this.state.display };
                                                         if (display.structures.nucleicRepresentation !== 'ntc-tube') {
                                                             display.structures.nucleicRepresentation = 'ntc-tube';
-                                                            this.viewer!.changeRepresentation('nucleic', display).then(() => {
-                                                                display.structures.showPyramids = false;
+                                                            display.structures.showPyramids = false;
 
+                                                            this.viewer!.changeRepresentation('nucleic', display).then(() => {
                                                                 this.viewer!.changePyramids(display).then(() => {
                                                                     this.setState({ ...this.state, display });
-                                                                });
-                                                            });
+                                                                    this.viewerLocker.unlock();
+                                                                }).catch(() => this.viewerLocker.unlock());
+                                                            }).catch(() => this.viewerLocker.unlock());
                                                         }
                                                     }}
                                                 />
@@ -388,11 +423,15 @@ export class ReDNATCOMsp extends React.Component<ReDNATCOMsp.Props, State> {
                                                     enabled={hasProtein}
                                                     switchedOn={this.state.display.structures.showProtein}
                                                     onClicked={() => {
+                                                        if (!this.viewerLocker.tryLock())
+                                                            return;
+
                                                         const display = { ...this.state.display };
                                                         display.structures.showProtein = !display.structures.showProtein,
                                                         this.viewer!.toggleSubstructure('protein', display).then(() => {
                                                             this.setState({ ...this.state, display });
-                                                        });
+                                                            this.viewerLocker.unlock();
+                                                        }).catch(() => this.viewerLocker.unlock());
                                                     }}
                                                 />
                                             </div>
@@ -403,12 +442,16 @@ export class ReDNATCOMsp extends React.Component<ReDNATCOMsp.Props, State> {
                                                     text='Cartoon'
                                                     enabled={ready && this.state.display.structures.showProtein}
                                                     onClicked={() => {
+                                                        if (!this.viewerLocker.tryLock())
+                                                            return;
+
                                                         const display = { ...this.state.display };
                                                         if (display.structures.proteinRepresentation !== 'cartoon') {
                                                             display.structures.proteinRepresentation = 'cartoon';
                                                             this.viewer!.changeRepresentation('protein', display).then(() => {
                                                                 this.setState({ ...this.state, display });
-                                                            });
+                                                                this.viewerLocker.unlock();
+                                                            }).catch(() => this.viewerLocker.unlock());
                                                         }
                                                     }}
                                                 />
@@ -420,12 +463,16 @@ export class ReDNATCOMsp extends React.Component<ReDNATCOMsp.Props, State> {
                                                     text='Ball-and-stick'
                                                     enabled={ready && this.state.display.structures.showProtein}
                                                     onClicked={() => {
+                                                        if (!this.viewerLocker.tryLock())
+                                                            return;
+
                                                         const display = { ...this.state.display };
                                                         if (display.structures.proteinRepresentation !== 'ball-and-stick') {
                                                             display.structures.proteinRepresentation = 'ball-and-stick';
                                                             this.viewer!.changeRepresentation('protein', display).then(() => {
                                                                 this.setState({ ...this.state, display });
-                                                            });
+                                                                this.viewerLocker.unlock();
+                                                            }).catch(() => this.viewerLocker.unlock());
                                                         }
                                                     }}
                                                 />
@@ -441,11 +488,15 @@ export class ReDNATCOMsp extends React.Component<ReDNATCOMsp.Props, State> {
                                                     enabled={hasWater}
                                                     switchedOn={this.state.display.structures.showWater}
                                                     onClicked={() => {
+                                                        if (!this.viewerLocker.tryLock())
+                                                            return;
+
                                                         const display = { ...this.state.display };
                                                         display.structures.showWater = !this.state.display.structures.showWater;
                                                         this.viewer!.toggleSubstructure('water', display).then(() => {
                                                             this.setState({ ...this.state, display });
-                                                        });
+                                                            this.viewerLocker.unlock();
+                                                        }).catch(() => this.viewerLocker.unlock());
                                                     }}
                                                 />
                                             </div>

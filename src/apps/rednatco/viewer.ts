@@ -340,7 +340,7 @@ export class ReDNATCOMspViewer {
         if (!sphere)
             return;
         const snapshot = this.plugin.canvas3d.camera.getSnapshot();
-        const radius = sphere.radius < 1 ? 1 : sphere.radius;
+        const radius = (sphere.radius < 1 ? 1 : sphere.radius) * 8;
 
         const v = Vec3();
         const u = Vec3();
@@ -348,7 +348,7 @@ export class ReDNATCOMspViewer {
         Vec3.set(u, snapshot.position[0], snapshot.position[1], snapshot.position[2]);
         Vec3.sub(u, u, v);
         Vec3.normalize(u, u);
-        Vec3.scale(u, u, radius * 8);
+        Vec3.scale(u, u, radius);
         Vec3.add(v, u, v);
 
         snapshot.target = sphere.center;
