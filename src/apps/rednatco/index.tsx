@@ -352,11 +352,11 @@ export class ReDNATCOMsp extends React.Component<ReDNATCOMsp.Props, State> {
                                                     text='Cartoon'
                                                     enabled={ready && this.state.display.structures.showNucleic}
                                                     onClicked={() => {
-                                                        if (!this.viewerLocker.tryLock())
-                                                            return;
-
                                                         const display = { ...this.state.display };
                                                         if (display.structures.nucleicRepresentation !== 'cartoon') {
+                                                            if (!this.viewerLocker.tryLock())
+                                                                return;
+
                                                             display.structures.nucleicRepresentation = 'cartoon';
                                                             this.viewer!.changeRepresentation('nucleic', display).then(() => {
                                                                 this.setState({ ...this.state, display });
@@ -373,11 +373,11 @@ export class ReDNATCOMsp extends React.Component<ReDNATCOMsp.Props, State> {
                                                     text='Ball-and-stick'
                                                     enabled={ready && this.state.display.structures.showNucleic}
                                                     onClicked={() => {
-                                                        if (!this.viewerLocker.tryLock())
-                                                            return;
-
                                                         const display = { ...this.state.display };
                                                         if (display.structures.nucleicRepresentation !== 'ball-and-stick') {
+                                                            if (!this.viewerLocker.tryLock())
+                                                                return;
+
                                                             display.structures.nucleicRepresentation = 'ball-and-stick';
                                                             this.viewer!.changeRepresentation('nucleic', display).then(() => {
                                                                 this.setState({ ...this.state, display });
@@ -394,11 +394,11 @@ export class ReDNATCOMsp extends React.Component<ReDNATCOMsp.Props, State> {
                                                     text='NtC tube'
                                                     enabled={ready && this.state.display.structures.showNucleic}
                                                     onClicked={() => {
-                                                        if (!this.viewerLocker.tryLock())
-                                                            return;
-
                                                         const display = { ...this.state.display };
                                                         if (display.structures.nucleicRepresentation !== 'ntc-tube') {
+                                                            if (!this.viewerLocker.tryLock())
+                                                                return;
+
                                                             display.structures.nucleicRepresentation = 'ntc-tube';
                                                             display.structures.showPyramids = false;
 
@@ -423,12 +423,12 @@ export class ReDNATCOMsp extends React.Component<ReDNATCOMsp.Props, State> {
                                                     enabled={hasProtein}
                                                     switchedOn={this.state.display.structures.showProtein}
                                                     onClicked={() => {
-                                                        if (!this.viewerLocker.tryLock())
-                                                            return;
-
                                                         const display = { ...this.state.display };
                                                         display.structures.showProtein = !display.structures.showProtein,
                                                         this.viewer!.toggleSubstructure('protein', display).then(() => {
+                                                            if (!this.viewerLocker.tryLock())
+                                                                return;
+
                                                             this.setState({ ...this.state, display });
                                                             this.viewerLocker.unlock();
                                                         }).catch(() => this.viewerLocker.unlock());
@@ -442,11 +442,11 @@ export class ReDNATCOMsp extends React.Component<ReDNATCOMsp.Props, State> {
                                                     text='Cartoon'
                                                     enabled={ready && this.state.display.structures.showProtein}
                                                     onClicked={() => {
-                                                        if (!this.viewerLocker.tryLock())
-                                                            return;
-
                                                         const display = { ...this.state.display };
                                                         if (display.structures.proteinRepresentation !== 'cartoon') {
+                                                            if (!this.viewerLocker.tryLock())
+                                                                return;
+
                                                             display.structures.proteinRepresentation = 'cartoon';
                                                             this.viewer!.changeRepresentation('protein', display).then(() => {
                                                                 this.setState({ ...this.state, display });
@@ -463,11 +463,11 @@ export class ReDNATCOMsp extends React.Component<ReDNATCOMsp.Props, State> {
                                                     text='Ball-and-stick'
                                                     enabled={ready && this.state.display.structures.showProtein}
                                                     onClicked={() => {
-                                                        if (!this.viewerLocker.tryLock())
-                                                            return;
-
                                                         const display = { ...this.state.display };
                                                         if (display.structures.proteinRepresentation !== 'ball-and-stick') {
+                                                            if (!this.viewerLocker.tryLock())
+                                                                return;
+
                                                             display.structures.proteinRepresentation = 'ball-and-stick';
                                                             this.viewer!.changeRepresentation('protein', display).then(() => {
                                                                 this.setState({ ...this.state, display });
@@ -690,37 +690,42 @@ export class ReDNATCOMsp extends React.Component<ReDNATCOMsp.Props, State> {
                                                 const display = { ...this.state.display };
                                                 display.densityMaps[index].representations = toggleArray(display.densityMaps[index].representations, 'wireframe');
 
-                                                this.viewer!.changeDensityMap(index, display);
-                                                this.setState({ ...this.state, display });
+                                                this.viewer!.changeDensityMap(index, display).then(() => {
+                                                    this.setState({ ...this.state, display });
+                                                });
                                             }}
 
                                             toggleSolid={(index) => {
                                                 const display = { ...this.state.display };
                                                 display.densityMaps[index].representations = toggleArray(display.densityMaps[index].representations, 'solid');
 
-                                                this.viewer!.changeDensityMap(index, display);
-                                                this.setState({ ...this.state, display });
+                                                this.viewer!.changeDensityMap(index, display).then(() => {
+                                                    this.setState({ ...this.state, display });
+                                                });
                                             }}
                                             changeIso={(index, v) => {
                                                 const display = { ...this.state.display };
                                                 display.densityMaps[index].isoValue = v;
 
-                                                this.viewer!.changeDensityMap(index, display);
-                                                this.setState({ ...this.state, display });
+                                                this.viewer!.changeDensityMap(index, display).then(() => {
+                                                    this.setState({ ...this.state, display });
+                                                });
                                             }}
                                             changeAlpha={(index, alpha) => {
                                                 const display = { ...this.state.display };
                                                 display.densityMaps[index].alpha = alpha;
 
-                                                this.viewer!.changeDensityMap(index, display);
-                                                this.setState({ ...this.state, display });
+                                                this.viewer!.changeDensityMap(index, display).then(() => {
+                                                    this.setState({ ...this.state, display });
+                                                });
                                             }}
                                             changeColors={(index, colors) => {
                                                 const display = { ...this.state.display };
                                                 display.densityMaps[index].colors = colors;
 
-                                                this.viewer!.changeDensityMap(index, display);
-                                                this.setState({ ...this.state, display });
+                                                this.viewer!.changeDensityMap(index, display).then(() => {
+                                                    this.setState({ ...this.state, display });
+                                                });
                                             }}
                                         />
                                     </ToolBarContent>,
