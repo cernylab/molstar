@@ -43,15 +43,14 @@ export type DensityMapRepresentation = 'wireframe' | 'solid';
 export const DefaultDensityDifferencePositiveColor = Color(0x00C300);
 export const DefaultDensityDifferenceNegativeColor = Color(0xC30000);
 export const DefaultDensityMapColor = Color(0x009DFF);
-const DefaultDensityMapDisplay = {
-    kind: '2fo-fc' as Api.DensityMapKind,
-    representations: [] as DensityMapRepresentation[],
-    isoValue: 0,
+export type DensityMapDisplay = {
+    kind: Api.DensityMapKind,
+    representations: DensityMapRepresentation[],
+    isoValue: number,
 
-    alpha: DefaultDensityMapAlpha,
-    colors: [{ color: DefaultDensityMapColor, name: 'Color' }],
-};
-export type DensityMapDisplay = typeof DefaultDensityMapDisplay;
+    alpha: number,
+    colors: { color: Color, name: string }[];
+}
 
 const Display = {
     structures: {
@@ -262,15 +261,23 @@ export class ReDNATCOMsp extends React.Component<ReDNATCOMsp.Props, State> {
 
                     if (dm.kind === 'fo-fc') {
                         display.densityMaps[idx] = {
-                            ...DefaultDensityMapDisplay,
                             kind: dm.kind,
+                            representations: [],
+                            isoValue: 0,
+                            alpha: DefaultDensityMapAlpha,
                             colors: [
                                 { color: DefaultDensityDifferencePositiveColor, name: '+' },
                                 { color: DefaultDensityDifferenceNegativeColor, name: '-' },
                             ],
                         };
                     } else
-                        display.densityMaps[idx] = { ...DefaultDensityMapDisplay, kind: dm.kind };
+                        display.densityMaps[idx] = {
+                            kind: dm.kind,
+                            representations: [],
+                            isoValue: 0,
+                            alpha: DefaultDensityMapAlpha,
+                            colors: [{ color: DefaultDensityMapColor, name: 'Color' }],
+                        };
                 }
             } else
                 display.densityMaps.length = 0;
