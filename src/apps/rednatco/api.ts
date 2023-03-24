@@ -77,24 +77,24 @@ export namespace ReDNATCOMspApi {
             prev?: Payloads.StepSelection,
             next?: Payloads.StepSelection,
         }
-        export function SelectStep(step: Payloads.StepSelection, prev: Payloads.StepSelection | undefined, next: Payloads.StepSelection | undefined): SelectStep {
-            return { type: 'step', step, prev, next };
+        export function SelectStep(step: Payloads.StepSelection, prev: Payloads.StepSelection | undefined, next: Payloads.StepSelection | undefined): SelectStructure {
+            return { type: 'select-structure', selection: { type: 'step', step, prev, next } };
         }
 
         export type SelectResidue = {
             type: 'residue',
             residue: Payloads.ResidueSelection,
         }
-        export function SelectResidue(model: number, chain: string, seqId: number, insCode: string, altId: string, color: number): SelectResidue {
-            return { type: 'residue', residue: Payloads.ResidueSelection(model, chain, seqId, insCode, altId, color) };
+        export function SelectResidue(model: number, chain: string, seqId: number, insCode: string, altId: string, color: number): SelectStructure {
+            return { type: 'select-structure', selection: { type: 'residue', residue: Payloads.ResidueSelection(model, chain, seqId, insCode, altId, color) } };
         }
 
         export type SelectAtom = {
             type: 'atom',
             atom: Payloads.AtomSelection,
         }
-        export function SelectAtom(model: number, id: number, color: number): SelectAtom {
-            return { type: 'atom', atom: Payloads.AtomSelection(model, id, color) };
+        export function SelectAtom(model: number, id: number, color: number): SelectStructure {
+            return { type: 'select-structure', selection: { type: 'atom', atom: Payloads.AtomSelection(model, id, color) } };
         }
 
         export type SwitchModel = { type: 'switch-model', model: number };
