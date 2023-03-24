@@ -300,10 +300,15 @@ export class ReDNATCOMspViewer {
     private steps: Step.ExtendedDescription[] = [];
     private stepNames: Map<string, number> = new Map();
     private app: ReDNATCOMsp;
+    private selections = new Array<Api.Payloads.StructureSelection>();
 
     constructor(public plugin: PluginUIContext, interactionContext: { self?: ReDNATCOMspViewer }, app: ReDNATCOMsp) {
         interactionContext.self = this;
         this.app = app;
+    }
+
+    private clearSelections() {
+        this.selections.splice(0, this.selections.length);
     }
 
     private densityMapVisuals(vis: Display['densityMaps'][0], visKind: 'absolute' | 'positive' | 'negative') {
@@ -360,6 +365,14 @@ export class ReDNATCOMspViewer {
 
     private getBuilder(id: IDs.ID, sub: IDs.Substructure | '' = '', ref = BaseRef) {
         return this.plugin.state.data.build().to(IDs.ID(id, sub, ref));
+    }
+
+    private getNucleicStructure() {
+        const entireStruCell = this.plugin.state.data.cells.get(IDs.ID('structure', 'nucleic', BaseRef));
+        if (!entireStruCell)
+            return void 0;
+        const stru = entireStruCell.obj!.data!;
+        return StructureSelection.toLociWithSourceUnits(StructureSelection.Singletons(stru, stru));
     }
 
     private getStructureParent(cell: StateObjectCell) {
@@ -538,6 +551,111 @@ export class ReDNATCOMspViewer {
         );
     }
 
+    private residueLoci(sel: Api.Payloads.ResidueSelection, loci: StructureElement.Loci) {
+        return Traverse.findResidue(sel.chain, sel.seqId, sel.altId, sel.insCode, loci, 'auth');
+    }
+
+    private stepLoci(sel: Api.Payloads.StepSelection, loci: StructureElement.Loci) {
+        const step = this.stepFromName(sel.name);
+        if (!step)
+            return EmptyLoci;
+
+        return Traverse.findStep(
+            step.chain,
+            step.resNo1, step.altId1, step.insCode1,
+            step.resNo2, step.altId2, step.insCode2,
+            loci, 'auth'
+        );
+    }
+
+    private async visualizeSelections(struLoci: StructureElement.Loci, display: Display) {
+        const NtCReferenceVisuals = (color: number) => {
+            return {
+                type: { name: 'ball-and-stick', params: { sizeFactor: 0.15, aromaticBonds: false } },
+                colorTheme: { name: 'uniform', params: { value: Color(color) } },
+            };
+        };
+        const selectedLocis = [];
+        const b = this.plugin.state.data.build();
+
+        for (const sel of this.selections) {
+            const type = sel.type;
+            let color = display.structures.chainColor;
+
+            let loci: (EmptyLoci | StructureElement.Loci) = EmptyLoci; // TODO: Tidy this up
+            if (type === 'step') {
+                loci = this.stepLoci(sel, struLoci);
+            } else if (type === 'residue') {
+                loci = this.residueLoci(sel, struLoci);
+                color = Color(sel.color);
+            } else if (type === 'atom') {
+                // TODO: Later
+            }
+
+            // Visualize the selected bit
+            if (loci.kind === 'element-loci') {
+                selectedLocis.push(loci);
+
+                b.to(IDs.ID('structure', 'nucleic', BaseRef))
+                    .apply(
+                        StateTransforms.Model.StructureSelectionFromBundle,
+                        { bundle: StructureElement.Bundle.fromSubStructure(struLoci.structure, loci.structure) }
+                    )
+                    .apply(
+                        StateTransforms.Representation.StructureRepresentation3D,
+                        this.substructureVisuals(SubstructureVisual.BuiltIn('ball-and-stick', color))
+                    );
+
+                // If the selection is a step, it can have a reference we have to superpose.
+                if (sel.type === 'step' && sel.reference) {
+                    const ntcRef = sel.reference.NtC;
+                    const refStru = this.plugin.state.data.cells.get(IDs.ID('structure', '', ntcRef))!.obj!;
+                    const refLoci = StructureSelection.toLociWithSourceUnits(StructureSelection.Singletons(refStru.data, refStru.data));
+
+                    const { bTransform } = this.superpose(refLoci, loci);
+                    if (isNaN(bTransform[0])) {
+                        console.warn(`Cannot superpose reference conformer ${ntcRef} onto selection`);
+                    } else {
+                        b.to(IDs.ID('structure', '', ntcRef))
+                            .apply(
+                                StateTransforms.Model.TransformStructureConformation,
+                                { transform: { name: 'matrix', params: { data: bTransform, transpose: false } } }
+                            ).apply(
+                                StateTransforms.Representation.StructureRepresentation3D,
+                                NtCReferenceVisuals(color),
+                            );
+                    }
+                }
+            }
+        }
+
+        const notSelected = structureSubtract(struLoci.structure, structureUnion(struLoci.structure, selectedLocis.map(x => x.structure)));
+        b.to(IDs.ID('structure', 'nucleic', BaseRef))
+            .apply(
+                StateTransforms.Model.StructureSelectionFromBundle,
+                { bundle: StructureElement.Bundle.fromSubStructure(struLoci.structure, notSelected), label: 'Remainder' },
+                { ref: IDs.ID('structure', 'remainder-slice', BaseRef) }
+            );
+
+        // Only show the remainder if the nucleic substructure is shown
+        if (display.structures.showNucleic) {
+            const vis = display.structures.nucleicRepresentation === 'ntc-tube'
+                ? SubstructureVisual.NtC('ntc-tube', display.structures.conformerColors)
+                : SubstructureVisual.BuiltIn(display.structures.nucleicRepresentation, Color(display.structures.chainColor));
+
+            b.to(IDs.ID('structure', 'remainder-slice', BaseRef))
+                .apply(
+                    StateTransforms.Representation.StructureRepresentation3D,
+                    this.substructureVisuals(vis),
+                    { ref: IDs.ID('visual', 'remainder-slice', BaseRef) }
+                )
+                .delete(IDs.ID('visual', 'nucleic', BaseRef));
+        }
+
+        await b.commit();
+        return true;
+    }
+
     private waterVisuals(color: Color) {
         return {
             type: {
@@ -560,7 +678,7 @@ export class ReDNATCOMspViewer {
                     ReDNATCOLociSelectionProvider,
                     {
                         bindings: ReDNATCOLociSelectionBindings,
-                        onDeselected: () => interactCtx.self!.notifyStepDeselected(),
+                        onDeselected: () => interactCtx.self!.notifyStructureDeselected(),
                         onSelected: (loci) => interactCtx.self!.onLociSelected(loci),
                     }
                 ),
@@ -1141,8 +1259,8 @@ export class ReDNATCOMspViewer {
         await b.commit();
     }
 
-    notifyStepDeselected() {
-        this.app.viewerStepDeselected();
+    notifyStructureDeselected() {
+        this.app.viewerStructureDeselected();
     }
 
     notifyStepSelected(name: string) {
@@ -1180,6 +1298,57 @@ export class ReDNATCOMspViewer {
     }
 
     async actionApplyFilter(filter: Filters.All) {
+        if (filter.kind !== 'empty') {
+            const slices = filter.slices;
+
+            // WARNING: Auth vs. label namings are very likely going to hose us here, especially with residues
+            this.selections.filter((x) => {
+                let matches = false;
+
+                if (x.type === 'step') {
+                    const step = this.stepFromName(x.name)!;
+
+                    for (const slice of slices) {
+                        if (slice.chain !== step.chain)
+                            continue; // Bad chain
+
+                        if (slice.residues) {
+                            if (!(slice.residues.includes(step.resNo1) && slice.residues.includes(step.resNo2)))
+                                continue; // Bad residues
+                        }
+
+                        if (slice.altIds)
+                            matches = (step.altId1 ? slice.altIds.includes(step.altId1) : true) && (step.altId2 ? slice.altIds.includes(step.altId2) : true);
+                        else
+                            matches = true;
+
+                        if (matches === true)
+                            break;
+                    }
+                } else if (x.type === 'residue') {
+                    for (const slice of slices) {
+                        if (slice.chain !== x.chain)
+                            continue; // Bad chain
+
+                        if (slice.residues) {
+                            if (!slice.residues.includes(x.seqId))
+                                continue; // Bad residues
+                        }
+
+                        if (slice.altIds)
+                            matches = x.altId === '' ? true : slice.altIds.includes(x.altId);
+                        else
+                            matches = true;
+
+                        if (matches === true)
+                            break;
+                    }
+                }
+
+                return matches;
+            });
+        }
+
         const b = this.plugin.state.data.build();
         if (this.has('structure', 'nucleic', BaseRef)) {
             b.to(IDs.ID('structure', 'nucleic', BaseRef))
@@ -1218,102 +1387,57 @@ export class ReDNATCOMspViewer {
         return true;
     }
 
-    async actionDeselectStep(display: Display) {
-        await this.plugin.state.data.build()
-            .delete(IDs.ID('superposition', '', NtCSupSel))
-            .delete(IDs.ID('superposition', '', NtCSupPrev))
-            .delete(IDs.ID('superposition', '', NtCSupNext))
-            .delete(IDs.ID('structure', 'selected-slice', BaseRef))
-            .delete(IDs.ID('structure', 'remainder-slice', BaseRef))
-            .commit();
+    async actionDeselectStructures(display: Display) {
+        this.clearSelections();
 
-        await this.toggleSubstructure('nucleic', display);
+        const struLoci = this.getNucleicStructure();
+        if (struLoci)
+            await this.visualizeSelections(struLoci, display);
     }
 
-    async actionSelectStep(stepSel: Api.Payloads.StepSelection, prevSel: Api.Payloads.StepSelection | undefined, nextSel: Api.Payloads.StepSelection | undefined, display: Display) {
-        const step = this.stepFromName(stepSel.name);
+    async actionSelectResidue(sel: Api.Payloads.ResidueSelection, display: Display) {
+        // Switch to a different model if the selected step is from a different model
+        // This is the first thing we need to do
+        await this.switchModel(sel.model);
+
+        const struLoci = this.getNucleicStructure();
+        if (!struLoci)
+            return false;
+
+        // Check if residue exists
+        const residueLoci = Traverse.findResidue(sel.chain, sel.seqId, sel.altId, sel.insCode, struLoci, 'auth');
+        if (residueLoci.kind !== 'element-loci')
+            return false;
+
+        this.selections.push(sel);
+
+        return await this.visualizeSelections(struLoci, display);
+    }
+
+    async actionSelectStep(currStep: Api.Payloads.StepSelection, prevStep: Api.Payloads.StepSelection | undefined, nextStep: Api.Payloads.StepSelection | undefined, display: Display) {
+        // Check that the step exists to that we can switch the model if necessary
+        const step = this.stepFromName(currStep.name);
         if (!step)
             return false;
 
         // Switch to a different model if the selected step is from a different model
         // This is the first thing we need to do
-        if (step.model !== this.currentModelNumber())
-            await this.switchModel(step.model);
+        await this.switchModel(step.model);
 
-        const entireStruCell = this.plugin.state.data.cells.get(IDs.ID('structure', 'nucleic', BaseRef));
-        if (!entireStruCell)
-            return false;
-        const stru = entireStruCell.obj!.data!;
-        const struLoci = StructureSelection.toLociWithSourceUnits(StructureSelection.Singletons(stru, stru));
-
-        const stepLoci = Traverse.findStep(
-            step.chain,
-            step.resNo1, step.altId1, step.insCode1,
-            step.resNo2, step.altId2, step.insCode2,
-            struLoci, 'auth'
-        );
-        if (stepLoci.kind !== 'element-loci')
+        const struLoci = this.getNucleicStructure();
+        if (!struLoci)
             return false;
 
-        const prevLoci = prevSel ? this.toStepLoci(prevSel.name, struLoci) : EmptyLoci;
-        const nextLoci = nextSel ? this.toStepLoci(nextSel.name, struLoci) : EmptyLoci;
+        const prevLoci = prevStep ? this.toStepLoci(prevStep.name, struLoci) : EmptyLoci;
+        const nextLoci = nextStep ? this.toStepLoci(nextStep.name, struLoci) : EmptyLoci;
 
-        const toUnionize = [stepLoci.structure];
-        if (prevLoci.kind !== 'empty-loci')
-            toUnionize.push(prevLoci.structure);
-        if (nextLoci.kind !== 'empty-loci')
-            toUnionize.push(nextLoci.structure);
+        this.selections.push(currStep); // Expect that the "stepFromName" check ensures that the step is present in the structure
+        if (prevLoci.kind === 'element-loci')
+            this.selections.push(prevStep!);
+        if (nextLoci.kind === 'element-loci')
+            this.selections.push(nextStep!);
 
-        const slice = structureUnion(stru, toUnionize);
-        const stepBundle = StructureElement.Bundle.fromSubStructure(stru, slice);
-
-        const subtracted = structureSubtract(stru, slice);
-        const remainderBundle = StructureElement.Bundle.fromSubStructure(stru, subtracted);
-
-        const chainColor = Color(display.structures.chainColor);
-        const b = this.plugin.state.data.build();
-        b.to(entireStruCell)
-            .apply(
-                StateTransforms.Model.StructureSelectionFromBundle,
-                { bundle: stepBundle, label: 'Step' },
-                { ref: IDs.ID('structure', 'selected-slice', BaseRef) }
-            )
-            .apply(
-                StateTransforms.Representation.StructureRepresentation3D,
-                this.substructureVisuals(SubstructureVisual.BuiltIn('ball-and-stick', chainColor)),
-                { ref: IDs.ID('visual', 'selected-slice', BaseRef) }
-            )
-            .to(entireStruCell)
-            .apply(
-                StateTransforms.Model.StructureSelectionFromBundle,
-                { bundle: remainderBundle, label: 'Remainder' },
-                { ref: IDs.ID('structure', 'remainder-slice', BaseRef) }
-            );
-
-        // Only show the remainder if the nucleic substructure is shown
-        if (display.structures.showNucleic) {
-            const vis = display.structures.nucleicRepresentation === 'ntc-tube'
-                ? SubstructureVisual.NtC('ntc-tube', display.structures.conformerColors)
-                : SubstructureVisual.BuiltIn(display.structures.nucleicRepresentation, Color(display.structures.chainColor));
-
-            b.to(IDs.ID('structure', 'remainder-slice', BaseRef))
-                .apply(
-                    StateTransforms.Representation.StructureRepresentation3D,
-                    this.substructureVisuals(vis),
-                    { ref: IDs.ID('visual', 'remainder-slice', BaseRef) }
-                )
-                .delete(IDs.ID('visual', 'nucleic', BaseRef));
-        }
-
-        this.superposeReferences(
-            b.toRoot(),
-            stepSel.reference ? { loci: stepLoci, reference: stepSel.reference } : void 0,
-            prevSel?.reference && prevLoci.kind === 'element-loci' ? { loci: prevLoci, reference: prevSel.reference } : void 0,
-            nextSel?.reference && nextLoci.kind === 'element-loci' ? { loci: nextLoci, reference: nextSel.reference } : void 0
-        );
-
-        await b.commit();
-        return true;
+        return await this.visualizeSelections(struLoci, display);
     }
 
     redraw() {
@@ -1326,6 +1450,8 @@ export class ReDNATCOMspViewer {
     async switchModel(modelNumber?: number) {
         if (modelNumber && modelNumber === this.currentModelNumber())
             return;
+
+        this.selections.splice(0, this.selections.length);
 
         const b = this.plugin.state.data.build()
             .delete(IDs.ID('superposition', '', NtCSupSel))

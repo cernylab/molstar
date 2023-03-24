@@ -211,8 +211,8 @@ export class ReDNATCOMsp extends React.Component<ReDNATCOMsp.Props, State> {
 
         if (cmd.type === 'redraw')
             window.dispatchEvent(new Event('resize'));
-        else if (cmd.type === 'deselect-step') {
-            await this.viewer.actionDeselectStep(this.state.display);
+        else if (cmd.type === 'deselect-structures') {
+            await this.viewer.actionDeselectStructures(this.state.display);
             this.selectedStep = void 0;
         } else if (cmd.type === 'filter') {
             const ret = await this.viewer.actionApplyFilter(cmd.filter);
@@ -223,17 +223,28 @@ export class ReDNATCOMsp extends React.Component<ReDNATCOMsp.Props, State> {
 
             this.currentFilter = cmd.filter;
             ReDNATCOMspApi.event(Api.Events.FilterApplied());
-        } else if (cmd.type === 'select-step') {
-            const success = await this.viewer.actionSelectStep(cmd.step, cmd.prev, cmd.next, this.state.display);
-            if (!success) {
-                ReDNATCOMspApi.event(Api.Events.StepSelectedFail());
-                return;
+        } else if (cmd.type === 'select-structure') {
+            const sel = cmd.selection;
+            let ok = false;
+
+            if (sel.type === 'step') {
+                ok = await this.viewer.actionSelectStep(sel.step, sel.prev, sel.next, this.state.display);
+            } else if (sel.type === 'residue') {
+                ok = await this.viewer.actionSelectResidue(sel.residue, this.state.display);
+            } else if (sel.type === 'atom') {
+                // TODO: Later...
             }
 
-            this.selectedStep = cmd.step;
-            this.viewer.focusOnSelectedStep();
+            // --- BAD BAD BAD ---
+            // Restore this functionality
+            // this.selectedStep = cmd.step;
+            // this.viewer.focusOnSelectedStep();
 
-            ReDNATCOMspApi.event(Api.Events.StepSelectedOk(this.selectedStep.name));
+            const ev = ok
+                ? Api.Events.StructureSelectedOk(sel)
+                : Api.Events.StructureSelectedFail();
+
+            ReDNATCOMspApi.event(ev);
         } else if (cmd.type === 'switch-model') {
             if (cmd.model < 1 || cmd.model > this.viewer.getModelCount())
                 return;
@@ -290,14 +301,14 @@ export class ReDNATCOMsp extends React.Component<ReDNATCOMsp.Props, State> {
         }
     }
 
-    viewerStepDeselected() {
-        this.selectedStep = void 0;
-        this.viewer!.actionDeselectStep(this.state.display);
-        ReDNATCOMspApi.event(Api.Events.StepDeselected());
+    viewerStructureDeselected() {
+        this.viewer!.actionDeselectStructures(this.state.display);
+        ReDNATCOMspApi.event(Api.Events.StructuresDeselected())
     }
 
     viewerStepSelected(stepName: string) {
-        ReDNATCOMspApi.event(Api.Events.StepRequested(stepName));
+        const step = Api.Payloads.StepSelection(stepName);
+        ReDNATCOMspApi.event(Api.Events.StructureRequested(step));
     }
 
     componentDidMount() {

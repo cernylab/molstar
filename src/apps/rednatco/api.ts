@@ -7,6 +7,7 @@ export namespace ReDNATCOMspApi {
 
     export namespace Payloads {
         export type StepSelection = {
+            type: 'step',
             name: string;
             reference?: {
                 NtC: string,
@@ -14,16 +15,41 @@ export namespace ReDNATCOMspApi {
             };
         }
         export function StepSelection(name: string, reference?: StepSelection['reference']): StepSelection {
-            return { name, reference };
+            return { type: 'step', name, reference };
         }
+
+        export type ResidueSelection = {
+            type: 'residue',
+            model: number, // pdbx_PDB_model_num
+            chain: string, // (label|auth)_asym_id
+            seqId: number, // (label|auth)_seq_id
+            insCode: string, // pdbx_PDB_ins_code
+            altId: string, // label_alt_id
+            color: number,
+        }
+        export function ResidueSelection(model: number, chain: string, seqId: number, insCode: string, altId: string, color: number): ResidueSelection {
+            return { type: 'residue', model, chain, seqId, insCode, altId, color };
+        }
+
+        export type AtomSelection = {
+            type: 'atom',
+            model: number, // pdbx_PDB_model_num
+            id: number, // label_atom_id
+            color: number,
+        }
+        export function AtomSelection(model: number, id: number, color: number): AtomSelection {
+            return { type: 'atom', model, id, color };
+        }
+
+        export type StructureSelection = StepSelection | ResidueSelection | AtomSelection;
     }
 
     export namespace Commands {
-        export type Type = 'deselect-step' | 'filter' | 'redraw' | 'select-step' | 'switch-model';
+        export type Type = Command['type'];
 
-        export type DeselectStep = { type: 'deselect-step' }
-        export function DeselectStep(): DeselectStep {
-            return { type: 'deselect-step' };
+        export type DeselectStructures = { type: 'deselect-structures' }
+        export function DeselectStep(): DeselectStructures {
+            return { type: 'deselect-structures' };
         }
 
         export type Filter = { type: 'filter', filter: Filters.All };
@@ -34,28 +60,55 @@ export namespace ReDNATCOMspApi {
         export type Redraw = { type: 'redraw' }
         export function Redraw(): Redraw { return { type: 'redraw' }; }
 
+        export type StructureSelection = (SelectStep | SelectResidue | SelectAtom);
+        export type StructureSelectionType = StructureSelection['type'];
+
+        export type SelectStructure = {
+            type: 'select-structure',
+            selection: StructureSelection,
+        }
+        export function SelectStructure(selection: StructureSelection): SelectStructure {
+            return { type: 'select-structure', selection };
+        }
+
         export type SelectStep = {
-            type: 'select-step';
-            step: Payloads.StepSelection
-            prev?: Payloads.StepSelection;
-            next?: Payloads.StepSelection
+            type: 'step',
+            step: Payloads.StepSelection,
+            prev?: Payloads.StepSelection,
+            next?: Payloads.StepSelection,
         }
         export function SelectStep(step: Payloads.StepSelection, prev: Payloads.StepSelection | undefined, next: Payloads.StepSelection | undefined): SelectStep {
-            return { type: 'select-step', step, prev, next };
+            return { type: 'step', step, prev, next };
+        }
+
+        export type SelectResidue = {
+            type: 'residue',
+            residue: Payloads.ResidueSelection,
+        }
+        export function SelectResidue(model: number, chain: string, seqId: number, insCode: string, altId: string, color: number): SelectResidue {
+            return { type: 'residue', residue: Payloads.ResidueSelection(model, chain, seqId, insCode, altId, color) };
+        }
+
+        export type SelectAtom = {
+            type: 'atom',
+            atom: Payloads.AtomSelection,
+        }
+        export function SelectAtom(model: number, id: number, color: number): SelectAtom {
+            return { type: 'atom', atom: Payloads.AtomSelection(model, id, color) };
         }
 
         export type SwitchModel = { type: 'switch-model', model: number };
         export function SwitchModel(model: number): SwitchModel { return { type: 'switch-model', model }; }
     }
     export type Command =
-        Commands.DeselectStep |
+        Commands.DeselectStructures |
         Commands.Filter |
         Commands.Redraw |
-        Commands.SelectStep |
+        Commands.SelectStructure |
         Commands.SwitchModel;
 
     export namespace Events {
-        export type Type = 'filter' | 'ready' | 'step-deselected' | 'step-requested' | 'step-selected' | 'structure-loaded';
+        export type Type = Event['type'];
 
         export type Filter = { type: 'filter', success: boolean, message: string }
         export function FilterApplied(): Filter {
@@ -69,22 +122,24 @@ export namespace ReDNATCOMspApi {
             return { type: 'ready' };
         }
 
-        export type StepDeselected = { type: 'step-deselected' }
-        export function StepDeselected(): StepDeselected {
-            return { type: 'step-deselected' };
+        export type StructuresDeselected = { type: 'structures-deselected' }
+        export function StructuresDeselected(): StructuresDeselected {
+            return { type: 'structures-deselected' };
         }
 
-        export type StepRequested = { type: 'step-requested', name: string }
-        export function StepRequested(name: string): StepRequested {
-            return { type: 'step-requested', name };
+        export type StructureRequested = { type: 'structure-requested', selection: Payloads.StructureSelection }
+        export function StructureRequested(selection: Payloads.StructureSelection): StructureRequested {
+            return { type: 'structure-requested', selection };
         }
 
-        export type StepSelected = { type: 'step-selected', success: boolean, name: string }
-        export function StepSelectedOk(name: string): StepSelected {
-            return { type: 'step-selected', success: true, name };
+        export type StructureSelected = StructureSelectedOk | StructureSelectedFail;
+        export type StructureSelectedOk = { type: 'structure-selected', success: true, selection: Commands.StructureSelection }
+        export type StructureSelectedFail = { type: 'structure-selected', success: false }
+        export function StructureSelectedOk(selection: Commands.StructureSelection): StructureSelectedOk {
+            return { type: 'structure-selected', success: true, selection };
         }
-        export function StepSelectedFail(): StepSelected {
-            return { type: 'step-selected', success: false, name: '' };
+        export function StructureSelectedFail(): StructureSelectedFail {
+            return { type: 'structure-selected', success: false };
         }
 
         export type StructureLoaded = { type: 'structure-loaded' }
@@ -95,9 +150,9 @@ export namespace ReDNATCOMspApi {
     export type Event =
         Events.Filter |
         Events.Ready |
-        Events.StepDeselected |
-        Events.StepRequested |
-        Events.StepSelected |
+        Events.StructuresDeselected |
+        Events.StructureRequested |
+        Events.StructureSelected |
         Events.StructureLoaded;
 
     export namespace Queries {
