@@ -39,8 +39,8 @@ export class ReDNATCOMspApiImpl implements ReDNATCOMspApi.Object {
         this.target!.loadStructure(coords, densityMaps);
     }
 
-    query<T extends ReDNATCOMspApi.Queries.Type>(type: T): ReDNATCOMspApi.ResponseTypes[T] {
+    query<K extends keyof ReDNATCOMspApi.Queries>(type: K): ReDNATCOMspApi.Queries[K] {
         this.check();
-        return this.target!.apiQuery(type) as ReDNATCOMspApi.ResponseTypes[T];
+        return this.target!.apiQuery(type) as ReDNATCOMspApi.Queries[K];
     }
 }

@@ -35,8 +35,7 @@ import { createPluginUI } from '../../mol-plugin-ui';
 import { PluginUIContext } from '../../mol-plugin-ui/context';
 import { DefaultPluginUISpec, PluginUISpec } from '../../mol-plugin-ui/spec';
 import { Representation } from '../../mol-repr/representation';
-import { StateObjectCell, StateObject, StateTransformer } from '../../mol-state';
-import { StateBuilder } from '../../mol-state/state/builder';
+import { StateObjectCell, StateObject } from '../../mol-state';
 import { Script } from '../../mol-script/script';
 import { MolScriptBuilder as MSB } from '../../mol-script/language/builder';
 import { formatMolScript } from '../../mol-script/language/expression-formatter';
@@ -295,20 +294,50 @@ export namespace SubstructureVisual {
     export type Types = BuiltIn | NtC;
 }
 
+type OtherStruObjectParams = {
+    kind: 'model' | 'structure' | 'other',
+}
+type VisualStruObjectParams = {
+    kind: 'visual',
+    useChainColor: boolean,
+}
+type StruObject = {
+    id: string,
+    params: OtherStruObjectParams | VisualStruObjectParams,
+}
+function StruObject(id: string, params: StruObject['params']): StruObject {
+    return { id, params };
+}
+
+type StruSelection = {
+    selector: Api.Payloads.StructureSelection,
+    objects: StruObject[],
+}
+function StruSelection(selector: Api.Payloads.StructureSelection, objects: StruSelection['objects'] = []): StruSelection {
+    return { selector, objects };
+}
+
 export class ReDNATCOMspViewer {
     private haveMultipleModels = false;
     private steps: Step.ExtendedDescription[] = [];
     private stepNames: Map<string, number> = new Map();
     private app: ReDNATCOMsp;
-    private selections = new Array<Api.Payloads.StructureSelection>();
+    private selections = new Array<StruSelection>();
 
     constructor(public plugin: PluginUIContext, interactionContext: { self?: ReDNATCOMspViewer }, app: ReDNATCOMsp) {
         interactionContext.self = this;
         this.app = app;
     }
 
-    private clearSelections() {
+    private async clearSelections() {
+        const b = this.plugin.state.data.build();
+
+        for (const sel of this.selections)
+            sel.objects.forEach(o => b.delete(o.id));
+
         this.selections.splice(0, this.selections.length);
+
+        await b.commit();
     }
 
     private densityMapVisuals(vis: Display['densityMaps'][0], visKind: 'absolute' | 'positive' | 'negative') {
@@ -384,8 +413,8 @@ export class ReDNATCOMspViewer {
         return parent.obj?.type.name === 'Structure' ? parent.obj : undefined;
     }
 
-    private ntcRef(ntc: string, where: 'sel' | 'prev' | 'next') {
-        return rcref(ntc, where);
+    private ntcRef(ntc: string) {
+        return rcref(ntc);
     }
 
     private pyramidsParams(colors: NtCColors.Conformers, visible: Map<string, boolean>, transparent: boolean) {
@@ -509,32 +538,20 @@ export class ReDNATCOMspViewer {
     }
 
     private async toggleNucleicSubstructure(show: boolean, visual: SubstructureVisual.Types) {
-        if (this.has('structure', 'remainder-slice', BaseRef)) {
-            const b = this.getBuilder('structure', 'remainder-slice');
-            if (show) {
-                b.apply(
-                    StateTransforms.Representation.StructureRepresentation3D,
-                    this.substructureVisuals(visual),
-                    { ref: IDs.ID('visual', 'remainder-slice', BaseRef) }
-                );
-            } else
-                b.delete(IDs.ID('visual', 'remainder-slice', BaseRef));
+        if (!this.has('structure', 'nucleic', BaseRef))
+            return;
 
-            await b.commit();
-        } else {
-            const b = this.getBuilder('structure', 'nucleic');
+        const b = this.getBuilder('structure', 'nucleic');
+        if (show) {
+            b.apply(
+                StateTransforms.Representation.StructureRepresentation3D,
+                this.substructureVisuals(visual),
+                { ref: IDs.ID('visual', 'nucleic', BaseRef) }
+            );
+        } else
+            b.delete(IDs.ID('visual', 'nucleic', BaseRef));
 
-            if (show) {
-                b.apply(
-                    StateTransforms.Representation.StructureRepresentation3D,
-                    this.substructureVisuals(visual),
-                    { ref: IDs.ID('visual', 'nucleic', BaseRef) }
-                );
-            } else
-                b.delete(IDs.ID('visual', 'nucleic', BaseRef));
-
-            await b.commit();
-        }
+        await b.commit();
     }
 
     private toStepLoci(name: string, struLoci: StructureElement.Loci) {
@@ -568,91 +585,124 @@ export class ReDNATCOMspViewer {
         );
     }
 
-    private async visualizeSelections(struLoci: StructureElement.Loci, display: Display) {
-        const NtCReferenceVisuals = (color: number) => {
+    private async visualizeNucleicNotSelected(struLoci: StructureElement.Loci, selectedLocis: StructureElement.Loci[], display: Display) {
+        if (!display.structures.showNucleic)
+            return;
+
+        const notSelected = structureSubtract(struLoci.structure, structureUnion(struLoci.structure, selectedLocis.map(x => x.structure)));
+        const b = this.plugin.state.data.build().to(IDs.ID('structure', 'nucleic', BaseRef))
+            .apply(
+                StateTransforms.Model.StructureSelectionFromBundle,
+                { bundle: StructureElement.Bundle.fromSubStructure(struLoci.structure, notSelected), label: 'Remainder' },
+                { ref: IDs.ID('structure', 'nucleic', BaseRef) }
+            );
+
+        const vis = display.structures.nucleicRepresentation === 'ntc-tube'
+            ? SubstructureVisual.NtC('ntc-tube', display.structures.conformerColors)
+            : SubstructureVisual.BuiltIn(display.structures.nucleicRepresentation, Color(display.structures.chainColor));
+
+        b.to(IDs.ID('structure', 'nucleic', BaseRef))
+            .apply(
+                StateTransforms.Representation.StructureRepresentation3D,
+                this.substructureVisuals(vis),
+                { ref: IDs.ID('visual', 'nucleic', BaseRef) }
+            );
+
+        await b.commit();
+    }
+
+    private async visualizeNucleic(struLoci: StructureElement.Loci, display: Display) {
+        const NtCReferenceVisuals = (color: Color) => {
             return {
                 type: { name: 'ball-and-stick', params: { sizeFactor: 0.15, aromaticBonds: false } },
-                colorTheme: { name: 'uniform', params: { value: Color(color) } },
+                colorTheme: { name: 'uniform', params: { value: color } },
             };
         };
         const selectedLocis = [];
-        const b = this.plugin.state.data.build();
+        let b = this.plugin.state.data.build();
 
         for (const sel of this.selections) {
-            const type = sel.type;
+            const type = sel.selector.type;
             let color = display.structures.chainColor;
 
             let loci: (EmptyLoci | StructureElement.Loci) = EmptyLoci; // TODO: Tidy this up
             if (type === 'step') {
-                loci = this.stepLoci(sel, struLoci);
+                loci = this.stepLoci(sel.selector, struLoci);
             } else if (type === 'residue') {
-                loci = this.residueLoci(sel, struLoci);
-                color = Color(sel.color);
+                loci = this.residueLoci(sel.selector, struLoci);
+                color = Color(sel.selector.color);
             } else if (type === 'atom') {
                 // TODO: Later
             }
 
             // Visualize the selected bit
-            if (loci.kind === 'element-loci') {
-                selectedLocis.push(loci);
+            if (loci.kind !== 'element-loci') {
+                console.warn(`No ElementLoci for selector ${sel.selector}`);
+                continue;
+            }
 
-                b.to(IDs.ID('structure', 'nucleic', BaseRef))
-                    .apply(
-                        StateTransforms.Model.StructureSelectionFromBundle,
-                        { bundle: StructureElement.Bundle.fromSubStructure(struLoci.structure, loci.structure) }
-                    )
-                    .apply(
-                        StateTransforms.Representation.StructureRepresentation3D,
-                        this.substructureVisuals(SubstructureVisual.BuiltIn('ball-and-stick', color))
-                    );
+            // We need to keep the list of selected locis to be able to display
+            // the "unselected" part of the structure
+            selectedLocis.push(loci);
 
-                // If the selection is a step, it can have a reference we have to superpose.
-                if (sel.type === 'step' && sel.reference) {
-                    const ntcRef = sel.reference.NtC;
-                    const refStru = this.plugin.state.data.cells.get(IDs.ID('structure', '', ntcRef))!.obj!;
-                    const refLoci = StructureSelection.toLociWithSourceUnits(StructureSelection.Singletons(refStru.data, refStru.data));
+            // REVIEW: Can we safely skip processing of selections that already
+            // have some objects associated with them?
+            if (sel.objects.length !== 0)
+                continue;
 
-                    const { bTransform } = this.superpose(refLoci, loci);
-                    if (isNaN(bTransform[0])) {
-                        console.warn(`Cannot superpose reference conformer ${ntcRef} onto selection`);
-                    } else {
-                        b.to(IDs.ID('structure', '', ntcRef))
-                            .apply(
-                                StateTransforms.Model.TransformStructureConformation,
-                                { transform: { name: 'matrix', params: { data: bTransform, transpose: false } } }
-                            ).apply(
-                                StateTransforms.Representation.StructureRepresentation3D,
-                                NtCReferenceVisuals(color),
-                            );
-                    }
+            let objRef = b.to(IDs.ID('structure', 'nucleic', BaseRef))
+                .apply(
+                    StateTransforms.Model.StructureSelectionFromBundle,
+                    { bundle: StructureElement.Bundle.fromSubStructure(struLoci.structure, loci.structure) }
+                ).ref;
+            sel.objects.push(StruObject(objRef, { kind: 'structure' }));
+
+            objRef = b.to(objRef)
+                .apply(
+                    StateTransforms.Representation.StructureRepresentation3D,
+                    this.substructureVisuals(SubstructureVisual.BuiltIn('ball-and-stick', color))
+                ).ref;
+            sel.objects.push(StruObject(objRef, { kind: 'visual', useChainColor: true }));
+
+            // If the selection is a step, it can have a reference we have to superpose.
+            if (sel.selector.type === 'step' && sel.selector.reference) {
+                const ntcRef = this.ntcRef(sel.selector.reference.NtC);
+
+                objRef = b.to(IDs.ID('model', '', ntcRef))
+                    .apply(StateTransforms.Model.StructureFromModel, {}, {}).ref;
+                sel.objects.push(StruObject(objRef, { kind: 'model' }));
+
+                await b.commit(); // HORRIBLE!!!
+                b = this.plugin.state.data.build();
+
+                const refStru = this.plugin.state.data.cells.get(objRef)!.obj!;
+                const refLoci = StructureSelection.toLociWithSourceUnits(StructureSelection.Singletons(refStru.data, refStru.data));
+
+                const { bTransform } = this.superpose(refLoci, loci);
+                if (isNaN(bTransform[0])) {
+                    console.warn(`Cannot superpose reference conformer ${ntcRef} onto selection`);
+                } else {
+                    b = this.plugin.state.data.build();
+                    objRef = b.to(objRef)
+                        .apply(
+                            StateTransforms.Model.TransformStructureConformation,
+                            { transform: { name: 'matrix', params: { data: bTransform, transpose: false } } }
+                        ).ref;
+                    sel.objects.push(StruObject(objRef, { kind: 'other' }));
+
+                    objRef = b.to(objRef)
+                        .apply(
+                            StateTransforms.Representation.StructureRepresentation3D,
+                            NtCReferenceVisuals(Color(sel.selector.reference.color)),
+                        ).ref;
+                    sel.objects.push(StruObject(objRef, { kind: 'visual', useChainColor: false }));
                 }
             }
         }
 
-        const notSelected = structureSubtract(struLoci.structure, structureUnion(struLoci.structure, selectedLocis.map(x => x.structure)));
-        b.to(IDs.ID('structure', 'nucleic', BaseRef))
-            .apply(
-                StateTransforms.Model.StructureSelectionFromBundle,
-                { bundle: StructureElement.Bundle.fromSubStructure(struLoci.structure, notSelected), label: 'Remainder' },
-                { ref: IDs.ID('structure', 'remainder-slice', BaseRef) }
-            );
-
-        // Only show the remainder if the nucleic substructure is shown
-        if (display.structures.showNucleic) {
-            const vis = display.structures.nucleicRepresentation === 'ntc-tube'
-                ? SubstructureVisual.NtC('ntc-tube', display.structures.conformerColors)
-                : SubstructureVisual.BuiltIn(display.structures.nucleicRepresentation, Color(display.structures.chainColor));
-
-            b.to(IDs.ID('structure', 'remainder-slice', BaseRef))
-                .apply(
-                    StateTransforms.Representation.StructureRepresentation3D,
-                    this.substructureVisuals(vis),
-                    { ref: IDs.ID('visual', 'remainder-slice', BaseRef) }
-                )
-                .delete(IDs.ID('visual', 'nucleic', BaseRef));
-        }
-
         await b.commit();
+        await this.visualizeNucleicNotSelected(struLoci, selectedLocis, display);
+
         return true;
     }
 
@@ -721,8 +771,6 @@ export class ReDNATCOMspViewer {
     async changeChainColor(subs: IDs.Substructure[], display: Display) {
         const b = this.plugin.state.data.build();
 
-        const color = Color(display.structures.chainColor);
-
         for (const sub of subs) {
             const vis = visualForSubstructure(sub, display);
 
@@ -738,28 +786,21 @@ export class ReDNATCOMspViewer {
             }
         }
 
-        if (this.has('visual', 'selected-slice', BaseRef)) {
-            b.to(IDs.ID('visual', 'selected-slice', BaseRef))
-                .update(
-                    StateTransforms.Representation.StructureRepresentation3D,
-                    old => ({
-                        ...old,
-                        ...this.substructureVisuals(SubstructureVisual.BuiltIn('ball-and-stick', color)),
-                    })
-                );
-        }
-
-        if (this.has('visual', 'remainder-slice', BaseRef)) {
-            const vis = visualForSubstructure('nucleic', display);
-
-            b.to(IDs.ID('visual', 'remainder-slice', BaseRef))
-                .update(
-                    StateTransforms.Representation.StructureRepresentation3D,
-                    old => ({
-                        ...old,
-                        ...this.substructureVisuals(vis),
-                    })
-                );
+        if (subs.includes('nucleic')) {
+            for (const sel of this.selections) {
+                for (const obj of sel.objects) {
+                    if (obj.params.kind === 'visual' && obj.params.useChainColor) {
+                        b.to(obj.id)
+                            .update(
+                                StateTransforms.Representation.StructureRepresentation3D,
+                                old => ({
+                                    ...old,
+                                    ...this.substructureVisuals(SubstructureVisual.BuiltIn('ball-and-stick', display.structures.chainColor)),
+                                })
+                            );
+                    };
+                }
+            }
         }
 
         await b.commit();
@@ -850,8 +891,8 @@ export class ReDNATCOMspViewer {
         }
 
         if (sub === 'nucleic') {
-            if (this.has('visual', 'remainder-slice', BaseRef)) {
-                b.to(IDs.ID('visual', 'remainder-slice', BaseRef))
+            if (this.has('visual', 'nucleic', BaseRef)) {
+                b.to(IDs.ID('visual', 'nucleic', BaseRef))
                     .update(
                         StateTransforms.Representation.StructureRepresentation3D,
                         old => ({
@@ -1073,6 +1114,10 @@ export class ReDNATCOMspViewer {
         return [];
     }
 
+    getSelections() {
+        return this.selections.map(x => x.selector);
+    }
+
     has(id: IDs.ID, sub: IDs.Substructure | '' = '', ref = BaseRef) {
         return !!this.plugin.state.data.cells.get(IDs.ID(id, sub, ref))?.obj?.data;
     }
@@ -1091,6 +1136,8 @@ export class ReDNATCOMspViewer {
         display: Display
     ) {
         // TODO: Remove the currently loaded structure
+
+        this.selections.splice(0, this.selections.length);
 
         const chainColor = Color(display.structures.chainColor);
         const waterColor = Color(display.structures.waterColor);
@@ -1139,23 +1186,11 @@ export class ReDNATCOMspViewer {
         await b2.commit();
 
         // Create default visuals
+        const nucl = this.getNucleicStructure();
+        if (nucl)
+            await this.visualizeNucleicNotSelected(nucl, [], display);
+
         const b3 = this.plugin.state.data.build();
-        if (display.structures.showNucleic && this.has('structure', 'nucleic')) {
-            b3.to(IDs.ID('structure', 'nucleic', BaseRef))
-                .apply(
-                    StateTransforms.Representation.StructureRepresentation3D,
-                    this.substructureVisuals(SubstructureVisual.BuiltIn('cartoon', chainColor)),
-                    { ref: IDs.ID('visual', 'nucleic', BaseRef) }
-                );
-            if (display.structures.showPyramids) {
-                b3.to(IDs.ID('structure', 'nucleic', BaseRef))
-                    .apply(
-                        StateTransforms.Representation.StructureRepresentation3D,
-                        this.pyramidsParams(display.structures.conformerColors ?? NtCColors.Conformers, new Map(), false),
-                        { ref: IDs.ID('pyramids', 'nucleic', BaseRef) }
-                    );
-            }
-        }
         if (display.structures.showProtein && this.has('structure', 'protein')) {
             b3.to(IDs.ID('structure', 'protein', BaseRef))
                 .apply(
@@ -1248,12 +1283,7 @@ export class ReDNATCOMspViewer {
             b.toRoot();
             b.apply(RawData, { data: cfmr, label: `Reference ${c}` }, { ref: IDs.ID('data', '', bRef) })
                 .apply(StateTransforms.Model.TrajectoryFromPDB, {}, { ref: IDs.ID('trajectory', '', bRef) })
-                .apply(StateTransforms.Model.ModelFromTrajectory, {}, { ref: mRef })
-                .apply(StateTransforms.Model.StructureFromModel, {}, { ref: IDs.ID('structure', '', rcref(c, 'sel')) })
-                .to(mRef)
-                .apply(StateTransforms.Model.StructureFromModel, {}, { ref: IDs.ID('structure', '', rcref(c, 'prev')) })
-                .to(mRef)
-                .apply(StateTransforms.Model.StructureFromModel, {}, { ref: IDs.ID('structure', '', rcref(c, 'next')) });
+                .apply(StateTransforms.Model.ModelFromTrajectory, {}, { ref: mRef });
         }
 
         await b.commit();
@@ -1299,54 +1329,8 @@ export class ReDNATCOMspViewer {
 
     async actionApplyFilter(filter: Filters.All) {
         if (filter.kind !== 'empty') {
-            const slices = filter.slices;
-
-            // WARNING: Auth vs. label namings are very likely going to hose us here, especially with residues
-            this.selections.filter((x) => {
-                let matches = false;
-
-                if (x.type === 'step') {
-                    const step = this.stepFromName(x.name)!;
-
-                    for (const slice of slices) {
-                        if (slice.chain !== step.chain)
-                            continue; // Bad chain
-
-                        if (slice.residues) {
-                            if (!(slice.residues.includes(step.resNo1) && slice.residues.includes(step.resNo2)))
-                                continue; // Bad residues
-                        }
-
-                        if (slice.altIds)
-                            matches = (step.altId1 ? slice.altIds.includes(step.altId1) : true) && (step.altId2 ? slice.altIds.includes(step.altId2) : true);
-                        else
-                            matches = true;
-
-                        if (matches === true)
-                            break;
-                    }
-                } else if (x.type === 'residue') {
-                    for (const slice of slices) {
-                        if (slice.chain !== x.chain)
-                            continue; // Bad chain
-
-                        if (slice.residues) {
-                            if (!slice.residues.includes(x.seqId))
-                                continue; // Bad residues
-                        }
-
-                        if (slice.altIds)
-                            matches = x.altId === '' ? true : slice.altIds.includes(x.altId);
-                        else
-                            matches = true;
-
-                        if (matches === true)
-                            break;
-                    }
-                }
-
-                return matches;
-            });
+            // Heavy-handed approach of just clearing all selections
+            await this.clearSelections();
         }
 
         const b = this.plugin.state.data.build();
@@ -1388,11 +1372,11 @@ export class ReDNATCOMspViewer {
     }
 
     async actionDeselectStructures(display: Display) {
-        this.clearSelections();
+        await this.clearSelections();
 
         const struLoci = this.getNucleicStructure();
         if (struLoci)
-            await this.visualizeSelections(struLoci, display);
+            await this.visualizeNucleic(struLoci, display);
     }
 
     async actionSelectResidue(sel: Api.Payloads.ResidueSelection, display: Display) {
@@ -1409,9 +1393,9 @@ export class ReDNATCOMspViewer {
         if (residueLoci.kind !== 'element-loci')
             return false;
 
-        this.selections.push(sel);
+        this.selections.push(StruSelection(sel));
 
-        return await this.visualizeSelections(struLoci, display);
+        return await this.visualizeNucleic(struLoci, display);
     }
 
     async actionSelectStep(currStep: Api.Payloads.StepSelection, prevStep: Api.Payloads.StepSelection | undefined, nextStep: Api.Payloads.StepSelection | undefined, display: Display) {
@@ -1431,13 +1415,13 @@ export class ReDNATCOMspViewer {
         const prevLoci = prevStep ? this.toStepLoci(prevStep.name, struLoci) : EmptyLoci;
         const nextLoci = nextStep ? this.toStepLoci(nextStep.name, struLoci) : EmptyLoci;
 
-        this.selections.push(currStep); // Expect that the "stepFromName" check ensures that the step is present in the structure
+        this.selections.push(StruSelection(currStep)); // Expect that the "stepFromName" check ensures that the step is present in the structure
         if (prevLoci.kind === 'element-loci')
-            this.selections.push(prevStep!);
+            this.selections.push(StruSelection(prevStep!));
         if (nextLoci.kind === 'element-loci')
-            this.selections.push(nextStep!);
+            this.selections.push(StruSelection(nextStep!));
 
-        return await this.visualizeSelections(struLoci, display);
+        return await this.visualizeNucleic(struLoci, display);
     }
 
     redraw() {
@@ -1467,58 +1451,6 @@ export class ReDNATCOMspViewer {
             );
 
         await b.commit();
-    }
-
-    superposeReferences<A extends StateObject, T extends StateTransformer>(
-        b: StateBuilder.To<A, T>,
-        step?: { loci: StructureElement.Loci, reference: Api.Payloads.StepSelection['reference'] },
-        prev?: { loci: StructureElement.Loci, reference: Api.Payloads.StepSelection['reference'] },
-        next?: { loci: StructureElement.Loci, reference: Api.Payloads.StepSelection['reference'] }
-    ) {
-        const ReferenceVisuals = (color: number) => {
-            return {
-                type: { name: 'ball-and-stick', params: { sizeFactor: 0.15, aromaticBonds: false } },
-                colorTheme: { name: 'uniform', params: { value: Color(color) } },
-            };
-        };
-
-        b.delete(IDs.ID('superposition', '', NtCSupSel))
-            .delete(IDs.ID('superposition', '', NtCSupPrev))
-            .delete(IDs.ID('superposition', '', NtCSupNext));
-
-        const addReference = (ntcRef: string, superposRef: string, stepLoci: StructureElement.Loci, color: number) => {
-            const refStru = this.plugin.state.data.cells.get(IDs.ID('structure', '', ntcRef))!.obj!;
-            const refLoci = StructureSelection.toLociWithSourceUnits(StructureSelection.Singletons(refStru.data, refStru.data));
-
-            const { bTransform } = this.superpose(refLoci, stepLoci);
-            if (isNaN(bTransform[0])) {
-                console.error(`Cannot superpose reference conformer ${ntcRef} onto selection`);
-                return;
-            }
-            b.to(IDs.ID('structure', '', ntcRef))
-                .apply(
-                    StateTransforms.Model.TransformStructureConformation,
-                    { transform: { name: 'matrix', params: { data: bTransform, transpose: false } } },
-                    { ref: IDs.ID('superposition', '', superposRef) }
-                ).apply(
-                    StateTransforms.Representation.StructureRepresentation3D,
-                    ReferenceVisuals(color),
-                    { ref: IDs.ID('visual', '', superposRef) }
-                );
-        };
-
-        if (step?.reference) {
-            const ref = this.ntcRef(step.reference.NtC, 'sel');
-            addReference(ref, NtCSupSel, step.loci, step.reference.color);
-        }
-        if (prev?.reference) {
-            const ref = this.ntcRef(prev.reference.NtC, 'prev');
-            addReference(ref, NtCSupPrev, prev.loci, prev.reference.color);
-        }
-        if (next?.reference) {
-            const ref = this.ntcRef(next?.reference.NtC, 'next');
-            addReference(ref, NtCSupNext, next.loci, next.reference.color);
-        }
     }
 
     async toggleSubstructure(sub: IDs.Substructure, display: Display) {

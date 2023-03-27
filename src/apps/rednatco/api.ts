@@ -155,29 +155,10 @@ export namespace ReDNATCOMspApi {
         Events.StructureSelected |
         Events.StructureLoaded;
 
-    export namespace Queries {
-        export type Type = 'current-filter' | 'current-model-number' | 'selected-step';
-
-        export type CurrentFilter = { type: 'current-filter', filter: Filters.All }
-        export function CurrentFilter(filter: Filters.All): CurrentFilter {
-            return { type: 'current-filter', filter };
-        }
-
-        export type CurrentModelNumber = { type: 'current-model-number', num: number };
-        export function CurrentModelNumber(num: number): CurrentModelNumber {
-            return { type: 'current-model-number', num };
-        }
-
-        export type SelectedStep = { type: 'selected-step', selected?: Payloads.StepSelection }
-        export function SelectedStep(selected?: Payloads.StepSelection): SelectedStep {
-            return { type: 'selected-step', selected };
-        }
-    }
-    export type Response = Queries.CurrentFilter | Queries.CurrentModelNumber | Queries.SelectedStep;
-    export type ResponseTypes = {
-        'current-filter': Queries.CurrentFilter,
-        'current-model-number': Queries.CurrentModelNumber,
-        'selected-step': Queries.SelectedStep,
+    export type Queries = {
+        'current-filter': Filters.All,
+        'current-model-number': number,
+        'selected-structures': Payloads.StructureSelection[],
     }
 
     export interface Object {
@@ -186,6 +167,6 @@ export namespace ReDNATCOMspApi {
         init: (elemId: string, onEvent?: (evt: Event) => void) => void;
         isReady: () => boolean;
         loadStructure: (coords: { data: string, type: CoordinatesFormat }, densityMaps: { data: Uint8Array, type: DensityMapFormat, kind: DensityMapKind }[] | null) => void;
-        query: <T extends Queries.Type>(type: T) => ResponseTypes[T];
+        query: <K extends keyof Queries>(type: K) => Queries[K],
     }
 }

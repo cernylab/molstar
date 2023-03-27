@@ -102,7 +102,6 @@ export class ReDNATCOMsp extends React.Component<ReDNATCOMsp.Props, State> {
     private viewer: ReDNATCOMspViewer | undefined = undefined;
     // Used to lock out access to the viewer when it might be busy modifying its state tree
     private viewerLocker = new Locker();
-    private selectedStep: Api.Payloads.StepSelection | undefined = undefined;
 
     constructor(props: ReDNATCOMsp.Props) {
         super(props);
@@ -193,13 +192,13 @@ export class ReDNATCOMsp extends React.Component<ReDNATCOMsp.Props, State> {
         this.setState({ ...this.state, display });
     }
 
-    apiQuery(type: Api.Queries.Type) {
+    apiQuery(type: keyof Api.Queries) {
         if (type === 'current-filter') {
-            return Api.Queries.CurrentFilter(this.currentFilter);
+            return this.currentFilter;
         } else if (type === 'current-model-number') {
-            return Api.Queries.CurrentModelNumber(this.viewer!.currentModelNumber());
-        } else if (type === 'selected-step') {
-            return this.selectedStep ? Api.Queries.SelectedStep(this.selectedStep) : Api.Queries.SelectedStep();
+            return this.viewer!.currentModelNumber();
+        } else if (type === 'selected-structures') {
+            return this.viewer!.getSelections();
         }
 
         assertUnreachable(type);
@@ -213,7 +212,6 @@ export class ReDNATCOMsp extends React.Component<ReDNATCOMsp.Props, State> {
             window.dispatchEvent(new Event('resize'));
         else if (cmd.type === 'deselect-structures') {
             await this.viewer.actionDeselectStructures(this.state.display);
-            this.selectedStep = void 0;
         } else if (cmd.type === 'filter') {
             const ret = await this.viewer.actionApplyFilter(cmd.filter);
             if (!ret) {
@@ -303,7 +301,7 @@ export class ReDNATCOMsp extends React.Component<ReDNATCOMsp.Props, State> {
 
     viewerStructureDeselected() {
         this.viewer!.actionDeselectStructures(this.state.display);
-        ReDNATCOMspApi.event(Api.Events.StructuresDeselected())
+        ReDNATCOMspApi.event(Api.Events.StructuresDeselected());
     }
 
     viewerStepSelected(stepName: string) {
