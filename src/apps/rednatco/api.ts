@@ -48,7 +48,7 @@ export namespace ReDNATCOMspApi {
         export type Type = Command['type'];
 
         export type DeselectStructures = { type: 'deselect-structures' }
-        export function DeselectStep(): DeselectStructures {
+        export function DeselectStructures(): DeselectStructures {
             return { type: 'deselect-structures' };
         }
 
