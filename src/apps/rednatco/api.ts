@@ -133,9 +133,9 @@ export namespace ReDNATCOMspApi {
         }
 
         export type StructureSelected = StructureSelectedOk | StructureSelectedFail;
-        export type StructureSelectedOk = { type: 'structure-selected', success: true, selection: Commands.StructureSelection }
+        export type StructureSelectedOk = { type: 'structure-selected', success: true, selection: Payloads.StructureSelection }
         export type StructureSelectedFail = { type: 'structure-selected', success: false }
-        export function StructureSelectedOk(selection: Commands.StructureSelection): StructureSelectedOk {
+        export function StructureSelectedOk(selection: Payloads.StructureSelection): StructureSelectedOk {
             return { type: 'structure-selected', success: true, selection };
         }
         export function StructureSelectedFail(): StructureSelectedFail {

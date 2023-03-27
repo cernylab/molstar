@@ -223,12 +223,17 @@ export class ReDNATCOMsp extends React.Component<ReDNATCOMsp.Props, State> {
             ReDNATCOMspApi.event(Api.Events.FilterApplied());
         } else if (cmd.type === 'select-structure') {
             const sel = cmd.selection;
-            let ok = false;
+            let ev: Api.Events.StructureSelected = Api.Events.StructureSelectedFail();
+
 
             if (sel.type === 'step') {
-                ok = await this.viewer.actionSelectStep(sel.step, sel.prev, sel.next, this.state.display);
+                const ok = await this.viewer.actionSelectStep(sel.step, sel.prev, sel.next, this.state.display);
+                if (ok)
+                    ev = Api.Events.StructureSelectedOk(sel.step);
             } else if (sel.type === 'residue') {
-                ok = await this.viewer.actionSelectResidue(sel.residue, this.state.display);
+                const ok = await this.viewer.actionSelectResidue(sel.residue, this.state.display);
+                if (ok)
+                    ev = Api.Events.StructureSelectedOk(sel.residue);
             } else if (sel.type === 'atom') {
                 // TODO: Later...
             }
@@ -237,10 +242,6 @@ export class ReDNATCOMsp extends React.Component<ReDNATCOMsp.Props, State> {
             // Restore this functionality
             // this.selectedStep = cmd.step;
             // this.viewer.focusOnSelectedStep();
-
-            const ev = ok
-                ? Api.Events.StructureSelectedOk(sel)
-                : Api.Events.StructureSelectedFail();
 
             ReDNATCOMspApi.event(ev);
         } else if (cmd.type === 'switch-model') {
