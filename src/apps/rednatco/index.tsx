@@ -8,6 +8,7 @@ import { ReDNATCOMspViewer } from './viewer';
 import { NtCColors } from './colors';
 import { ColorPicker } from './color-picker';
 import { ColorBox, IconButton, PushButton, ToggleButton } from './controls';
+import { Residue } from './residue';
 import { toggleArray } from './util';
 import { ToolBar, ToolBarContent } from './tool-bar';
 import { Color } from '../../mol-util/color';
@@ -193,8 +194,8 @@ export class ReDNATCOMsp extends React.Component<ReDNATCOMsp.Props, State> {
     apiQuery(type: keyof Api.Queries) {
         if (type === 'current-filter') {
             return this.currentFilter;
-        } else if (type === 'current-model-index') {
-            return this.viewer!.currentModelIndex();
+        } else if (type === 'current-model-number') {
+            return this.viewer!.currentModelNumber();
         } else if (type === 'selected-structures') {
             return this.viewer!.getSelections();
         }
@@ -252,7 +253,7 @@ export class ReDNATCOMsp extends React.Component<ReDNATCOMsp.Props, State> {
         }
     }
 
-    loadStructure(coords: { data: string, type: Api.CoordinatesFormat, modelIndex: number }, densityMaps: { data: Uint8Array, type: Api.DensityMapFormat, kind: Api.DensityMapKind }[] | null) {
+    loadStructure(coords: { data: string, type: Api.CoordinatesFormat, modelNumber: number }, densityMaps: { data: Uint8Array, type: Api.DensityMapFormat, kind: Api.DensityMapKind }[] | null) {
         if (this.viewer) {
             const display = { ...this.state.display };
             if (densityMaps) {
@@ -283,12 +284,24 @@ export class ReDNATCOMsp extends React.Component<ReDNATCOMsp.Props, State> {
             } else
                 display.densityMaps.length = 0;
 
-            this.viewer.loadStructure(coords, densityMaps, display, coords.modelIndex).then(() => {
+            this.viewer.loadStructure(coords, densityMaps, display, coords.modelNumber).then(() => {
                 this.presentConformers = this.viewer!.getPresentConformers();
                 this.setState({ ...this.state, display });
                 ReDNATCOMspApi.event(Api.Events.StructureLoaded());
             });
         }
+    }
+
+    viewerResidueSelected(desc: Residue.Description) {
+        const residue = Api.Payloads.ResidueSelection(
+            desc.modelNum,
+            desc.chain,
+            desc.seqId,
+            desc.insCode,
+            desc.altId,
+            0
+        );
+        ReDNATCOMspApi.event(Api.Events.StructureRequested(residue));
     }
 
     viewerStructureDeselected() {

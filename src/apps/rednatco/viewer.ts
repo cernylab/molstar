@@ -6,6 +6,7 @@ import { NtCColors } from './colors';
 import { Filters } from './filters';
 import { Filtering } from './filtering';
 import { ReferenceConformersPdbs } from './reference-conformers-pdbs';
+import { Residue } from './residue';
 import { Step } from './step';
 import { Superpose } from './superpose';
 import { Traverse } from './traverse';
@@ -39,6 +40,7 @@ import { StateObjectCell, StateObject } from '../../mol-state';
 import { Script } from '../../mol-script/script';
 import { MolScriptBuilder as MSB } from '../../mol-script/language/builder';
 import { formatMolScript } from '../../mol-script/language/expression-formatter';
+import { Task } from '../../mol-task';
 import { lociLabel } from '../../mol-theme/label';
 import { UUID } from '../../mol-util';
 import { arrayMax } from '../../mol-util/array';
@@ -160,7 +162,7 @@ function visualForSubstructure(sub: IDs.Substructure, display: Display) {
 }
 
 const ReDNATCOLociLabelProvider = PluginBehavior.create({
-    name: 'watlas-loci-label-provider',
+    name: 'rednatco-loci-label-provider',
     category: 'interaction',
     ctor: class implements PluginBehavior<undefined> {
         private f = {
@@ -1034,7 +1036,7 @@ export class ReDNATCOMspViewer {
         }
     }
 
-    currentModelIndex() {
+    currentModelNumber() {
         const model = this.plugin.state.data.cells.get(IDs.ID('model', '', BaseRef))?.obj;
         if (!model)
             return -1;
@@ -1228,7 +1230,7 @@ export class ReDNATCOMspViewer {
         coords: { data: string, type: Api.CoordinatesFormat },
         densityMaps: { data: Uint8Array, type: Api.DensityMapFormat, kind: Api.DensityMapKind }[] | null,
         display: Display,
-        modelIndex: number
+        modelNumber: number
     ) {
         // TODO: Remove the currently loaded structure
 
@@ -1241,7 +1243,7 @@ export class ReDNATCOMspViewer {
             ? t.apply(StateTransforms.Model.TrajectoryFromPDB, {}, { ref: IDs.ID('trajectory', '', BaseRef) })
             : t.apply(StateTransforms.Data.ParseCif).apply(StateTransforms.Model.TrajectoryFromMmCif, {}, { ref: IDs.ID('trajectory', '', BaseRef) })
         )(this.plugin.state.data.build().toRoot().apply(RawData, { data: coords.data }, { ref: IDs.ID('data', '', BaseRef) }))
-            .apply(StateTransforms.Model.ModelFromTrajectory, { modelIndex }, { ref: IDs.ID('model', '', BaseRef) })
+            .apply(StateTransforms.Model.ModelFromTrajectory, { modelIndex: modelNumber - 1 }, { ref: IDs.ID('model', '', BaseRef) }) // WARNING: The modelNumber - 1 is a major hack!!!
             .apply(StateTransforms.Model.StructureFromModel, {}, { ref: IDs.ID('entire-structure', '', BaseRef) })
             // Extract substructures
             .apply(StateTransforms.Model.StructureComplexElement, { type: 'nucleic' }, { ref: IDs.ID('entire-structure', 'nucleic', BaseRef) })
@@ -1385,6 +1387,10 @@ export class ReDNATCOMspViewer {
         await b.commit();
     }
 
+    notifyResidueSelected(desc: Residue.Description) {
+        this.app.viewerResidueSelected(desc);
+    }
+
     notifyStructureDeselected() {
         this.app.viewerStructureDeselected();
     }
@@ -1394,6 +1400,8 @@ export class ReDNATCOMspViewer {
     }
 
     async onLociSelected(selected: Representation.Loci) {
+        const granularity = this.plugin.managers.interactivity.props.granularity;
+
         const normalized = (() => {
             if (selected.loci.kind === 'data-loci') {
                 if (selected.loci.tag === 'dnatco-tube-segment-data') {
@@ -1410,16 +1418,25 @@ export class ReDNATCOMspViewer {
                     return EmptyLoci;
                 } else
                     return EmptyLoci;
-            } else if (selected.loci.kind === 'element-loci')
-                return Loci.normalize(selected.loci, 'two-residues');
-            else
+            } else if (selected.loci.kind === 'element-loci') {
+                if (granularity === 'two-residues')
+                    return Loci.normalize(selected.loci, 'two-residues');
+                else if (granularity === 'residue')
+                    return Loci.normalize(selected.loci, 'residue');
+                return EmptyLoci;
+            } else
                 return EmptyLoci;
         })();
 
         if (normalized.kind === 'element-loci') {
-            const stepDesc = Step.describe(normalized, this.haveMultipleModels);
-            if (stepDesc && this.stepNames.has(stepDesc.name))
-                this.notifyStepSelected(stepDesc.name);
+            if (granularity === 'two-residues') {
+                const desc = Step.describe(normalized, this.haveMultipleModels);
+                if (desc && this.stepNames.has(desc.name))
+                    this.notifyStepSelected(desc.name);
+            } else if (granularity === 'residue') {
+                const desc = Residue.describe(normalized);
+                this.notifyResidueSelected(desc);
+            }
         }
     }
 
@@ -1482,7 +1499,7 @@ export class ReDNATCOMspViewer {
     async actionSelectResidue(sel: Api.Payloads.ResidueSelection, display: Display) {
         // Switch to a different model if the selected step is from a different model
         // This is the first thing we need to do
-        await this.switchModel(sel.model);
+        await this.switchModel(sel.modelNum);
 
         const struLoci = this.getNucleicStructure();
         if (!struLoci)
@@ -1535,11 +1552,29 @@ export class ReDNATCOMspViewer {
         );
     }
 
-    async switchModel(modelIndex?: number) {
-        if (modelIndex !== undefined && modelIndex === this.currentModelIndex())
+    async switchModel(modelNumber?: number) {
+        if (modelNumber !== undefined && modelNumber === this.currentModelNumber())
             return;
 
         this.selections.splice(0, this.selections.length);
+
+        // Convert model number to model index.
+        // Having to do THIS to get a model index from pdbx_PDB_model_num is insane
+        const obj = this.plugin.state.data.cells.get(IDs.ID('trajectory', '', BaseRef))?.obj;
+        if (!obj)
+            return;
+
+        let modelIndex = -1;
+        const trajData = (obj as StateObject<Trajectory>).data;
+        for (let idx = 0; idx < trajData.frameCount; idx++) {
+            const m = await Task.resolveInContext(trajData.getFrameAtIndex(idx));
+            if (modelNumber === m.modelNum) {
+                modelIndex = idx;
+                break;
+            }
+        }
+        if (modelIndex < 0)
+            return;
 
         const b = this.plugin.state.data.build()
             .to(IDs.ID('model', '', BaseRef))

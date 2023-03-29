@@ -21,15 +21,15 @@ export namespace ReDNATCOMspApi {
 
         export type ResidueSelection = {
             type: 'residue',
-            model: number, // pdbx_PDB_model_num
-            chain: string, // (label|auth)_asym_id
-            seqId: number, // (label|auth)_seq_id
+            modelNum: number, // pdbx_PDB_model_num
+            chain: string, // auth_asym_id
+            seqId: number, // auth_seq_id
             insCode: string, // pdbx_PDB_ins_code
             altId: string, // label_alt_id
             color: number,
         }
-        export function ResidueSelection(model: number, chain: string, seqId: number, insCode: string, altId: string, color: number): ResidueSelection {
-            return { type: 'residue', model, chain, seqId, insCode, altId, color };
+        export function ResidueSelection(modelNum: number, chain: string, seqId: number, insCode: string, altId: string, color: number): ResidueSelection {
+            return { type: 'residue', modelNum, chain, seqId, insCode, altId, color };
         }
 
         export type AtomSelection = {
@@ -164,7 +164,7 @@ export namespace ReDNATCOMspApi {
 
     export type Queries = {
         'current-filter': Filters.All,
-        'current-model-index': number,
+        'current-model-number': number,
         'selected-structures': Payloads.StructureSelection[],
     }
 
@@ -173,7 +173,7 @@ export namespace ReDNATCOMspApi {
         event: (evt: Event) => void;
         init: (elemId: string, onEvent?: (evt: Event) => void) => void;
         isReady: () => boolean;
-        loadStructure: (coords: { data: string, type: CoordinatesFormat, modelIndex: number }, densityMaps: { data: Uint8Array, type: DensityMapFormat, kind: DensityMapKind }[] | null) => void;
+        loadStructure: (coords: { data: string, type: CoordinatesFormat, modelNumber: number }, densityMaps: { data: Uint8Array, type: DensityMapFormat, kind: DensityMapKind }[] | null) => void;
         query: <K extends keyof Queries>(type: K) => Queries[K],
     }
 }
