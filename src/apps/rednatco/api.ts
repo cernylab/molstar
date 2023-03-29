@@ -23,13 +23,14 @@ export namespace ReDNATCOMspApi {
             type: 'residue',
             modelNum: number, // pdbx_PDB_model_num
             chain: string, // auth_asym_id
+            cifChain: string, // label_asym_id - we need both because some chains might have the same auth name but different cif id. Crystallographgers are insane
             seqId: number, // auth_seq_id
             insCode: string, // pdbx_PDB_ins_code
             altId: string, // label_alt_id
             color: number,
         }
-        export function ResidueSelection(modelNum: number, chain: string, seqId: number, insCode: string, altId: string, color: number): ResidueSelection {
-            return { type: 'residue', modelNum, chain, seqId, insCode, altId, color };
+        export function ResidueSelection(modelNum: number, chain: string, cifChain: string, seqId: number, insCode: string, altId: string, color: number): ResidueSelection {
+            return { type: 'residue', modelNum, chain, cifChain, seqId, insCode, altId, color };
         }
 
         export type AtomSelection = {
@@ -86,8 +87,8 @@ export namespace ReDNATCOMspApi {
             type: 'residue',
             residue: Payloads.ResidueSelection,
         }
-        export function SelectResidue(model: number, chain: string, seqId: number, insCode: string, altId: string, color: number): SelectStructure {
-            return { type: 'select-structure', selection: { type: 'residue', residue: Payloads.ResidueSelection(model, chain, seqId, insCode, altId, color) } };
+        export function SelectResidue(model: number, chain: string, cifChain: string, seqId: number, insCode: string, altId: string, color: number): SelectStructure {
+            return { type: 'select-structure', selection: { type: 'residue', residue: Payloads.ResidueSelection(model, chain, cifChain, seqId, insCode, altId, color) } };
         }
 
         export type SelectAtom = {

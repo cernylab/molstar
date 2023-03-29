@@ -364,11 +364,13 @@ export class ReDNATCOMspViewer {
                 if (_selector.chain === selector.chain &&
                     _selector.seqId === selector.seqId &&
                     _selector.insCode === selector.insCode) {
-                    sel.selector.color = selector.color;
-                    sel.update = true;
-                }
+                    if (sel.selector.color !== selector.color) {
+                        sel.selector.color = selector.color;
+                        sel.update = true;
+                    }
 
-                return;
+                    return;
+                }
             }
         } else if (selector.type === 'atom') {
             for (const sel of this.selections) {
@@ -615,7 +617,11 @@ export class ReDNATCOMspViewer {
         await b.commit();
     }
 
-    private toStepLoci(name: string, struLoci: StructureElement.Loci) {
+    private residueLoci(sel: Api.Payloads.ResidueSelection, struLoci: StructureElement.Loci) {
+        return Traverse.findResidue(sel.chain, sel.seqId, sel.altId, sel.insCode, struLoci, 'auth');
+    }
+
+    private stepLoci(name: string, struLoci: StructureElement.Loci) {
         const step = this.stepFromName(name);
         if (!step)
             return EmptyLoci;
@@ -626,23 +632,6 @@ export class ReDNATCOMspViewer {
             step.resNo2, step.altId2, step.insCode2,
             struLoci,
             'auth'
-        );
-    }
-
-    private residueLoci(sel: Api.Payloads.ResidueSelection, loci: StructureElement.Loci) {
-        return Traverse.findResidue(sel.chain, sel.seqId, sel.altId, sel.insCode, loci, 'auth');
-    }
-
-    private stepLoci(sel: Api.Payloads.StepSelection, loci: StructureElement.Loci) {
-        const step = this.stepFromName(sel.name);
-        if (!step)
-            return EmptyLoci;
-
-        return Traverse.findStep(
-            step.chain,
-            step.resNo1, step.altId1, step.insCode1,
-            step.resNo2, step.altId2, step.insCode2,
-            loci, 'auth'
         );
     }
 
@@ -689,7 +678,7 @@ export class ReDNATCOMspViewer {
 
             let loci: (EmptyLoci | StructureElement.Loci) = EmptyLoci; // TODO: Tidy this up
             if (type === 'step') {
-                loci = this.stepLoci(sel.selector, struLoci);
+                loci = this.stepLoci(sel.selector.name, struLoci);
             } else if (type === 'residue') {
                 loci = this.residueLoci(sel.selector, struLoci);
                 color = Color(sel.selector.color);
@@ -1510,7 +1499,7 @@ export class ReDNATCOMspViewer {
         if (residueLoci.kind !== 'element-loci')
             return false;
 
-        this.selections.push(StruSelection(sel));
+        this.addSelection(StruSelection(sel));
 
         return await this.visualizeNucleic(struLoci, display);
     }
@@ -1529,8 +1518,8 @@ export class ReDNATCOMspViewer {
         if (!struLoci)
             return false;
 
-        const prevLoci = prevStep ? this.toStepLoci(prevStep.name, struLoci) : EmptyLoci;
-        const nextLoci = nextStep ? this.toStepLoci(nextStep.name, struLoci) : EmptyLoci;
+        const prevLoci = prevStep ? this.stepLoci(prevStep.name, struLoci) : EmptyLoci;
+        const nextLoci = nextStep ? this.stepLoci(nextStep.name, struLoci) : EmptyLoci;
 
         this.addSelection(StruSelection(currStep)); // Expect that the "stepFromName" check ensures that the step is present in the structure
         if (prevLoci.kind === 'element-loci')
@@ -1556,7 +1545,7 @@ export class ReDNATCOMspViewer {
         if (modelNumber !== undefined && modelNumber === this.currentModelNumber())
             return;
 
-        this.selections.splice(0, this.selections.length);
+        await this.clearSelections();
 
         // Convert model number to model index.
         // Having to do THIS to get a model index from pdbx_PDB_model_num is insane

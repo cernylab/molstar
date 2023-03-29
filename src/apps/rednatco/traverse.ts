@@ -12,7 +12,8 @@ export namespace Traverse {
     }
 
     export function findResidue(asymId: string, seqId: number, altId: string | undefined, insCode: string, loci: StructureElement.Loci, source: 'label' | 'auth') {
-        return DnatcoUtil.residueToLoci(asymId, seqId, altId, insCode, loci, source);
+        const rloci = DnatcoUtil.residueToLoci(asymId, seqId, altId, insCode, loci, source);
+        return rloci.kind === 'element-loci' ? Structure.toStructureElementLoci(StructureElement.Loci.toStructure(rloci)) : EmptyLoci;
     }
 
     export function findStep(
@@ -21,11 +22,11 @@ export namespace Traverse {
         seqId2: number, altId2: string | undefined, insCode2: string,
         loci: StructureElement.Loci, source: 'label' | 'auth'
     ) {
-        const first = findResidue(asymId, seqId1, altId1, insCode1, loci, source);
+        const first = DnatcoUtil.residueToLoci(asymId, seqId1, altId1, insCode1, loci, source);
         if (first.kind === 'empty-loci')
             return EmptyLoci;
 
-        const second = findResidue(asymId, seqId2, altId2, insCode2, loci, source);
+        const second = DnatcoUtil.residueToLoci(asymId, seqId2, altId2, insCode2, loci, source);
         if (second.kind === 'empty-loci')
             return EmptyLoci;
 

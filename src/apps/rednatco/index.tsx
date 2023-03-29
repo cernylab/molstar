@@ -296,6 +296,7 @@ export class ReDNATCOMsp extends React.Component<ReDNATCOMsp.Props, State> {
         const residue = Api.Payloads.ResidueSelection(
             desc.modelNum,
             desc.chain,
+            desc.cifChain,
             desc.seqId,
             desc.insCode,
             desc.altId,
