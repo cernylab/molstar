@@ -40,6 +40,7 @@ import { Script } from '../../mol-script/script';
 import { MolScriptBuilder as MSB } from '../../mol-script/language/builder';
 import { formatMolScript } from '../../mol-script/language/expression-formatter';
 import { lociLabel } from '../../mol-theme/label';
+import { UUID } from '../../mol-util';
 import { arrayMax } from '../../mol-util/array';
 import { Binding } from '../../mol-util/binding';
 import { Color } from '../../mol-util/color';
@@ -48,7 +49,6 @@ import { ParamDefinition as PD } from '../../mol-util/param-definition';
 import { ObjectKeys } from '../../mol-util/type-helpers';
 import './molstar.css';
 import './rednatco-molstar.css';
-import {UUID} from '../../mol-util';
 
 const Extensions = {
     'ntcs-prop': PluginSpec.Behavior(DnatcoNtCs),
@@ -57,9 +57,6 @@ const Extensions = {
 const AnimationDurationMsec = 150;
 const BaseRef = 'rdo';
 const RCRef = 'rc';
-const NtCSupPrev = 'ntc-sup-prev';
-const NtCSupSel = 'ntc-sup-sel';
-const NtCSupNext = 'ntc-sup-next';
 const SphereBoundaryHelper = new BoundaryHelper('98');
 
 function ntcStepToElementLoci(step: DnatcoTypes.Step, stru: Structure) {
@@ -428,7 +425,7 @@ export class ReDNATCOMspViewer {
         };
     }
 
-    private focusOnLoci(loci: StructureElement.Loci) {
+    /* private */ focusOnLoci(loci: StructureElement.Loci) {
         if (!this.plugin.canvas3d)
             return;
 
@@ -1055,6 +1052,7 @@ export class ReDNATCOMspViewer {
 
     focusOnSelectedStep() {
         // FIXME: This is now completely wrong!
+        /*
         const sel = this.plugin.state.data.cells.get(IDs.ID('superposition', '', NtCSupSel));
         const prev = this.plugin.state.data.cells.get(IDs.ID('superposition', '', NtCSupPrev));
         const next = this.plugin.state.data.cells.get(IDs.ID('superposition', '', NtCSupNext));
@@ -1071,6 +1069,7 @@ export class ReDNATCOMspViewer {
             focusOn = StructureElement.Loci.union(focusOn, nextLoci);
 
         this.focusOnLoci(focusOn);
+        */
     }
 
     gatherStepInfo(): { steps: Step.ExtendedDescription[], stepNames: Map<string, number> } | undefined {
@@ -1424,11 +1423,13 @@ export class ReDNATCOMspViewer {
         }
     }
 
-    async actionApplyFilter(filter: Filters.All) {
+    async actionApplyFilter(filter: Filters.All, display: Display) {
         await this.clearSelections();
 
         const b = this.plugin.state.data.build();
-        if (this.has('structure', 'nucleic', BaseRef)) {
+
+        const haveNucl = this.has('structure', 'nucleic', BaseRef);
+        if (haveNucl) {
             b.to(IDs.ID('structure', 'nucleic', BaseRef))
                 .update(
                     StateTransforms.Model.StructureSelectionFromExpression,
@@ -1461,6 +1462,11 @@ export class ReDNATCOMspViewer {
                 );
         }
         await b.commit();
+
+        if (haveNucl) {
+            const struLoci = this.getNucleicStructure()!;
+            await this.visualizeNucleic(struLoci, display);
+        }
 
         return true;
     }
@@ -1516,6 +1522,10 @@ export class ReDNATCOMspViewer {
             this.addSelection(StruSelection(nextStep!));
 
         return await this.visualizeNucleic(struLoci, display);
+    }
+
+    async actionSwitchSelectionGranularity(granularity: Api.Commands.SwitchSelectionGranularity['granularity']) {
+        this.plugin.managers.interactivity.setProps({ granularity });
     }
 
     redraw() {

@@ -100,13 +100,19 @@ export namespace ReDNATCOMspApi {
 
         export type SwitchModel = { type: 'switch-model', model: number };
         export function SwitchModel(model: number): SwitchModel { return { type: 'switch-model', model }; }
+
+        export type SwitchSelectionGranularity = { type: 'switch-selection-granularity', granularity: 'two-residues' | 'residue' };
+        export function SwitchSelectionGranularity(granularity: SwitchSelectionGranularity['granularity']): SwitchSelectionGranularity {
+            return { type: 'switch-selection-granularity', granularity };
+        }
     }
     export type Command =
         Commands.DeselectStructures |
         Commands.Filter |
         Commands.Redraw |
         Commands.SelectStructure |
-        Commands.SwitchModel;
+        Commands.SwitchModel |
+        Commands.SwitchSelectionGranularity;
 
     export namespace Events {
         export type Type = Event['type'];
