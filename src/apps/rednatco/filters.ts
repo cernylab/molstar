@@ -1,5 +1,5 @@
 export namespace Filters {
-    export type Kind = 'empty'|'slices';
+    export type Kind = 'empty' | 'slices';
 
     export type Empty = {
         kind: 'empty',
@@ -20,5 +20,5 @@ export namespace Filters {
         return { kind: 'slices', slices };
     }
 
-    export type All = Empty|Slices;
+    export type All = Empty | Slices;
 }

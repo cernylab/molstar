@@ -6,6 +6,7 @@ export type ID =
     'model' |            /* Currently active model */
     'entire-structure' | /* Entire structure (as Molstar structure PSO) of the active model */
     'structure' |        /* Possibly filtered structure as PSO - this is what shall be used to create visuals from */
+    'structure-slice' |  /* Slice of a structure, possibly made by subtraction. To be applied on filtered structures */
     'visual' |           /* Visual PSO - the thing that is actually drawn on the screen */
     'pyramids' | 'superposition'; /* Additional identifiers for DNATCO-specific objects */
 

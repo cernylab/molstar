@@ -6,13 +6,14 @@ export namespace ReDNATCOMspApi {
     export type DensityMapKind = '2fo-fc' | 'fo-fc' | 'em';
 
     export namespace Payloads {
+        export type StepReference = {
+            NtC: string,
+            color: number,
+        };
         export type StepSelection = {
             type: 'step',
             name: string;
-            reference?: {
-                NtC: string,
-                color: number,
-            };
+            reference?: StepReference,
         }
         export function StepSelection(name: string, reference?: StepSelection['reference']): StepSelection {
             return { type: 'step', name, reference };
@@ -157,7 +158,7 @@ export namespace ReDNATCOMspApi {
 
     export type Queries = {
         'current-filter': Filters.All,
-        'current-model-number': number,
+        'current-model-index': number,
         'selected-structures': Payloads.StructureSelection[],
     }
 
@@ -166,7 +167,7 @@ export namespace ReDNATCOMspApi {
         event: (evt: Event) => void;
         init: (elemId: string, onEvent?: (evt: Event) => void) => void;
         isReady: () => boolean;
-        loadStructure: (coords: { data: string, type: CoordinatesFormat }, densityMaps: { data: Uint8Array, type: DensityMapFormat, kind: DensityMapKind }[] | null) => void;
+        loadStructure: (coords: { data: string, type: CoordinatesFormat, modelIndex: number }, densityMaps: { data: Uint8Array, type: DensityMapFormat, kind: DensityMapKind }[] | null) => void;
         query: <K extends keyof Queries>(type: K) => Queries[K],
     }
 }

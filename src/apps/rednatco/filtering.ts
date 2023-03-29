@@ -9,14 +9,14 @@ export namespace Filtering {
     }
 
     function sliceExpr(slice: Filters.Slices['slices'][0]) {
-        let expr = MSB.core.rel.eq([MSB.struct.atomProperty.macromolecular.label_asym_id(), slice.chain]);
+        let expr = MSB.core.rel.eq([MSB.struct.atomProperty.macromolecular.auth_asym_id(), slice.chain]);
 
         if (slice.residues && slice.residues.length > 0) {
-            let _expr = MSB.core.rel.eq([MSB.struct.atomProperty.macromolecular.label_seq_id(), slice.residues[0]]);
+            let _expr = MSB.core.rel.eq([MSB.struct.atomProperty.macromolecular.auth_seq_id(), slice.residues[0]]);
             for (let idx = 1; idx < slice.residues.length; idx++) {
                 _expr = MSB.core.logic.or([
                     _expr,
-                    MSB.core.rel.eq([MSB.struct.atomProperty.macromolecular.label_seq_id(), slice.residues[idx]])
+                    MSB.core.rel.eq([MSB.struct.atomProperty.macromolecular.auth_seq_id(), slice.residues[idx]])
                 ]);
             }
             expr = MSB.core.logic.and([expr, _expr]);
@@ -48,7 +48,7 @@ export namespace Filtering {
                 ]);
             }
 
-            expr = MSB.struct.generator.atomGroups({ 'atom-test': expr, 'group-by': MSB.struct.atomProperty.macromolecular.label_asym_id() });
+            expr = MSB.struct.generator.atomGroups({ 'atom-test': expr, 'group-by': MSB.struct.atomProperty.macromolecular.auth_asym_id() });
             console.log(formatMolScript(expr));
 
             return expr;

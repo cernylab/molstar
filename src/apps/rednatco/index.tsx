@@ -65,8 +65,6 @@ const Display = {
         showPyramids: true,
         pyramidsTransparent: false,
 
-        modelNumber: 1,
-
         classColors: { ...NtCColors.Classes },
         conformerColors: { ...NtCColors.Conformers },
         chainColor: DefaultChainColor,
@@ -195,8 +193,8 @@ export class ReDNATCOMsp extends React.Component<ReDNATCOMsp.Props, State> {
     apiQuery(type: keyof Api.Queries) {
         if (type === 'current-filter') {
             return this.currentFilter;
-        } else if (type === 'current-model-number') {
-            return this.viewer!.currentModelNumber();
+        } else if (type === 'current-model-index') {
+            return this.viewer!.currentModelIndex();
         } else if (type === 'selected-structures') {
             return this.viewer!.getSelections();
         }
@@ -248,20 +246,11 @@ export class ReDNATCOMsp extends React.Component<ReDNATCOMsp.Props, State> {
             if (cmd.model < 1 || cmd.model > this.viewer.getModelCount())
                 return;
 
-            const display: Display = {
-                ...this.state.display,
-                structures: {
-                    ...this.state.display.structures,
-                    modelNumber: cmd.model,
-                },
-            };
-
-            this.viewer.switchModel(display.structures.modelNumber);
-            this.setState({ ...this.state, display });
+            this.viewer.switchModel(cmd.model);
         }
     }
 
-    loadStructure(coords: { data: string, type: Api.CoordinatesFormat }, densityMaps: { data: Uint8Array, type: Api.DensityMapFormat, kind: Api.DensityMapKind }[] | null) {
+    loadStructure(coords: { data: string, type: Api.CoordinatesFormat, modelIndex: number }, densityMaps: { data: Uint8Array, type: Api.DensityMapFormat, kind: Api.DensityMapKind }[] | null) {
         if (this.viewer) {
             const display = { ...this.state.display };
             if (densityMaps) {
@@ -292,7 +281,7 @@ export class ReDNATCOMsp extends React.Component<ReDNATCOMsp.Props, State> {
             } else
                 display.densityMaps.length = 0;
 
-            this.viewer.loadStructure(coords, densityMaps, display).then(() => {
+            this.viewer.loadStructure(coords, densityMaps, display, coords.modelIndex).then(() => {
                 this.presentConformers = this.viewer!.getPresentConformers();
                 this.setState({ ...this.state, display });
                 ReDNATCOMspApi.event(Api.Events.StructureLoaded());

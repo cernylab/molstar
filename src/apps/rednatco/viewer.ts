@@ -48,6 +48,7 @@ import { ParamDefinition as PD } from '../../mol-util/param-definition';
 import { ObjectKeys } from '../../mol-util/type-helpers';
 import './molstar.css';
 import './rednatco-molstar.css';
+import {UUID} from '../../mol-util';
 
 const Extensions = {
     'ntcs-prop': PluginSpec.Behavior(DnatcoNtCs),
@@ -304,17 +305,27 @@ type VisualStruObjectParams = {
 type StruObject = {
     id: string,
     params: OtherStruObjectParams | VisualStruObjectParams,
+    primary: boolean,
 }
-function StruObject(id: string, params: StruObject['params']): StruObject {
-    return { id, params };
+function StruObject(id: string, params: StruObject['params'], primary: boolean): StruObject {
+    return { id, params, primary };
 }
 
 type StruSelection = {
     selector: Api.Payloads.StructureSelection,
     objects: StruObject[],
+    update: boolean,
 }
-function StruSelection(selector: Api.Payloads.StructureSelection, objects: StruSelection['objects'] = []): StruSelection {
-    return { selector, objects };
+function StruSelection(selector: Api.Payloads.StructureSelection, objects: StruSelection['objects'] = [], update = false): StruSelection {
+    return { selector, objects, update };
+}
+
+function ntcReferencesEqual(r1?: Api.Payloads.StepReference, r2?: Api.Payloads.StepReference) {
+    if (r1 && !r2 || !r1 && r2)
+        return false;
+    else if (r1 && r2)
+        return r1.NtC === r2.NtC && r1.color === r2.color;
+    return true;
 }
 
 export class ReDNATCOMspViewer {
@@ -327,6 +338,57 @@ export class ReDNATCOMspViewer {
     constructor(public plugin: PluginUIContext, interactionContext: { self?: ReDNATCOMspViewer }, app: ReDNATCOMsp) {
         interactionContext.self = this;
         this.app = app;
+    }
+
+    private addSelection(ns: StruSelection) {
+        const selector = ns.selector;
+
+        if (selector.type === 'step') {
+            for (const sel of this.selections) {
+                if (sel.selector.type !== 'step')
+                    continue;
+
+                if (selector.name === sel.selector.name) {
+                    if (!ntcReferencesEqual(selector.reference, sel.selector.reference)) {
+                        sel.selector = selector;
+                        sel.update = true;
+                    }
+                    return;
+                }
+            }
+        } else if (selector.type === 'residue') {
+            for (const sel of this.selections) {
+                if (sel.selector.type !== 'residue')
+                    continue;
+
+                const _selector = sel.selector;
+                if (_selector.chain === selector.chain &&
+                    _selector.seqId === selector.seqId &&
+                    _selector.insCode === selector.insCode) {
+                    sel.selector.color = selector.color;
+                    sel.update = true;
+                }
+
+                return;
+            }
+        } else if (selector.type === 'atom') {
+            for (const sel of this.selections) {
+                if (sel.selector.type !== 'atom')
+                    continue;
+
+                if (sel.selector.id === selector.id) {
+                    if (sel.selector.color !== selector.color) {
+                        sel.selector.color = selector.color;
+                        sel.update = true;
+                    }
+
+                    return;
+                }
+            }
+        }
+
+        // This is a new item, add it to selections
+        this.selections.push(ns);
     }
 
     private async clearSelections() {
@@ -591,17 +653,17 @@ export class ReDNATCOMspViewer {
 
         const notSelected = structureSubtract(struLoci.structure, structureUnion(struLoci.structure, selectedLocis.map(x => x.structure)));
         const b = this.plugin.state.data.build().to(IDs.ID('structure', 'nucleic', BaseRef))
-            .apply(
+            .applyOrUpdate(
+                IDs.ID('structure-slice', 'nucleic', BaseRef),
                 StateTransforms.Model.StructureSelectionFromBundle,
-                { bundle: StructureElement.Bundle.fromSubStructure(struLoci.structure, notSelected), label: 'Remainder' },
-                { ref: IDs.ID('structure', 'nucleic', BaseRef) }
+                { bundle: StructureElement.Bundle.fromSubStructure(struLoci.structure, notSelected), label: 'Not selected NA part of the structure' },
             );
 
         const vis = display.structures.nucleicRepresentation === 'ntc-tube'
             ? SubstructureVisual.NtC('ntc-tube', display.structures.conformerColors)
             : SubstructureVisual.BuiltIn(display.structures.nucleicRepresentation, Color(display.structures.chainColor));
 
-        b.to(IDs.ID('structure', 'nucleic', BaseRef))
+        b.to(IDs.ID('structure-slice', 'nucleic', BaseRef))
             .apply(
                 StateTransforms.Representation.StructureRepresentation3D,
                 this.substructureVisuals(vis),
@@ -619,6 +681,7 @@ export class ReDNATCOMspViewer {
             };
         };
         const selectedLocis = [];
+
         let b = this.plugin.state.data.build();
 
         for (const sel of this.selections) {
@@ -647,32 +710,57 @@ export class ReDNATCOMspViewer {
 
             // REVIEW: Can we safely skip processing of selections that already
             // have some objects associated with them?
-            if (sel.objects.length !== 0)
+            if (!(sel.objects.length === 0 || sel.update))
                 continue;
 
-            let objRef = b.to(IDs.ID('structure', 'nucleic', BaseRef))
-                .apply(
-                    StateTransforms.Model.StructureSelectionFromBundle,
-                    { bundle: StructureElement.Bundle.fromSubStructure(struLoci.structure, loci.structure) }
-                ).ref;
-            sel.objects.push(StruObject(objRef, { kind: 'structure' }));
+            if (sel.update) {
+                // Structure stays the same, only the representation might be different
+                const objRef = sel.objects.find((x) => x.params.kind === 'visual' && x.primary)!.id;
+                b.to(objRef)
+                    .update(
+                        StateTransforms.Representation.StructureRepresentation3D,
+                        (old) => ({ ...old, ...this.substructureVisuals(SubstructureVisual.BuiltIn('ball-and-stick', color)) })
+                    );
+            } else {
+                const objRef = UUID.create22();
+                b.to(IDs.ID('structure', 'nucleic', BaseRef))
+                    .apply(
+                        StateTransforms.Model.StructureSelectionFromBundle,
+                        { bundle: StructureElement.Bundle.fromSubStructure(struLoci.structure, loci.structure) },
+                        { ref: objRef }
+                    );
+                sel.objects.push(StruObject(objRef, { kind: 'structure' }, true));
 
-            objRef = b.to(objRef)
-                .apply(
-                    StateTransforms.Representation.StructureRepresentation3D,
-                    this.substructureVisuals(SubstructureVisual.BuiltIn('ball-and-stick', color))
-                ).ref;
-            sel.objects.push(StruObject(objRef, { kind: 'visual', useChainColor: true }));
+                const objRef2 = UUID.create22();
+                b.to(objRef)
+                    .apply(
+                        StateTransforms.Representation.StructureRepresentation3D,
+                        this.substructureVisuals(SubstructureVisual.BuiltIn('ball-and-stick', color)),
+                        { ref: objRef2 }
+                    );
+
+                sel.objects.push(StruObject(objRef2, { kind: 'visual', useChainColor: true }, true));
+            }
 
             // If the selection is a step, it can have a reference we have to superpose.
             if (sel.selector.type === 'step' && sel.selector.reference) {
                 const ntcRef = this.ntcRef(sel.selector.reference.NtC);
 
-                objRef = b.to(IDs.ID('model', '', ntcRef))
-                    .apply(StateTransforms.Model.StructureFromModel, {}, {}).ref;
-                sel.objects.push(StruObject(objRef, { kind: 'model' }));
+                if (sel.update) {
+                    // We need to remove the entire reference because the reference model might have changed
+                    for (const obj of sel.objects.filter((x) => !x.primary))
+                        b = b.delete(obj.id);
 
-                await b.commit(); // HORRIBLE!!!
+                    sel.objects = sel.objects.filter((x) => x.primary);
+                }
+
+                let objRef = UUID.create22();
+                b.to(IDs.ID('model', '', ntcRef))
+                    .apply(StateTransforms.Model.StructureFromModel, {}, { ref: objRef });
+                sel.objects.push(StruObject(objRef, { kind: 'structure' }, false));
+
+                // Now we actually need to commit to get the added Structure object to appear in the state tree
+                await b.commit();
                 b = this.plugin.state.data.build();
 
                 const refStru = this.plugin.state.data.cells.get(objRef)!.obj!;
@@ -682,22 +770,28 @@ export class ReDNATCOMspViewer {
                 if (isNaN(bTransform[0])) {
                     console.warn(`Cannot superpose reference conformer ${ntcRef} onto selection`);
                 } else {
-                    b = this.plugin.state.data.build();
-                    objRef = b.to(objRef)
+                    let objRef2 = UUID.create22();
+
+                    b.to(objRef)
                         .apply(
                             StateTransforms.Model.TransformStructureConformation,
-                            { transform: { name: 'matrix', params: { data: bTransform, transpose: false } } }
-                        ).ref;
-                    sel.objects.push(StruObject(objRef, { kind: 'other' }));
+                            { transform: { name: 'matrix', params: { data: bTransform, transpose: false } } },
+                            { ref: objRef2 }
+                        );
+                    sel.objects.push(StruObject(objRef2, { kind: 'other' }, false));
 
-                    objRef = b.to(objRef)
+                    objRef = objRef2;
+                    objRef2 = UUID.create22();
+                    b.to(objRef)
                         .apply(
                             StateTransforms.Representation.StructureRepresentation3D,
                             NtCReferenceVisuals(Color(sel.selector.reference.color)),
-                        ).ref;
-                    sel.objects.push(StruObject(objRef, { kind: 'visual', useChainColor: false }));
+                        );
+                    sel.objects.push(StruObject(objRef2, { kind: 'visual', useChainColor: false }, false));
                 }
             }
+
+            sel.update = false;
         }
 
         await b.commit();
@@ -943,7 +1037,7 @@ export class ReDNATCOMspViewer {
         }
     }
 
-    currentModelNumber() {
+    currentModelIndex() {
         const model = this.plugin.state.data.cells.get(IDs.ID('model', '', BaseRef))?.obj;
         if (!model)
             return -1;
@@ -960,6 +1054,7 @@ export class ReDNATCOMspViewer {
     }
 
     focusOnSelectedStep() {
+        // FIXME: This is now completely wrong!
         const sel = this.plugin.state.data.cells.get(IDs.ID('superposition', '', NtCSupSel));
         const prev = this.plugin.state.data.cells.get(IDs.ID('superposition', '', NtCSupPrev));
         const next = this.plugin.state.data.cells.get(IDs.ID('superposition', '', NtCSupNext));
@@ -1133,7 +1228,8 @@ export class ReDNATCOMspViewer {
     async loadStructure(
         coords: { data: string, type: Api.CoordinatesFormat },
         densityMaps: { data: Uint8Array, type: Api.DensityMapFormat, kind: Api.DensityMapKind }[] | null,
-        display: Display
+        display: Display,
+        modelIndex: number
     ) {
         // TODO: Remove the currently loaded structure
 
@@ -1146,7 +1242,7 @@ export class ReDNATCOMspViewer {
             ? t.apply(StateTransforms.Model.TrajectoryFromPDB, {}, { ref: IDs.ID('trajectory', '', BaseRef) })
             : t.apply(StateTransforms.Data.ParseCif).apply(StateTransforms.Model.TrajectoryFromMmCif, {}, { ref: IDs.ID('trajectory', '', BaseRef) })
         )(this.plugin.state.data.build().toRoot().apply(RawData, { data: coords.data }, { ref: IDs.ID('data', '', BaseRef) }))
-            .apply(StateTransforms.Model.ModelFromTrajectory, { modelIndex: display.structures.modelNumber ? display.structures.modelNumber - 1 : 0 }, { ref: IDs.ID('model', '', BaseRef) })
+            .apply(StateTransforms.Model.ModelFromTrajectory, { modelIndex }, { ref: IDs.ID('model', '', BaseRef) })
             .apply(StateTransforms.Model.StructureFromModel, {}, { ref: IDs.ID('entire-structure', '', BaseRef) })
             // Extract substructures
             .apply(StateTransforms.Model.StructureComplexElement, { type: 'nucleic' }, { ref: IDs.ID('entire-structure', 'nucleic', BaseRef) })
@@ -1186,6 +1282,7 @@ export class ReDNATCOMspViewer {
         await b2.commit();
 
         // Create default visuals
+
         const nucl = this.getNucleicStructure();
         if (nucl)
             await this.visualizeNucleicNotSelected(nucl, [], display);
@@ -1328,10 +1425,7 @@ export class ReDNATCOMspViewer {
     }
 
     async actionApplyFilter(filter: Filters.All) {
-        if (filter.kind !== 'empty') {
-            // Heavy-handed approach of just clearing all selections
-            await this.clearSelections();
-        }
+        await this.clearSelections();
 
         const b = this.plugin.state.data.build();
         if (this.has('structure', 'nucleic', BaseRef)) {
@@ -1415,11 +1509,11 @@ export class ReDNATCOMspViewer {
         const prevLoci = prevStep ? this.toStepLoci(prevStep.name, struLoci) : EmptyLoci;
         const nextLoci = nextStep ? this.toStepLoci(nextStep.name, struLoci) : EmptyLoci;
 
-        this.selections.push(StruSelection(currStep)); // Expect that the "stepFromName" check ensures that the step is present in the structure
+        this.addSelection(StruSelection(currStep)); // Expect that the "stepFromName" check ensures that the step is present in the structure
         if (prevLoci.kind === 'element-loci')
-            this.selections.push(StruSelection(prevStep!));
+            this.addSelection(StruSelection(prevStep!));
         if (nextLoci.kind === 'element-loci')
-            this.selections.push(StruSelection(nextStep!));
+            this.addSelection(StruSelection(nextStep!));
 
         return await this.visualizeNucleic(struLoci, display);
     }
@@ -1431,22 +1525,19 @@ export class ReDNATCOMspViewer {
         );
     }
 
-    async switchModel(modelNumber?: number) {
-        if (modelNumber && modelNumber === this.currentModelNumber())
+    async switchModel(modelIndex?: number) {
+        if (modelIndex !== undefined && modelIndex === this.currentModelIndex())
             return;
 
         this.selections.splice(0, this.selections.length);
 
         const b = this.plugin.state.data.build()
-            .delete(IDs.ID('superposition', '', NtCSupSel))
-            .delete(IDs.ID('superposition', '', NtCSupPrev))
-            .delete(IDs.ID('superposition', '', NtCSupNext))
             .to(IDs.ID('model', '', BaseRef))
             .update(
                 StateTransforms.Model.ModelFromTrajectory,
                 old => ({
                     ...old,
-                    modelIndex: modelNumber ? modelNumber - 1 : 0
+                    modelIndex,
                 })
             );
 
