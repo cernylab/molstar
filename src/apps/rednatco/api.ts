@@ -53,6 +53,18 @@ export namespace ReDNATCOMspApi {
             altId: string, // label_alt_id
             atomId: string, // label_atom_id
         }
+        export function Atom2Selection(modelNum: number, chain: string, cifChain: string, seqId: number, insCode: string, altId: string, atomId: string): Atom2Selection {
+            return {
+                type: 'atom-2',
+                modelNum,
+                chain,
+                cifChain,
+                seqId,
+                insCode,
+                altId,
+                atomId,
+            };
+        }
 
         export type StructureSelection = StepSelection | ResidueSelection | AtomSelection;
     }
