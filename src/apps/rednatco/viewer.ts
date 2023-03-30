@@ -19,7 +19,7 @@ import { OrderedSet } from '../../mol-data/int/ordered-set';
 import { BoundaryHelper } from '../../mol-math/geometry/boundary-helper';
 import { Vec3 } from '../../mol-math/linear-algebra/3d';
 import { EmptyLoci, Loci } from '../../mol-model/loci';
-import { ElementIndex, Model, Structure, StructureElement, StructureProperties, StructureSelection, Trajectory } from '../../mol-model/structure';
+import { ElementIndex, Model, Structure, StructureElement, StructureProperties, Trajectory } from '../../mol-model/structure';
 import { Volume } from '../../mol-model/volume';
 import { structureUnion, structureSubtract } from '../../mol-model/structure/query/utils/structure-set';
 import { Location } from '../../mol-model/structure/structure/element/location';
@@ -327,6 +327,15 @@ function ntcReferencesEqual(r1?: Api.Payloads.StepReference, r2?: Api.Payloads.S
     return true;
 }
 
+function residuesEqual(a: Api.Payloads.ResidueSelection, b: Api.Payloads.ResidueSelection) {
+    return (
+        a.modelNum === b.modelNum &&
+        a.cifChain === b.cifChain &&
+        a.seqId === b.seqId &&
+        a.insCode === b.insCode
+    );
+}
+
 export class ReDNATCOMspViewer {
     private haveMultipleModels = false;
     private steps: Step.ExtendedDescription[] = [];
@@ -361,9 +370,7 @@ export class ReDNATCOMspViewer {
                     continue;
 
                 const _selector = sel.selector;
-                if (_selector.chain === selector.chain &&
-                    _selector.seqId === selector.seqId &&
-                    _selector.insCode === selector.insCode) {
+                if (residuesEqual(_selector, selector)) {
                     if (sel.selector.color !== selector.color) {
                         sel.selector.color = selector.color;
                         sel.update = true;
@@ -429,7 +436,7 @@ export class ReDNATCOMspViewer {
         };
     }
 
-    /* private */ focusOnLoci(loci: StructureElement.Loci) {
+    private focusOnLoci(loci: StructureElement.Loci) {
         if (!this.plugin.canvas3d)
             return;
 
@@ -464,7 +471,7 @@ export class ReDNATCOMspViewer {
         if (!entireStruCell)
             return void 0;
         const stru = entireStruCell.obj!.data!;
-        return StructureSelection.toLociWithSourceUnits(StructureSelection.Singletons(stru, stru));
+        return Structure.toStructureElementLoci(stru);
     }
 
     private getStructureParent(cell: StateObjectCell) {
@@ -511,7 +518,7 @@ export class ReDNATCOMspViewer {
                 continue;
             const parent = this.getStructureParent(cell);
             if (parent) {
-                const loci = StructureSelection.toLociWithSourceUnits(StructureSelection.Singletons(parent.data, parent.data));
+                const loci = Structure.toStructureElementLoci(parent.data);
                 const s = Loci.getBoundingSphere(loci);
                 if (s)
                     spheres.push(s);
@@ -676,7 +683,7 @@ export class ReDNATCOMspViewer {
             const type = sel.selector.type;
             let color = display.structures.chainColor;
 
-            let loci: (EmptyLoci | StructureElement.Loci) = EmptyLoci; // TODO: Tidy this up
+            let loci: (EmptyLoci | StructureElement.Loci) = EmptyLoci;
             if (type === 'step') {
                 loci = this.stepLoci(sel.selector.name, struLoci);
             } else if (type === 'residue') {
@@ -752,7 +759,7 @@ export class ReDNATCOMspViewer {
                 b = this.plugin.state.data.build();
 
                 const refStru = this.plugin.state.data.cells.get(objRef)!.obj!;
-                const refLoci = StructureSelection.toLociWithSourceUnits(StructureSelection.Singletons(refStru.data, refStru.data));
+                const refLoci = Structure.toStructureElementLoci(refStru.data);
 
                 const { bTransform } = this.superpose(refLoci, loci);
                 if (isNaN(bTransform[0])) {
@@ -1041,26 +1048,46 @@ export class ReDNATCOMspViewer {
         return { min: grid.stats.min, max: grid.stats.max };
     }
 
-    focusOnSelectedStep() {
-        // FIXME: This is now completely wrong!
-        /*
-        const sel = this.plugin.state.data.cells.get(IDs.ID('superposition', '', NtCSupSel));
-        const prev = this.plugin.state.data.cells.get(IDs.ID('superposition', '', NtCSupPrev));
-        const next = this.plugin.state.data.cells.get(IDs.ID('superposition', '', NtCSupNext));
+    focusOnSelection(sel: Api.Payloads.StructureSelection) {
+        let focusOn;
 
-        const prevLoci = prev?.obj ? StructureSelection.toLociWithSourceUnits(StructureSelection.Singletons(prev.obj!.data, prev.obj!.data)) : EmptyLoci;
-        const nextLoci = next?.obj ? StructureSelection.toLociWithSourceUnits(StructureSelection.Singletons(next.obj!.data, next.obj!.data)) : EmptyLoci;
-        let focusOn = sel?.obj ? StructureSelection.toLociWithSourceUnits(StructureSelection.Singletons(sel!.obj!.data, sel!.obj!.data)) : EmptyLoci;
-        if (focusOn.kind === 'empty-loci')
-            return;
+        for (const struSel of this.selections) {
+            if (sel.type === struSel.selector.type) {
+                if (sel.type === 'step') {
+                    const selector = struSel.selector as Api.Payloads.StepSelection;
 
-        if (prevLoci.kind === 'element-loci')
-            focusOn = StructureElement.Loci.union(focusOn, prevLoci);
-        if (nextLoci.kind === 'element-loci')
-            focusOn = StructureElement.Loci.union(focusOn, nextLoci);
+                    if (sel.name === selector.name) {
+                        for (const obj of struSel.objects) {
+                            if (obj.params.kind === 'structure') {
+                                const stru = this.plugin.state.data.cells.get(obj.id)!.obj!.data;
+                                if (!focusOn) {
+                                    focusOn = Structure.toStructureElementLoci(stru);
+                                } else
+                                    StructureElement.Loci.union(focusOn, Structure.toStructureElementLoci(stru));
+                            }
+                        }
 
-        this.focusOnLoci(focusOn);
-        */
+                        break;
+                    }
+                } else if (sel.type === 'residue') {
+                    const selector = struSel.selector as Api.Payloads.ResidueSelection;
+                    if (residuesEqual(sel, selector)) {
+                        for (const obj of struSel.objects) {
+                            if (obj.params.kind === 'structure') {
+                                const stru = this.plugin.state.data.cells.get(obj.id)!.obj!.data;
+                                focusOn = Structure.toStructureElementLoci(stru);
+                                break;
+                            }
+                        }
+
+                        break;
+                    }
+                }
+            }
+        }
+
+        if (focusOn)
+            this.focusOnLoci(focusOn);
     }
 
     gatherStepInfo(): { steps: Step.ExtendedDescription[], stepNames: Map<string, number> } | undefined {
@@ -1506,7 +1533,7 @@ export class ReDNATCOMspViewer {
             }
 
             if (modelNum === undefined)
-                m = modelNum;
+                modelNum = m;
             else if (modelNum !== m) {
                 console.warn('Requested structure selections references multiple models. This is not allowed.');
                 return [];
