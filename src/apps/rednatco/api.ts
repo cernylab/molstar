@@ -69,7 +69,7 @@ export namespace ReDNATCOMspApi {
             type: 'select-structures',
             selections: StructureSelection[],
         }
-        export function SelectStructure(selections: StructureSelection[]): SelectStructures {
+        export function SelectStructures(selections: StructureSelection[]): SelectStructures {
             return { type: 'select-structures', selections };
         }
 
@@ -79,7 +79,7 @@ export namespace ReDNATCOMspApi {
             prev?: Payloads.StepSelection,
             next?: Payloads.StepSelection,
         }
-        export function SelectStep(step: Payloads.StepSelection, prev: Payloads.StepSelection | undefined, next: Payloads.StepSelection | undefined): StepSelection {
+        export function StepSelection(step: Payloads.StepSelection, prev: Payloads.StepSelection | undefined, next: Payloads.StepSelection | undefined): StepSelection {
             return { type: 'step', step, prev, next };
         }
 
@@ -87,7 +87,7 @@ export namespace ReDNATCOMspApi {
             type: 'residue',
             residue: Payloads.ResidueSelection,
         }
-        export function SelectResidue(model: number, chain: string, cifChain: string, seqId: number, insCode: string, altId: string, color: number): ResidueSelection {
+        export function ResidueSelection(model: number, chain: string, cifChain: string, seqId: number, insCode: string, altId: string, color: number): ResidueSelection {
             return { type: 'residue', residue: Payloads.ResidueSelection(model, chain, cifChain, seqId, insCode, altId, color) };
         }
 
@@ -95,7 +95,7 @@ export namespace ReDNATCOMspApi {
             type: 'atom',
             atom: Payloads.AtomSelection,
         }
-        export function SelectAtom(model: number, id: number, color: number): AtomSelection {
+        export function AtomSelection(model: number, id: number, color: number): AtomSelection {
             return { type: 'atom', atom: Payloads.AtomSelection(model, id, color) };
         }
 
