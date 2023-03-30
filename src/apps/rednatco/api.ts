@@ -62,41 +62,41 @@ export namespace ReDNATCOMspApi {
         export type Redraw = { type: 'redraw' }
         export function Redraw(): Redraw { return { type: 'redraw' }; }
 
-        export type StructureSelection = (SelectStep | SelectResidue | SelectAtom);
+        export type StructureSelection = StepSelection | ResidueSelection | AtomSelection;
         export type StructureSelectionType = StructureSelection['type'];
 
-        export type SelectStructure = {
-            type: 'select-structure',
-            selection: StructureSelection,
+        export type SelectStructures = {
+            type: 'select-structures',
+            selections: StructureSelection[],
         }
-        export function SelectStructure(selection: StructureSelection): SelectStructure {
-            return { type: 'select-structure', selection };
+        export function SelectStructure(selections: StructureSelection[]): SelectStructures {
+            return { type: 'select-structures', selections };
         }
 
-        export type SelectStep = {
+        export type StepSelection = {
             type: 'step',
             step: Payloads.StepSelection,
             prev?: Payloads.StepSelection,
             next?: Payloads.StepSelection,
         }
-        export function SelectStep(step: Payloads.StepSelection, prev: Payloads.StepSelection | undefined, next: Payloads.StepSelection | undefined): SelectStructure {
-            return { type: 'select-structure', selection: { type: 'step', step, prev, next } };
+        export function SelectStep(step: Payloads.StepSelection, prev: Payloads.StepSelection | undefined, next: Payloads.StepSelection | undefined): StepSelection {
+            return { type: 'step', step, prev, next };
         }
 
-        export type SelectResidue = {
+        export type ResidueSelection = {
             type: 'residue',
             residue: Payloads.ResidueSelection,
         }
-        export function SelectResidue(model: number, chain: string, cifChain: string, seqId: number, insCode: string, altId: string, color: number): SelectStructure {
-            return { type: 'select-structure', selection: { type: 'residue', residue: Payloads.ResidueSelection(model, chain, cifChain, seqId, insCode, altId, color) } };
+        export function SelectResidue(model: number, chain: string, cifChain: string, seqId: number, insCode: string, altId: string, color: number): ResidueSelection {
+            return { type: 'residue', residue: Payloads.ResidueSelection(model, chain, cifChain, seqId, insCode, altId, color) };
         }
 
-        export type SelectAtom = {
+        export type AtomSelection = {
             type: 'atom',
             atom: Payloads.AtomSelection,
         }
-        export function SelectAtom(model: number, id: number, color: number): SelectStructure {
-            return { type: 'select-structure', selection: { type: 'atom', atom: Payloads.AtomSelection(model, id, color) } };
+        export function SelectAtom(model: number, id: number, color: number): AtomSelection {
+            return { type: 'atom', atom: Payloads.AtomSelection(model, id, color) };
         }
 
         export type SwitchModel = { type: 'switch-model', model: number };
@@ -111,7 +111,7 @@ export namespace ReDNATCOMspApi {
         Commands.DeselectStructures |
         Commands.Filter |
         Commands.Redraw |
-        Commands.SelectStructure |
+        Commands.SelectStructures |
         Commands.SwitchModel |
         Commands.SwitchSelectionGranularity;
 
@@ -140,14 +140,14 @@ export namespace ReDNATCOMspApi {
             return { type: 'structure-requested', selection };
         }
 
-        export type StructureSelected = StructureSelectedOk | StructureSelectedFail;
-        export type StructureSelectedOk = { type: 'structure-selected', success: true, selection: Payloads.StructureSelection }
-        export type StructureSelectedFail = { type: 'structure-selected', success: false }
-        export function StructureSelectedOk(selection: Payloads.StructureSelection): StructureSelectedOk {
-            return { type: 'structure-selected', success: true, selection };
+        export type StructuresSelected = StructuresSelectedOk | StructuresSelectedFail;
+        export type StructuresSelectedOk = { type: 'structures-selected', success: true, selections: Payloads.StructureSelection[] }
+        export type StructuresSelectedFail = { type: 'structures-selected', success: false }
+        export function StructuresSelectedOk(selections: Payloads.StructureSelection[]): StructuresSelectedOk {
+            return { type: 'structures-selected', success: true, selections };
         }
-        export function StructureSelectedFail(): StructureSelectedFail {
-            return { type: 'structure-selected', success: false };
+        export function StructuresSelectedFail(): StructuresSelectedFail {
+            return { type: 'structures-selected', success: false };
         }
 
         export type StructureLoaded = { type: 'structure-loaded' }
@@ -160,7 +160,7 @@ export namespace ReDNATCOMspApi {
         Events.Ready |
         Events.StructuresDeselected |
         Events.StructureRequested |
-        Events.StructureSelected |
+        Events.StructuresSelected |
         Events.StructureLoaded;
 
     export type Queries = {

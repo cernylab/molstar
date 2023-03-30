@@ -1485,49 +1485,75 @@ export class ReDNATCOMspViewer {
             await this.visualizeNucleic(struLoci, display);
     }
 
-    async actionSelectResidue(sel: Api.Payloads.ResidueSelection, display: Display) {
-        // Switch to a different model if the selected step is from a different model
-        // This is the first thing we need to do
-        await this.switchModel(sel.modelNum);
-
+    async actionSelectStructures(selections: Api.Commands.StructureSelection[], display: Display) {
         const struLoci = this.getNucleicStructure();
         if (!struLoci)
-            return false;
+            return [];
 
-        // Check if residue exists
-        const residueLoci = Traverse.findResidue(sel.chain, sel.seqId, sel.altId, sel.insCode, struLoci, 'auth');
-        if (residueLoci.kind !== 'element-loci')
-            return false;
+        // First we need to check that all selections use the same model
+        let modelNum;
+        for (const sel of selections) {
+            let m;
 
-        this.addSelection(StruSelection(sel));
+            if (sel.type === 'step') {
+                const step = this.stepFromName(sel.step.name);
+                if (step)
+                    m = step.model;
+            } else if (sel.type === 'residue') {
+                m = sel.residue.modelNum;
+            } else if (sel.type === 'atom') {
+                console.warn('Atom selections are not implemented yet');
+            }
 
-        return await this.visualizeNucleic(struLoci, display);
-    }
+            if (modelNum === undefined)
+                m = modelNum;
+            else if (modelNum !== m) {
+                console.warn('Requested structure selections references multiple models. This is not allowed.');
+                return [];
+            }
+        }
 
-    async actionSelectStep(currStep: Api.Payloads.StepSelection, prevStep: Api.Payloads.StepSelection | undefined, nextStep: Api.Payloads.StepSelection | undefined, display: Display) {
-        // Check that the step exists to that we can switch the model if necessary
-        const step = this.stepFromName(currStep.name);
-        if (!step)
-            return false;
+        if (modelNum === undefined) {
+            console.warn('Requested structure selection does not refererence any model.');
+            return [];
+        }
+        this.switchModel(modelNum);
 
-        // Switch to a different model if the selected step is from a different model
-        // This is the first thing we need to do
-        await this.switchModel(step.model);
+        const succeeded = [];
+        for (const sel of selections) {
+            if (sel.type === 'step') {
+                const step = this.stepFromName(sel.step.name);
+                if (step) {
+                    const prevLoci = sel.prev ? this.stepLoci(sel.prev.name, struLoci) : EmptyLoci;
+                    const nextLoci = sel.next ? this.stepLoci(sel.next.name, struLoci) : EmptyLoci;
 
-        const struLoci = this.getNucleicStructure();
-        if (!struLoci)
-            return false;
+                    this.addSelection(StruSelection(sel.step)); // Expect that the "stepFromName" check ensures that the step is present in the structure
+                    succeeded.push(sel.step);
 
-        const prevLoci = prevStep ? this.stepLoci(prevStep.name, struLoci) : EmptyLoci;
-        const nextLoci = nextStep ? this.stepLoci(nextStep.name, struLoci) : EmptyLoci;
+                    if (prevLoci.kind === 'element-loci') {
+                        this.addSelection(StruSelection(sel.prev!));
+                        succeeded.push(sel.prev!);
+                    }
 
-        this.addSelection(StruSelection(currStep)); // Expect that the "stepFromName" check ensures that the step is present in the structure
-        if (prevLoci.kind === 'element-loci')
-            this.addSelection(StruSelection(prevStep!));
-        if (nextLoci.kind === 'element-loci')
-            this.addSelection(StruSelection(nextStep!));
+                    if (nextLoci.kind === 'element-loci') {
+                        this.addSelection(StruSelection(sel.next!));
+                        succeeded.push(sel.next!);
+                    }
+                }
+            } else if (sel.type === 'residue') {
+                const residueLoci = Traverse.findResidue(sel.residue.chain, sel.residue.seqId, sel.residue.altId, sel.residue.insCode, struLoci, 'auth');
+                if (residueLoci.kind === 'element-loci') {
+                    this.addSelection(StruSelection(sel.residue));
+                    succeeded.push(sel.residue);
+                }
+            } else if (sel.type === 'atom') {
+                console.warn('Atom selections are not implemented yet');
+            }
+        }
 
-        return await this.visualizeNucleic(struLoci, display);
+        await this.visualizeNucleic(struLoci, display);
+
+        return succeeded;
     }
 
     async actionSwitchSelectionGranularity(granularity: Api.Commands.SwitchSelectionGranularity['granularity']) {
