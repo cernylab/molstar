@@ -701,7 +701,17 @@ export class ReDNATCOMspViewer {
 
             // We need to keep the list of selected locis to be able to display
             // the "unselected" part of the structure
-            selectedLocis.push(loci);
+            if (type === 'residue' && sel.selector.altId !== '') {
+                // We need to use the "full" residue (atoms in all altconfs) to carve out
+                // the selected residue. However, we need to use the filtered (only the altconf we want)
+                // for display. Why am I putting up with this?
+
+                // Push the full residue
+                selectedLocis.push(loci);
+                // Use the filtered residue for display
+                loci = Traverse.filterResidue(sel.selector.altId, loci);
+            } else
+                selectedLocis.push(loci);
 
             // REVIEW: Can we safely skip processing of selections that already
             // have some objects associated with them?

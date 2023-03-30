@@ -221,6 +221,7 @@ export class ReDNATCOMsp extends React.Component<ReDNATCOMsp.Props, State> {
             this.currentFilter = cmd.filter;
             ReDNATCOMspApi.event(Api.Events.FilterApplied());
         } else if (cmd.type === 'highlight') {
+            this.viewer.actionHighlight(cmd.highlights);
         } else if (cmd.type === 'select-structures') {
             const succeeded = await this.viewer.actionSelectStructures(cmd.selections, this.state.display);
             if (succeeded.length > 0) {
