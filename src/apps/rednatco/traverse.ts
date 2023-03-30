@@ -1,6 +1,6 @@
-import { Segmentation } from '../../mol-data/int';
+import { OrderedSet, Segmentation } from '../../mol-data/int';
 import { EmptyLoci } from '../../mol-model/loci';
-import { ResidueIndex, Structure, StructureElement, Unit } from '../../mol-model/structure';
+import { ResidueIndex, Structure, StructureElement, StructureProperties, Unit } from '../../mol-model/structure';
 import { structureUnion } from '../../mol-model/structure/query/utils/structure-set';
 import { DnatcoUtil } from '../../extensions/dnatco/util';
 
@@ -9,6 +9,48 @@ export namespace Traverse {
 
     export function residueAltIds(structure: Structure, unit: Unit, residue: Residue) {
         DnatcoUtil.residueAltIds(structure, unit, residue);
+    }
+
+    export function findAtom(asymId: string, seqId: number, altId: string | undefined, insCode: string, atomId: string, loci: StructureElement.Loci, source: 'label' | 'auth') {
+        const _loc = StructureElement.Location.create();
+        _loc.structure = loci.structure;
+
+        for (const e of loci.elements) {
+            _loc.unit = e.unit;
+
+            const getAsymId = source === 'label' ? StructureProperties.chain.label_asym_id : StructureProperties.chain.auth_asym_id;
+            const getSeqId = source === 'label' ? StructureProperties.residue.label_seq_id : StructureProperties.residue.auth_seq_id;
+
+            const N = OrderedSet.size(e.indices);
+            for (let idx = 0; idx < N; idx++) {
+                const uI = OrderedSet.getAt(e.indices, idx);
+                _loc.element = OrderedSet.getAt(_loc.unit.elements, uI);
+
+                const _asymId = getAsymId(_loc);
+                const _seqId = getSeqId(_loc);
+                const _insCode = StructureProperties.residue.pdbx_PDB_ins_code(_loc);
+                const _altId = StructureProperties.atom.label_alt_id(_loc);
+                const _atomId = StructureProperties.atom.label_atom_id(_loc);
+
+                const match =
+                    _asymId === asymId &&
+                    _seqId === seqId &&
+                    _insCode === insCode &&
+                    (_altId === altId || !altId) &&
+                    _atomId === atomId;
+
+                if (match) {
+                    const start = uI as StructureElement.UnitIndex;
+                    const end = uI + 1 as StructureElement.UnitIndex;
+                    return StructureElement.Loci(
+                        loci.structure,
+                        [{ unit: e.unit, indices: OrderedSet.ofBounds(start, end) }]
+                    );
+                }
+            }
+        }
+
+        return EmptyLoci;
     }
 
     export function findResidue(asymId: string, seqId: number, altId: string | undefined, insCode: string, loci: StructureElement.Loci, source: 'label' | 'auth') {

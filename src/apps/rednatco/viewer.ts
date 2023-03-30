@@ -1512,6 +1512,28 @@ export class ReDNATCOMspViewer {
             await this.visualizeNucleic(struLoci, display);
     }
 
+    async actionHighlight(highlights: Api.Payloads.Atom2Selection[]) {
+        const struLoci = this.getNucleicStructure();
+        if (!struLoci)
+            return;
+
+        let toHighlight;
+        for (const hl of highlights) {
+            const loci = Traverse.findAtom(hl.chain, hl.seqId, hl.altId, hl.insCode, hl.atomId, struLoci, 'auth');
+            if (loci.kind === 'empty-loci')
+                continue;
+
+            if (!toHighlight)
+                toHighlight = loci;
+            else
+                toHighlight = StructureElement.Loci.union(toHighlight, loci);
+        }
+
+        if (toHighlight) {
+            this.plugin.managers.interactivity.lociHighlights.highlight({ loci: toHighlight }, false);
+        }
+    }
+
     async actionSelectStructures(selections: Api.Commands.StructureSelection[], display: Display) {
         const struLoci = this.getNucleicStructure();
         if (!struLoci)
@@ -1585,6 +1607,10 @@ export class ReDNATCOMspViewer {
 
     async actionSwitchSelectionGranularity(granularity: Api.Commands.SwitchSelectionGranularity['granularity']) {
         this.plugin.managers.interactivity.setProps({ granularity });
+    }
+
+    async actionUnhighlight() {
+        this.plugin.managers.interactivity.lociHighlights.clearHighlights();
     }
 
     redraw() {

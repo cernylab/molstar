@@ -36,11 +36,22 @@ export namespace ReDNATCOMspApi {
         export type AtomSelection = {
             type: 'atom',
             model: number, // pdbx_PDB_model_num
-            id: number, // label_atom_id
+            id: number, // serial no
             color: number,
         }
         export function AtomSelection(model: number, id: number, color: number): AtomSelection {
             return { type: 'atom', model, id, color };
+        }
+
+        export type Atom2Selection = {
+            type: 'atom-2',
+            modelNum: number, // pdbx_PDB_model_num
+            chain: string, // auth_asym_id
+            cifChain: string, // label_asym_id - we need both because some chains might have the same auth name but different cif id. Crystallographgers are insane
+            seqId: number, // auth_seq_id
+            insCode: string, // pdbx_PDB_ins_code
+            altId: string, // label_alt_id
+            atomId: string, // label_atom_id
         }
 
         export type StructureSelection = StepSelection | ResidueSelection | AtomSelection;
@@ -57,6 +68,11 @@ export namespace ReDNATCOMspApi {
         export type Filter = { type: 'filter', filter: Filters.All };
         export function Filter(filter: Filters.All): Filter {
             return { type: 'filter', filter };
+        }
+
+        export type Highlight = { type: 'highlight', highlights: Payloads.Atom2Selection[] };
+        export function Highlight(highlights: Payloads.Atom2Selection[]): Highlight {
+            return { type: 'highlight', highlights };
         }
 
         export type Redraw = { type: 'redraw' }
@@ -106,14 +122,21 @@ export namespace ReDNATCOMspApi {
         export function SwitchSelectionGranularity(granularity: SwitchSelectionGranularity['granularity']): SwitchSelectionGranularity {
             return { type: 'switch-selection-granularity', granularity };
         }
+
+        export type Unhighlight = { type: 'unhighlight' };
+        export function Unhighlight(): Unhighlight {
+            return { type: 'unhighlight' };
+        }
     }
     export type Command =
         Commands.DeselectStructures |
         Commands.Filter |
+        Commands.Highlight |
         Commands.Redraw |
         Commands.SelectStructures |
         Commands.SwitchModel |
-        Commands.SwitchSelectionGranularity;
+        Commands.SwitchSelectionGranularity |
+        Commands.Unhighlight;
 
     export namespace Events {
         export type Type = Event['type'];

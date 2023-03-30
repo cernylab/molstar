@@ -220,6 +220,7 @@ export class ReDNATCOMsp extends React.Component<ReDNATCOMsp.Props, State> {
 
             this.currentFilter = cmd.filter;
             ReDNATCOMspApi.event(Api.Events.FilterApplied());
+        } else if (cmd.type === 'highlight') {
         } else if (cmd.type === 'select-structures') {
             const succeeded = await this.viewer.actionSelectStructures(cmd.selections, this.state.display);
             if (succeeded.length > 0) {
@@ -234,6 +235,8 @@ export class ReDNATCOMsp extends React.Component<ReDNATCOMsp.Props, State> {
             this.viewer.switchModel(cmd.model);
         } else if (cmd.type === 'switch-selection-granularity') {
             this.viewer.actionSwitchSelectionGranularity(cmd.granularity);
+        } else if (cmd.type === 'unhighlight') {
+            this.viewer.actionUnhighlight();
         }
     }
 
