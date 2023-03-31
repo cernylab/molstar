@@ -353,11 +353,11 @@ function atomsEqual(a: Api.Payloads.AtomSelection, b: Api.Payloads.AtomSelection
     return true;
 }
 
-function ntcReferencesEqual(r1?: Api.Payloads.StepReference, r2?: Api.Payloads.StepReference) {
-    if (r1 && !r2 || !r1 && r2)
+function ntcReferencesEqual(a?: Api.Payloads.StepReference, b?: Api.Payloads.StepReference) {
+    if (a && !b || !a && b)
         return false;
-    else if (r1 && r2)
-        return r1.NtC === r2.NtC && r1.color === r2.color;
+    else if (a && b)
+        return a.NtC === b.NtC && a.color === b.color;
     return true;
 }
 
@@ -380,6 +380,16 @@ export class ReDNATCOMspViewer {
     constructor(public plugin: PluginUIContext, interactionContext: { self?: ReDNATCOMspViewer }, app: ReDNATCOMsp) {
         interactionContext.self = this;
         this.app = app;
+
+        this.plugin.canvas3d?.setProps({
+            renderer: {
+                highlightColor: Color(0x49ff92),
+            },
+            marking: {
+                highlightEdgeColor: Color(0x49ff92),
+                highlightEdgeStrength: 2.0,
+            }
+        });
     }
 
     private addSelection(ns: StruSelection) {
@@ -730,6 +740,8 @@ export class ReDNATCOMspViewer {
                 color = Color(sel.selector.color);
             } else if (type === 'atom') {
                 loci = this.atomLoci(sel.selector, struLoci);
+                if (loci.kind !== 'empty-loci')
+                    loci = Structure.toStructureElementLoci(StructureElement.Loci.toStructure(loci)); // Necessary to avoid selecting the entire struLoci
             }
 
             // Visualize the selected bit
@@ -1646,7 +1658,7 @@ export class ReDNATCOMspViewer {
                 }
             } else if (sel.type === 'atom') {
                 const atom = sel.atom;
-                const atomLoci = Search.findAtom(atom.chain, atom.seqId, atom.altId, atom.insCode, atom.altId, struLoci, 'auth');
+                const atomLoci = Search.findAtom(atom.chain, atom.seqId, atom.altId, atom.insCode, atom.cifAtomId, struLoci, 'auth');
                 if (atomLoci.kind === 'element-loci') {
                     this.addSelection(StruSelection(atom));
                     succeeded.push(atom);
