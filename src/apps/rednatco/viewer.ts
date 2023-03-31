@@ -7,9 +7,9 @@ import { Filters } from './filters';
 import { Filtering } from './filtering';
 import { ReferenceConformersPdbs } from './reference-conformers-pdbs';
 import { Residue } from './residue';
+import { Search } from './search';
 import { Step } from './step';
 import { Superpose } from './superpose';
-import { Traverse } from './traverse';
 import { isoBounds, prettyIso } from './util';
 import { DnatcoNtCs } from '../../extensions/dnatco';
 import { DnatcoTypes } from '../../extensions/dnatco/types';
@@ -60,6 +60,31 @@ const AnimationDurationMsec = 150;
 const BaseRef = 'rdo';
 const RCRef = 'rc';
 const SphereBoundaryHelper = new BoundaryHelper('98');
+
+export function filterResidueByAltId(altId: string, loci: StructureElement.Loci) {
+    const _loc = StructureElement.Location.create();
+    const e = loci.elements[0];
+
+    _loc.structure = loci.structure;
+    _loc.unit = e.unit;
+
+    const N = OrderedSet.size(loci.elements[0].indices);
+    const filteredIndices = [];
+    for (let idx = 0; idx < N; idx++) {
+        const uI = OrderedSet.getAt(e.indices, idx);
+        _loc.element = OrderedSet.getAt(_loc.unit.elements, uI);
+        const _altId = StructureProperties.atom.label_alt_id(_loc);
+        if (_altId === '' || altId === _altId)
+            filteredIndices.push(uI);
+    }
+
+    const filteredLoci = StructureElement.Loci(
+        loci.structure,
+        [{ unit: e.unit, indices: OrderedSet.ofSortedArray(filteredIndices) }]
+    );
+
+    return Structure.toStructureElementLoci(StructureElement.Loci.toStructure(filteredLoci));
+}
 
 function ntcStepToElementLoci(step: DnatcoTypes.Step, stru: Structure) {
     let expr = MSB.core.rel.eq([MSB.struct.atomProperty.macromolecular.auth_asym_id(), step.auth_asym_id_1]);
@@ -319,6 +344,15 @@ function StruSelection(selector: Api.Payloads.StructureSelection, objects: StruS
     return { selector, objects, update };
 }
 
+const AtomSelPayloadCmpKeys = ObjectKeys(Api.Payloads.AtomSelection(0, '', '', -1, '', '', '', 0)).filter((k) => k !== 'color');
+function atomsEqual(a: Api.Payloads.AtomSelection, b: Api.Payloads.AtomSelection) {
+    for (const key of AtomSelPayloadCmpKeys) {
+        if (a[key] !== b[key])
+            return false;
+    }
+    return true;
+}
+
 function ntcReferencesEqual(r1?: Api.Payloads.StepReference, r2?: Api.Payloads.StepReference) {
     if (r1 && !r2 || !r1 && r2)
         return false;
@@ -371,8 +405,8 @@ export class ReDNATCOMspViewer {
 
                 const _selector = sel.selector;
                 if (residuesEqual(_selector, selector)) {
-                    if (sel.selector.color !== selector.color) {
-                        sel.selector.color = selector.color;
+                    if (_selector.color !== selector.color) {
+                        _selector.color = selector.color;
                         sel.update = true;
                     }
 
@@ -384,9 +418,10 @@ export class ReDNATCOMspViewer {
                 if (sel.selector.type !== 'atom')
                     continue;
 
-                if (sel.selector.id === selector.id) {
-                    if (sel.selector.color !== selector.color) {
-                        sel.selector.color = selector.color;
+                const _selector = sel.selector;
+                if (atomsEqual(_selector, selector)) {
+                    if (_selector.color !== selector.color) {
+                        _selector.color = selector.color;
                         sel.update = true;
                     }
 
@@ -624,8 +659,12 @@ export class ReDNATCOMspViewer {
         await b.commit();
     }
 
+    private atomLoci(sel: Api.Payloads.AtomSelection, struLoci: StructureElement.Loci) {
+        return Search.findAtom(sel.chain, sel.seqId, sel.altId, sel.insCode, sel.atomId, struLoci, 'auth');
+    }
+
     private residueLoci(sel: Api.Payloads.ResidueSelection, struLoci: StructureElement.Loci) {
-        return Traverse.findResidue(sel.chain, sel.seqId, sel.altId, sel.insCode, struLoci, 'auth');
+        return Search.findResidue(sel.chain, sel.seqId, sel.altId, sel.insCode, struLoci, 'auth');
     }
 
     private stepLoci(name: string, struLoci: StructureElement.Loci) {
@@ -633,7 +672,7 @@ export class ReDNATCOMspViewer {
         if (!step)
             return EmptyLoci;
 
-        return Traverse.findStep(
+        return Search.findStep(
             step.chain,
             step.resNo1, step.altId1, step.insCode1,
             step.resNo2, step.altId2, step.insCode2,
@@ -690,7 +729,7 @@ export class ReDNATCOMspViewer {
                 loci = this.residueLoci(sel.selector, struLoci);
                 color = Color(sel.selector.color);
             } else if (type === 'atom') {
-                // TODO: Later
+                loci = this.atomLoci(sel.selector, struLoci);
             }
 
             // Visualize the selected bit
@@ -709,7 +748,7 @@ export class ReDNATCOMspViewer {
                 // Push the full residue
                 selectedLocis.push(loci);
                 // Use the filtered residue for display
-                loci = Traverse.filterResidue(sel.selector.altId, loci);
+                loci = filterResidueByAltId(sel.selector.altId, loci);
             } else
                 selectedLocis.push(loci);
 
@@ -1522,14 +1561,14 @@ export class ReDNATCOMspViewer {
             await this.visualizeNucleic(struLoci, display);
     }
 
-    async actionHighlight(highlights: Api.Payloads.Atom2Selection[]) {
+    async actionHighlight(highlights: Api.Payloads.AtomSelection[]) {
         const struLoci = this.getNucleicStructure();
         if (!struLoci)
             return;
 
         let toHighlight;
         for (const hl of highlights) {
-            const loci = Traverse.findAtom(hl.chain, hl.seqId, hl.altId, hl.insCode, hl.atomId, struLoci, 'auth');
+            const loci = Search.findAtom(hl.chain, hl.seqId, hl.altId, hl.insCode, hl.atomId, struLoci, 'auth');
             if (loci.kind === 'empty-loci')
                 continue;
 
@@ -1539,9 +1578,8 @@ export class ReDNATCOMspViewer {
                 toHighlight = StructureElement.Loci.union(toHighlight, loci);
         }
 
-        if (toHighlight) {
+        if (toHighlight)
             this.plugin.managers.interactivity.lociHighlights.highlight({ loci: toHighlight }, false);
-        }
     }
 
     async actionSelectStructures(selections: Api.Commands.StructureSelection[], display: Display) {
@@ -1561,7 +1599,7 @@ export class ReDNATCOMspViewer {
             } else if (sel.type === 'residue') {
                 m = sel.residue.modelNum;
             } else if (sel.type === 'atom') {
-                console.warn('Atom selections are not implemented yet');
+                m = sel.atom.modelNum;
             }
 
             if (modelNum === undefined)
@@ -1600,13 +1638,19 @@ export class ReDNATCOMspViewer {
                     }
                 }
             } else if (sel.type === 'residue') {
-                const residueLoci = Traverse.findResidue(sel.residue.chain, sel.residue.seqId, sel.residue.altId, sel.residue.insCode, struLoci, 'auth');
+                const residue = sel.residue;
+                const residueLoci = Search.findResidue(residue.chain, residue.seqId, residue.altId, residue.insCode, struLoci, 'auth');
                 if (residueLoci.kind === 'element-loci') {
-                    this.addSelection(StruSelection(sel.residue));
-                    succeeded.push(sel.residue);
+                    this.addSelection(StruSelection(residue));
+                    succeeded.push(residue);
                 }
             } else if (sel.type === 'atom') {
-                console.warn('Atom selections are not implemented yet');
+                const atom = sel.atom;
+                const atomLoci = Search.findAtom(atom.chain, atom.seqId, atom.altId, atom.insCode, atom.altId, struLoci, 'auth');
+                if (atomLoci.kind === 'element-loci') {
+                    this.addSelection(StruSelection(atom));
+                    succeeded.push(atom);
+                }
             }
         }
 

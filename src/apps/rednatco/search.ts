@@ -4,7 +4,7 @@ import { ResidueIndex, Structure, StructureElement, StructureProperties, Unit } 
 import { structureUnion } from '../../mol-model/structure/query/utils/structure-set';
 import { DnatcoUtil } from '../../extensions/dnatco/util';
 
-export namespace Traverse {
+export namespace Search {
     type Residue = Segmentation.Segment<ResidueIndex>;
 
     export function residueAltIds(structure: Structure, unit: Unit, residue: Residue) {
@@ -74,31 +74,6 @@ export namespace Traverse {
     export function findResidue(asymId: string, seqId: number, altId: string | undefined, insCode: string, loci: StructureElement.Loci, source: 'label' | 'auth') {
         const rloci = DnatcoUtil.residueToLoci(asymId, seqId, altId, insCode, loci, source);
         return rloci.kind === 'element-loci' ? Structure.toStructureElementLoci(StructureElement.Loci.toStructure(rloci)) : EmptyLoci;
-    }
-
-    export function filterResidue(altId: string, loci: StructureElement.Loci) {
-        const _loc = StructureElement.Location.create();
-        const e = loci.elements[0];
-
-        _loc.structure = loci.structure;
-        _loc.unit = e.unit;
-
-        const N = OrderedSet.size(loci.elements[0].indices);
-        const filteredIndices = [];
-        for (let idx = 0; idx < N; idx++) {
-            const uI = OrderedSet.getAt(e.indices, idx);
-            _loc.element = OrderedSet.getAt(_loc.unit.elements, uI);
-            const _altId = StructureProperties.atom.label_alt_id(_loc);
-            if (_altId === '' || altId === _altId)
-                filteredIndices.push(uI);
-        }
-
-        const filteredLoci = StructureElement.Loci(
-            loci.structure,
-            [{ unit: e.unit, indices: OrderedSet.ofSortedArray(filteredIndices) }]
-        );
-
-        return Structure.toStructureElementLoci(StructureElement.Loci.toStructure(filteredLoci));
     }
 
     export function findStep(

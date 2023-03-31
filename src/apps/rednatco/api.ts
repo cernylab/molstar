@@ -35,16 +35,6 @@ export namespace ReDNATCOMspApi {
 
         export type AtomSelection = {
             type: 'atom',
-            model: number, // pdbx_PDB_model_num
-            id: number, // serial no
-            color: number,
-        }
-        export function AtomSelection(model: number, id: number, color: number): AtomSelection {
-            return { type: 'atom', model, id, color };
-        }
-
-        export type Atom2Selection = {
-            type: 'atom-2',
             modelNum: number, // pdbx_PDB_model_num
             chain: string, // auth_asym_id
             cifChain: string, // label_asym_id - we need both because some chains might have the same auth name but different cif id. Crystallographgers are insane
@@ -52,10 +42,11 @@ export namespace ReDNATCOMspApi {
             insCode: string, // pdbx_PDB_ins_code
             altId: string, // label_alt_id
             atomId: string, // label_atom_id
+            color: number,
         }
-        export function Atom2Selection(modelNum: number, chain: string, cifChain: string, seqId: number, insCode: string, altId: string, atomId: string): Atom2Selection {
+        export function AtomSelection(modelNum: number, chain: string, cifChain: string, seqId: number, insCode: string, altId: string, atomId: string, color: number): AtomSelection {
             return {
-                type: 'atom-2',
+                type: 'atom',
                 modelNum,
                 chain,
                 cifChain,
@@ -63,6 +54,7 @@ export namespace ReDNATCOMspApi {
                 insCode,
                 altId,
                 atomId,
+                color
             };
         }
 
@@ -82,8 +74,8 @@ export namespace ReDNATCOMspApi {
             return { type: 'filter', filter };
         }
 
-        export type Highlight = { type: 'highlight', highlights: Payloads.Atom2Selection[] };
-        export function Highlight(highlights: Payloads.Atom2Selection[]): Highlight {
+        export type Highlight = { type: 'highlight', highlights: Payloads.AtomSelection[] };
+        export function Highlight(highlights: Payloads.AtomSelection[]): Highlight {
             return { type: 'highlight', highlights };
         }
 
@@ -123,8 +115,8 @@ export namespace ReDNATCOMspApi {
             type: 'atom',
             atom: Payloads.AtomSelection,
         }
-        export function AtomSelection(model: number, id: number, color: number): AtomSelection {
-            return { type: 'atom', atom: Payloads.AtomSelection(model, id, color) };
+        export function AtomSelection(modelNum: number, chain: string, cifChain: string, seqId: number, insCode: string, altId: string, atomId: string, color: number): AtomSelection {
+            return { type: 'atom', atom: Payloads.AtomSelection(modelNum, chain, cifChain, seqId, insCode, altId, atomId, color) };
         }
 
         export type SwitchModel = { type: 'switch-model', model: number };
