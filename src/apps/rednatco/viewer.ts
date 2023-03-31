@@ -660,7 +660,7 @@ export class ReDNATCOMspViewer {
     }
 
     private atomLoci(sel: Api.Payloads.AtomSelection, struLoci: StructureElement.Loci) {
-        return Search.findAtom(sel.chain, sel.seqId, sel.altId, sel.insCode, sel.atomId, struLoci, 'auth');
+        return Search.findAtom(sel.chain, sel.seqId, sel.altId, sel.insCode, sel.cifAtomId, struLoci, 'auth');
     }
 
     private residueLoci(sel: Api.Payloads.ResidueSelection, struLoci: StructureElement.Loci) {
@@ -1568,7 +1568,7 @@ export class ReDNATCOMspViewer {
 
         let toHighlight;
         for (const hl of highlights) {
-            const loci = Search.findAtom(hl.chain, hl.seqId, hl.altId, hl.insCode, hl.atomId, struLoci, 'auth');
+            const loci = Search.findAtom(hl.chain, hl.seqId, hl.altId, hl.insCode, hl.cifAtomId, struLoci, 'auth');
             if (loci.kind === 'empty-loci')
                 continue;
 

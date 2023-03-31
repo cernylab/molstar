@@ -41,10 +41,10 @@ export namespace ReDNATCOMspApi {
             seqId: number, // auth_seq_id
             insCode: string, // pdbx_PDB_ins_code
             altId: string, // label_alt_id
-            atomId: string, // label_atom_id
+            cifAtomId: string, // label_atom_id
             color: number,
         }
-        export function AtomSelection(modelNum: number, chain: string, cifChain: string, seqId: number, insCode: string, altId: string, atomId: string, color: number): AtomSelection {
+        export function AtomSelection(modelNum: number, chain: string, cifChain: string, seqId: number, insCode: string, altId: string, cifAtomId: string, color: number): AtomSelection {
             return {
                 type: 'atom',
                 modelNum,
@@ -53,7 +53,7 @@ export namespace ReDNATCOMspApi {
                 seqId,
                 insCode,
                 altId,
-                atomId,
+                cifAtomId,
                 color
             };
         }
@@ -115,8 +115,8 @@ export namespace ReDNATCOMspApi {
             type: 'atom',
             atom: Payloads.AtomSelection,
         }
-        export function AtomSelection(modelNum: number, chain: string, cifChain: string, seqId: number, insCode: string, altId: string, atomId: string, color: number): AtomSelection {
-            return { type: 'atom', atom: Payloads.AtomSelection(modelNum, chain, cifChain, seqId, insCode, altId, atomId, color) };
+        export function AtomSelection(modelNum: number, chain: string, cifChain: string, seqId: number, insCode: string, altId: string, cifAtomId: string, color: number): AtomSelection {
+            return { type: 'atom', atom: Payloads.AtomSelection(modelNum, chain, cifChain, seqId, insCode, altId, cifAtomId, color) };
         }
 
         export type SwitchModel = { type: 'switch-model', model: number };
