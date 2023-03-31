@@ -61,7 +61,10 @@ const BaseRef = 'rdo';
 const RCRef = 'rc';
 const SphereBoundaryHelper = new BoundaryHelper('98');
 
-export function filterResidueByAltId(altId: string, loci: StructureElement.Loci) {
+export function filterLociByAltId(altId: string, loci: StructureElement.Loci) {
+    if (altId === '')
+        return loci;
+
     const _loc = StructureElement.Location.create();
     const e = loci.elements[0];
 
@@ -677,18 +680,23 @@ export class ReDNATCOMspViewer {
         return Search.findResidue(sel.chain, sel.seqId, sel.altId, sel.insCode, struLoci, 'auth');
     }
 
-    private stepLoci(name: string, struLoci: StructureElement.Loci) {
+    private stepLoci(name: string, struLoci: StructureElement.Loci): [loci: (StructureElement.Loci | EmptyLoci), altId: string] {
         const step = this.stepFromName(name);
         if (!step)
-            return EmptyLoci;
+            return [EmptyLoci, ''];
 
-        return Search.findStep(
-            step.chain,
-            step.resNo1, step.altId1, step.insCode1,
-            step.resNo2, step.altId2, step.insCode2,
-            struLoci,
-            'auth'
-        );
+        const altId = step.altId1 ? step.altId1 : step.altId2 ? step.altId2 : '';
+
+        return [
+            Search.findStep(
+                step.chain,
+                step.resNo1, step.altId1, step.insCode1,
+                step.resNo2, step.altId2, step.insCode2,
+                struLoci,
+                'auth'
+            ),
+            altId
+        ];
     }
 
     private async visualizeNucleicNotSelected(struLoci: StructureElement.Loci, selectedLocis: StructureElement.Loci[], display: Display) {
@@ -732,16 +740,20 @@ export class ReDNATCOMspViewer {
             const type = sel.selector.type;
             let color = display.structures.chainColor;
 
+            let altId = '';
             let loci: (EmptyLoci | StructureElement.Loci) = EmptyLoci;
             if (type === 'step') {
-                loci = this.stepLoci(sel.selector.name, struLoci);
+                const [_loci, _altId] = this.stepLoci(sel.selector.name, struLoci);
+                loci = _loci; altId = _altId;
             } else if (type === 'residue') {
                 loci = this.residueLoci(sel.selector, struLoci);
                 color = Color(sel.selector.color);
+                altId = sel.selector.altId;
             } else if (type === 'atom') {
                 loci = this.atomLoci(sel.selector, struLoci);
                 if (loci.kind !== 'empty-loci')
                     loci = Structure.toStructureElementLoci(StructureElement.Loci.toStructure(loci)); // Necessary to avoid selecting the entire struLoci
+                // We're not setting altId because it makes no sense for a single atom
             }
 
             // Visualize the selected bit
@@ -750,19 +762,11 @@ export class ReDNATCOMspViewer {
                 continue;
             }
 
-            // We need to keep the list of selected locis to be able to display
-            // the "unselected" part of the structure
-            if (type === 'residue' && sel.selector.altId !== '') {
-                // We need to use the "full" residue (atoms in all altconfs) to carve out
-                // the selected residue. However, we need to use the filtered (only the altconf we want)
-                // for display. Why am I putting up with this?
-
-                // Push the full residue
-                selectedLocis.push(loci);
-                // Use the filtered residue for display
-                loci = filterResidueByAltId(sel.selector.altId, loci);
-            } else
-                selectedLocis.push(loci);
+            // We need to use the "full" substructure (atoms in all altconfs) to carve out
+            // the selected residue from the "remainder-slice".
+            // However, we need to use the filtered (only the altconf we want) for display. Why am I putting up with this?
+            selectedLocis.push(loci); // Push the unfilitered loci first
+            loci = filterLociByAltId(altId, loci);
 
             // REVIEW: Can we safely skip processing of selections that already
             // have some objects associated with them?
@@ -1633,8 +1637,8 @@ export class ReDNATCOMspViewer {
             if (sel.type === 'step') {
                 const step = this.stepFromName(sel.step.name);
                 if (step) {
-                    const prevLoci = sel.prev ? this.stepLoci(sel.prev.name, struLoci) : EmptyLoci;
-                    const nextLoci = sel.next ? this.stepLoci(sel.next.name, struLoci) : EmptyLoci;
+                    const prevLoci = sel.prev ? this.stepLoci(sel.prev.name, struLoci)[0] : EmptyLoci;
+                    const nextLoci = sel.next ? this.stepLoci(sel.next.name, struLoci)[0] : EmptyLoci;
 
                     this.addSelection(StruSelection(sel.step)); // Expect that the "stepFromName" check ensures that the step is present in the structure
                     succeeded.push(sel.step);
