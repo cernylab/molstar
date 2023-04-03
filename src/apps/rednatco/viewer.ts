@@ -413,7 +413,7 @@ export class ReDNATCOMspViewer {
                         sel.selector = selector;
                         sel.update = true;
                     }
-                    return;
+                    return false;
                 }
             }
         } else if (selector.type === 'residue') {
@@ -428,7 +428,7 @@ export class ReDNATCOMspViewer {
                         sel.update = true;
                     }
 
-                    return;
+                    return false;
                 }
             }
         } else if (selector.type === 'atom') {
@@ -443,13 +443,14 @@ export class ReDNATCOMspViewer {
                         sel.update = true;
                     }
 
-                    return;
+                    return false;
                 }
             }
         }
 
         // This is a new item, add it to selections
         this.selections.push(ns);
+        return true; // Return true to indicate that a new object has been added to selection
     }
 
     private async clearSelections() {
@@ -754,7 +755,7 @@ export class ReDNATCOMspViewer {
         await b.commit();
     }
 
-    private async visualizeNucleic(struLoci: StructureElement.Loci, display: Display) {
+    private async visualizeNucleic(updateNotSelected: boolean, struLoci: StructureElement.Loci, display: Display) {
         const NtCReferenceVisuals = (color: Color) => {
             return {
                 type: { name: 'ball-and-stick', params: { sizeFactor: 0.15, aromaticBonds: false } },
@@ -764,7 +765,6 @@ export class ReDNATCOMspViewer {
         const selectedLocis = [];
 
         let b = this.plugin.state.data.build();
-
         for (const sel of this.selections) {
             const type = sel.selector.type;
             let color = display.structures.chainColor;
@@ -895,7 +895,8 @@ export class ReDNATCOMspViewer {
         }
 
         await b.commit();
-        await this.visualizeNucleicNotSelected(struLoci, selectedLocis, display);
+        if (updateNotSelected)
+            await this.visualizeNucleicNotSelected(struLoci, selectedLocis, display);
 
         return true;
     }
@@ -1603,7 +1604,7 @@ export class ReDNATCOMspViewer {
 
         if (haveNucl) {
             const struLoci = this.getNucleicStructure()!;
-            await this.visualizeNucleic(struLoci, display);
+            await this.visualizeNucleic(true, struLoci, display);
         }
 
         return true;
@@ -1614,7 +1615,7 @@ export class ReDNATCOMspViewer {
 
         const struLoci = this.getNucleicStructure();
         if (struLoci)
-            await this.visualizeNucleic(struLoci, display);
+            await this.visualizeNucleic(true, struLoci, display);
     }
 
     async actionHighlight(highlights: Api.Payloads.AtomSelection[]) {
@@ -1673,6 +1674,7 @@ export class ReDNATCOMspViewer {
         this.switchModel(modelNum);
 
         const succeeded = [];
+        let selectionExtended = false;
         for (const sel of selections) {
             if (sel.type === 'step') {
                 const step = this.stepFromName(sel.step.name);
@@ -1684,12 +1686,12 @@ export class ReDNATCOMspViewer {
                     succeeded.push(sel.step);
 
                     if (prevLoci.kind === 'element-loci') {
-                        this.addSelection(StruSelection(sel.prev!));
+                        selectionExtended = this.addSelection(StruSelection(sel.prev!)) || selectionExtended;
                         succeeded.push(sel.prev!);
                     }
 
                     if (nextLoci.kind === 'element-loci') {
-                        this.addSelection(StruSelection(sel.next!));
+                        selectionExtended = this.addSelection(StruSelection(sel.next!)) || selectionExtended;
                         succeeded.push(sel.next!);
                     }
                 }
@@ -1697,20 +1699,20 @@ export class ReDNATCOMspViewer {
                 const residue = sel.residue;
                 const residueLoci = Search.findResidue(residue.chain, residue.seqId, residue.altId, residue.insCode, struLoci, 'auth');
                 if (residueLoci.kind === 'element-loci') {
-                    this.addSelection(StruSelection(residue));
+                    selectionExtended = this.addSelection(StruSelection(residue)) || selectionExtended;
                     succeeded.push(residue);
                 }
             } else if (sel.type === 'atom') {
                 const atom = sel.atom;
                 const atomLoci = Search.findAtom(atom.chain, atom.seqId, atom.altId, atom.insCode, atom.cifAtomId, struLoci, 'auth');
                 if (atomLoci.kind === 'element-loci') {
-                    this.addSelection(StruSelection(atom));
+                    selectionExtended = this.addSelection(StruSelection(atom)) || selectionExtended;
                     succeeded.push(atom);
                 }
             }
         }
 
-        await this.visualizeNucleic(struLoci, display);
+        await this.visualizeNucleic(selectionExtended, struLoci, display);
 
         return succeeded;
     }
