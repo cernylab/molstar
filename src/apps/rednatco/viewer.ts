@@ -1428,6 +1428,15 @@ export class ReDNATCOMspViewer {
                 );
         }
 
+        if (display.structures.showPyramids) {
+            b3.to(IDs.ID('structure', 'nucleic', BaseRef))
+                .apply(
+                    StateTransforms.Representation.StructureRepresentation3D,
+                    this.pyramidsParams(display.structures.conformerColors ?? NtCColors.Conformers, new Map(), display.structures.pyramidsTransparent ?? false),
+                    { ref: IDs.ID('pyramids', 'nucleic', BaseRef) }
+                );
+        }
+
         await b3.commit();
 
         // Load density map, if any
