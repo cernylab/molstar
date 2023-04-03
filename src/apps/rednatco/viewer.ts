@@ -31,6 +31,7 @@ import { PluginContext } from '../../mol-plugin/context';
 import { PluginSpec } from '../../mol-plugin/spec';
 import { LociLabel } from '../../mol-plugin-state/manager/loci-label';
 import { StateTransforms } from '../../mol-plugin-state/transforms';
+import { StructureRepresentation3D } from '../../mol-plugin-state/transforms/representation';
 import { RawData } from '../../mol-plugin-state/transforms/data';
 import { createPluginUI } from '../../mol-plugin-ui';
 import { PluginUIContext } from '../../mol-plugin-ui/context';
@@ -327,15 +328,19 @@ type OtherStruObjectParams = {
 }
 type VisualStruObjectParams = {
     kind: 'visual',
-    useChainColor: boolean,
+    params: {
+        molstar: Partial<ReturnType<StructureRepresentation3D['createDefaultParams']>>,
+        useChainColor: boolean,
+    },
 }
 type StruObject = {
     id: string,
+    parentId: string,
     params: OtherStruObjectParams | VisualStruObjectParams,
     primary: boolean,
 }
-function StruObject(id: string, params: StruObject['params'], primary: boolean): StruObject {
-    return { id, params, primary };
+function StruObject(id: string, parentId: string, params: StruObject['params'], primary: boolean): StruObject {
+    return { id, parentId, params, primary };
 }
 
 type StruSelection = {
@@ -643,6 +648,8 @@ export class ReDNATCOMspViewer {
                     };
             }
         }
+
+        return {};
     }
 
     private superpose(reference: StructureElement.Loci, stru: StructureElement.Loci) {
@@ -659,15 +666,38 @@ export class ReDNATCOMspViewer {
         if (!this.has('structure', 'nucleic', BaseRef))
             return;
 
-        const b = this.getBuilder('structure', 'nucleic');
-        if (show) {
-            b.apply(
-                StateTransforms.Representation.StructureRepresentation3D,
-                this.substructureVisuals(visual),
-                { ref: IDs.ID('visual', 'nucleic', BaseRef) }
-            );
-        } else
+        const b = this.plugin.state.data.build();
+        if (!show) {
+            for (const sel of this.selections) {
+                for (const obj of sel.objects) {
+                    if (obj.params.kind === 'visual')
+                        b.delete(obj.id);
+                }
+            }
+
             b.delete(IDs.ID('visual', 'nucleic', BaseRef));
+        } else {
+
+            for (const sel of this.selections) {
+                for (const obj of sel.objects) {
+                    if (obj.params.kind === 'visual') {
+                        b.to(obj.parentId)
+                            .apply(
+                                StateTransforms.Representation.StructureRepresentation3D,
+                                obj.params.params.molstar,
+                                { ref: obj.id }
+                            );
+                    }
+                }
+            }
+
+            b.to(IDs.ID('structure-slice', 'nucleic', BaseRef))
+                .apply(
+                    StateTransforms.Representation.StructureRepresentation3D,
+                    this.substructureVisuals(visual),
+                    { ref: IDs.ID('visual', 'nucleic', BaseRef) }
+                );
+        }
 
         await b.commit();
     }
@@ -700,9 +730,6 @@ export class ReDNATCOMspViewer {
     }
 
     private async visualizeNucleicNotSelected(struLoci: StructureElement.Loci, selectedLocis: StructureElement.Loci[], display: Display) {
-        if (!display.structures.showNucleic)
-            return;
-
         const notSelected = structureSubtract(struLoci.structure, structureUnion(struLoci.structure, selectedLocis.map(x => x.structure)));
         const b = this.plugin.state.data.build().to(IDs.ID('structure', 'nucleic', BaseRef))
             .applyOrUpdate(
@@ -715,12 +742,14 @@ export class ReDNATCOMspViewer {
             ? SubstructureVisual.NtC('ntc-tube', display.structures.conformerColors)
             : SubstructureVisual.BuiltIn(display.structures.nucleicRepresentation, Color(display.structures.chainColor));
 
-        b.to(IDs.ID('structure-slice', 'nucleic', BaseRef))
-            .apply(
-                StateTransforms.Representation.StructureRepresentation3D,
-                this.substructureVisuals(vis),
-                { ref: IDs.ID('visual', 'nucleic', BaseRef) }
-            );
+        if (display.structures.showNucleic) {
+            b.to(IDs.ID('structure-slice', 'nucleic', BaseRef))
+                .apply(
+                    StateTransforms.Representation.StructureRepresentation3D,
+                    this.substructureVisuals(vis),
+                    { ref: IDs.ID('visual', 'nucleic', BaseRef) }
+                );
+        }
 
         await b.commit();
     }
@@ -782,24 +811,29 @@ export class ReDNATCOMspViewer {
                         (old) => ({ ...old, ...this.substructureVisuals(SubstructureVisual.BuiltIn('ball-and-stick', color)) })
                     );
             } else {
+                const nuclStruRef = IDs.ID('structure', 'nucleic', BaseRef);
                 const objRef = UUID.create22();
-                b.to(IDs.ID('structure', 'nucleic', BaseRef))
+                b.to(nuclStruRef)
                     .apply(
                         StateTransforms.Model.StructureSelectionFromBundle,
                         { bundle: StructureElement.Bundle.fromSubStructure(struLoci.structure, loci.structure) },
                         { ref: objRef }
                     );
-                sel.objects.push(StruObject(objRef, { kind: 'structure' }, true));
+                sel.objects.push(StruObject(objRef, nuclStruRef, { kind: 'structure' }, true));
 
                 const objRef2 = UUID.create22();
-                b.to(objRef)
-                    .apply(
-                        StateTransforms.Representation.StructureRepresentation3D,
-                        this.substructureVisuals(SubstructureVisual.BuiltIn('ball-and-stick', color)),
-                        { ref: objRef2 }
-                    );
+                const visualParams = this.substructureVisuals(SubstructureVisual.BuiltIn('ball-and-stick', color));
 
-                sel.objects.push(StruObject(objRef2, { kind: 'visual', useChainColor: true }, true));
+                if (display.structures.showNucleic) {
+                    b.to(objRef)
+                        .apply(
+                            StateTransforms.Representation.StructureRepresentation3D,
+                            visualParams,
+                            { ref: objRef2 }
+                        );
+                }
+
+                sel.objects.push(StruObject(objRef2, objRef, { kind: 'visual', params: { molstar: visualParams, useChainColor: true } }, true));
             }
 
             // If the selection is a step, it can have a reference we have to superpose.
@@ -809,7 +843,7 @@ export class ReDNATCOMspViewer {
                 if (sel.update) {
                     // We need to remove the entire reference because the reference model might have changed
                     for (const obj of sel.objects.filter((x) => !x.primary))
-                        b = b.delete(obj.id);
+                        b.delete(obj.id);
 
                     sel.objects = sel.objects.filter((x) => x.primary);
                 }
@@ -817,7 +851,7 @@ export class ReDNATCOMspViewer {
                 let objRef = UUID.create22();
                 b.to(IDs.ID('model', '', ntcRef))
                     .apply(StateTransforms.Model.StructureFromModel, {}, { ref: objRef });
-                sel.objects.push(StruObject(objRef, { kind: 'structure' }, false));
+                sel.objects.push(StruObject(objRef, ntcRef, { kind: 'structure' }, false));
 
                 // Now we actually need to commit to get the added Structure object to appear in the state tree
                 await b.commit();
@@ -838,16 +872,22 @@ export class ReDNATCOMspViewer {
                             { transform: { name: 'matrix', params: { data: bTransform, transpose: false } } },
                             { ref: objRef2 }
                         );
-                    sel.objects.push(StruObject(objRef2, { kind: 'other' }, false));
+                    sel.objects.push(StruObject(objRef2, objRef, { kind: 'other' }, false));
 
                     objRef = objRef2;
                     objRef2 = UUID.create22();
-                    b.to(objRef)
-                        .apply(
-                            StateTransforms.Representation.StructureRepresentation3D,
-                            NtCReferenceVisuals(Color(sel.selector.reference.color)),
-                        );
-                    sel.objects.push(StruObject(objRef2, { kind: 'visual', useChainColor: false }, false));
+                    const ntcVisualParams = NtCReferenceVisuals(Color(sel.selector.reference.color));
+
+                    if (display.structures.showNucleic) {
+                        b.to(objRef)
+                            .apply(
+                                StateTransforms.Representation.StructureRepresentation3D,
+                                ntcVisualParams,
+                                { ref: objRef2 }
+                            );
+                    }
+
+                    sel.objects.push(StruObject(objRef2, objRef, { kind: 'visual', params: { molstar: ntcVisualParams, useChainColor: false } }, false));
                 }
             }
 
@@ -943,7 +983,7 @@ export class ReDNATCOMspViewer {
         if (subs.includes('nucleic')) {
             for (const sel of this.selections) {
                 for (const obj of sel.objects) {
-                    if (obj.params.kind === 'visual' && obj.params.useChainColor) {
+                    if (obj.params.kind === 'visual' && obj.params.params.useChainColor) {
                         b.to(obj.id)
                             .update(
                                 StateTransforms.Representation.StructureRepresentation3D,
