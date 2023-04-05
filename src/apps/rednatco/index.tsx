@@ -225,7 +225,8 @@ export class ReDNATCOMsp extends React.Component<ReDNATCOMsp.Props, State> {
         } else if (cmd.type === 'select-structures') {
             const succeeded = await this.viewer.actionSelectStructures(cmd.selections, this.state.display);
             if (succeeded.length > 0) {
-                this.viewer.focusOnSelection(succeeded[succeeded.length - 1]);
+                //this.viewer.focusOnSelection([succeeded[succeeded.length - 1]]);
+                this.viewer.focusOnSelection(succeeded);
                 ReDNATCOMspApi.event(Api.Events.StructuresSelectedOk(succeeded));
             } else
                 ReDNATCOMspApi.event(Api.Events.StructuresSelectedFail());

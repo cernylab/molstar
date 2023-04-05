@@ -60,7 +60,24 @@ const Extensions = {
 const AnimationDurationMsec = 150;
 const BaseRef = 'rdo';
 const RCRef = 'rc';
+
 const SphereBoundaryHelper = new BoundaryHelper('98');
+function getBoundingSphere(locis: Representation.Loci[]) {
+    SphereBoundaryHelper.reset();
+    for (const loci of locis) {
+        const sphere = Loci.getBoundingSphere(loci.loci);
+        if (sphere)
+            SphereBoundaryHelper.includeSphere(sphere);
+    }
+    SphereBoundaryHelper.finishedIncludeStep();
+    for (const loci of locis) {
+        const sphere = Loci.getBoundingSphere(loci.loci);
+        if (sphere)
+            SphereBoundaryHelper.radiusSphere(sphere);
+    }
+
+    return SphereBoundaryHelper.getSphere();
+}
 
 export function filterLociByAltId(altId: string, loci: StructureElement.Loci) {
     if (altId === '')
@@ -233,15 +250,12 @@ const ReDNATCOLociSelectionProvider = PluginBehavior.create({
     display: { name: 'Interactive step selection' },
     params: () => ReDNATCOLociSelectionParams,
     ctor: class extends PluginBehavior.Handler<ReDNATCOLociSelectionProps> {
-        private focusOnLoci(loci: Representation.Loci) {
+        private focusOnLoci(locis: Representation.Loci[]) {
             if (!this.ctx.canvas3d)
                 return;
 
-            const sphere = Loci.getBoundingSphere(loci.loci);
-            if (!sphere)
-                return;
             const snapshot = this.ctx.canvas3d.camera.getSnapshot();
-            snapshot.target = sphere.center;
+            snapshot.target = getBoundingSphere(locis).center;
 
             PluginCommands.Camera.SetSnapshot(this.ctx, { snapshot, durationMs: AnimationDurationMsec });
         }
@@ -250,7 +264,7 @@ const ReDNATCOLociSelectionProvider = PluginBehavior.create({
             const lociIsNotEmpty = (current: Representation.Loci) => !Loci.isEmpty(current.loci);
 
             const actions: [keyof typeof ReDNATCOLociSelectionBindings, (current: Representation.Loci) => void, ((current: Representation.Loci) => boolean) | undefined][] = [
-                ['clickFocus', current => this.focusOnLoci(current), lociIsNotEmpty],
+                ['clickFocus', current => this.focusOnLoci([current]), lociIsNotEmpty],
                 [
                     'clickDeselectAllOnEmpty',
                     () => {
@@ -490,26 +504,24 @@ export class ReDNATCOMspViewer {
         };
     }
 
-    private focusOnLoci(loci: StructureElement.Loci) {
+    private focusOnLocis(locis: StructureElement.Loci[]) {
         if (!this.plugin.canvas3d)
             return;
 
-        const sphere = Loci.getBoundingSphere(loci);
-        if (!sphere)
-            return;
+        const bSphere = getBoundingSphere(locis.map((l) => ({ loci: l })));
         const snapshot = this.plugin.canvas3d.camera.getSnapshot();
-        const radius = (sphere.radius < 1 ? 1 : sphere.radius) * 8;
+        const radius = (bSphere.radius < 1 ? 1 : bSphere.radius) * 8;
 
         const v = Vec3();
         const u = Vec3();
-        Vec3.set(v, sphere.center[0], sphere.center[1], sphere.center[2]);
+        Vec3.set(v, bSphere.center[0], bSphere.center[1], bSphere.center[2]);
         Vec3.set(u, snapshot.position[0], snapshot.position[1], snapshot.position[2]);
         Vec3.sub(u, u, v);
         Vec3.normalize(u, u);
         Vec3.scale(u, u, radius);
         Vec3.add(v, u, v);
 
-        snapshot.target = sphere.center;
+        snapshot.target = bSphere.center;
         snapshot.position = v;
         snapshot.radius = radius;
 
@@ -566,33 +578,22 @@ export class ReDNATCOMspViewer {
         if (!this.plugin.canvas3d)
             return;
 
-        const spheres = [];
+        const locis = [];
         for (const [ref, cell] of Array.from(this.plugin.state.data.cells)) {
             if (!IDs.isVisual(ref))
                 continue;
             const parent = this.getStructureParent(cell);
-            if (parent) {
-                const loci = Structure.toStructureElementLoci(parent.data);
-                const s = Loci.getBoundingSphere(loci);
-                if (s)
-                    spheres.push(s);
-            }
+            if (parent)
+                locis.push(Structure.toStructureElementLoci(parent.data));
         }
 
-        if (spheres.length === 0)
+        if (locis.length < 1)
             return;
 
-        SphereBoundaryHelper.reset();
-        for (const s of spheres)
-            SphereBoundaryHelper.includePositionRadius(s.center, s.radius);
-        SphereBoundaryHelper.finishedIncludeStep();
-        for (const s of spheres)
-            SphereBoundaryHelper.radiusPositionRadius(s.center, s.radius);
-        const bs = SphereBoundaryHelper.getSphere();
-
+        const bSphere = getBoundingSphere(locis.map((l) => ({ loci: l })));
         const snapshot = this.plugin.canvas3d.camera.getSnapshot();
-        snapshot.radius = bs.radius;
-        snapshot.target = bs.center;
+        snapshot.radius = bSphere.radius;
+        snapshot.target = bSphere.center;
         PluginCommands.Camera.SetSnapshot(this.plugin, { snapshot, durationMs: AnimationDurationMsec });
     }
 
@@ -1154,46 +1155,31 @@ export class ReDNATCOMspViewer {
         return { min: grid.stats.min, max: grid.stats.max };
     }
 
-    focusOnSelection(sel: Api.Payloads.StructureSelection) {
-        let focusOn;
+    focusOnSelection(selectionsToFocusOn: Api.Payloads.StructureSelection[]) {
+        const locis = [];
 
-        for (const struSel of this.selections) {
-            if (sel.type === struSel.selector.type) {
-                if (sel.type === 'step') {
-                    const selector = struSel.selector as Api.Payloads.StepSelection;
+        for (const sel of selectionsToFocusOn) {
+            const selObj = this.selections.find((obj) => {
+                if (sel.type !== obj.selector.type)
+                    return false;
 
-                    if (sel.name === selector.name) {
-                        for (const obj of struSel.objects) {
-                            if (obj.params.kind === 'structure') {
-                                const stru = this.plugin.state.data.cells.get(obj.id)!.obj!.data;
-                                if (!focusOn) {
-                                    focusOn = Structure.toStructureElementLoci(stru);
-                                } else
-                                    StructureElement.Loci.union(focusOn, Structure.toStructureElementLoci(stru));
-                            }
-                        }
+                if (obj.selector.type === 'step' && (sel as Api.Payloads.StepSelection).name === obj.selector.name)
+                    return true;
+                else if (obj.selector.type === 'residue' && residuesEqual((sel as Api.Payloads.ResidueSelection), obj.selector))
+                    return true;
+                return false;
+            });
 
-                        break;
-                    }
-                } else if (sel.type === 'residue') {
-                    const selector = struSel.selector as Api.Payloads.ResidueSelection;
-                    if (residuesEqual(sel, selector)) {
-                        for (const obj of struSel.objects) {
-                            if (obj.params.kind === 'structure') {
-                                const stru = this.plugin.state.data.cells.get(obj.id)!.obj!.data;
-                                focusOn = Structure.toStructureElementLoci(stru);
-                                break;
-                            }
-                        }
-
-                        break;
-                    }
+            if (selObj) {
+                for (const obj of selObj.objects) {
+                    if (obj.params.kind === 'structure' && obj.primary)
+                        locis.push(Structure.toStructureElementLoci(this.plugin.state.data.cells.get(obj.id)!.obj!.data));
                 }
             }
         }
 
-        if (focusOn)
-            this.focusOnLoci(focusOn);
+        if (locis.length > 0)
+            this.focusOnLocis(locis);
     }
 
     gatherStepInfo(): { steps: Step.ExtendedDescription[], stepNames: Map<string, number> } | undefined {
