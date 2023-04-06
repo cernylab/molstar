@@ -1,6 +1,6 @@
 import React, { CSSProperties } from 'react';
 
-type Orientation = 'horizontal'|'vertical';
+type Orientation = 'horizontal' | 'vertical';
 
 const StyleControls: Record<Orientation, CSSProperties> = {
     horizontal: {},
@@ -15,7 +15,7 @@ const StyleTainer: Record<Orientation, CSSProperties> = {
     vertical: { display: 'flex', flexDirection: 'row' },
 };
 
-type IconStatus = 'normal'|'selected'|'disabled';
+type IconStatus = 'normal' | 'selected' | 'disabled';
 const IconTainerClasses: Record<IconStatus, string> = {
     normal: 'rmsp-toolbar-icon-tainer',
     selected: 'rmsp-toolbar-icon-tainer rmsp-toolbar-icon-tainer-selected',
@@ -26,7 +26,7 @@ const IconClasses: Record<IconStatus, string> = {
     selected: 'rmsp-toolbar-icon rmsp-toolbar-icon-selected',
     disabled: 'rmsp-toolbar-icon-disabled',
 };
-class Icon extends React.Component<{ img: string, status: 'normal'|'selected'|'disabled', onClicked: () => void }> {
+class Icon extends React.Component<{ img: string, status: 'normal' | 'selected' | 'disabled', onClicked: () => void }> {
     render() {
         return (
             <div
@@ -45,7 +45,7 @@ class Icon extends React.Component<{ img: string, status: 'normal'|'selected'|'d
 }
 
 interface State<ID extends string> {
-    selected: ID|null;
+    selected: ID | null;
 }
 export class ToolBar<ID extends string> extends React.Component<ToolBar.Props<ID>, State<ID>> {
     constructor(props: ToolBar.Props<ID>) {
@@ -119,7 +119,7 @@ export namespace ToolBar {
     }
 }
 
-export class ToolBarContent extends React.Component<{ children: React.ReactNode|React.ReactNode[], style?: CSSProperties }> {
+export class ToolBarContent extends React.Component<{ children: React.ReactNode | React.ReactNode[], style?: CSSProperties }> {
     render() {
         return (
             <div className='rmsp-toolbar-control-block-content' style={this.props.style}>

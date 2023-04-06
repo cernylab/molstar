@@ -23,15 +23,15 @@ export namespace Step {
         closestNtC: string;
     };
 
-    function nameResidue(seqId: number, compId: string, altId: string|undefined, insCode: string) {
+    function nameResidue(seqId: number, compId: string, altId: string | undefined, insCode: string) {
         return `${compId}${altId ? `.${altId}` : ''}_${seqId}${insCode !== '' ? `.${insCode}` : '' }`;
     }
 
     function nameStep(
         entryId: string,
         modelNum: number, asymId: string,
-        seqId1: number, compId1: string, altId1: string|undefined, insCode1: string,
-        seqId2: number, compId2: string, altId2: string|undefined, insCode2: string,
+        seqId1: number, compId1: string, altId1: string | undefined, insCode1: string,
+        seqId2: number, compId2: string, altId2: string | undefined, insCode2: string,
         multipleModels: boolean
     ) {
         const res1 = nameResidue(seqId1, compId1, altId1, insCode1);
@@ -40,7 +40,7 @@ export namespace Step {
         return `${entryId}${multipleModels ? `-m${modelNum}` : ''}_${asymId}_${res1}_${res2}`;
     }
 
-    function residueDescription(a: string, b: string): { comp: string, altId?: string, resNo: number, insCode: string }|undefined {
+    function residueDescription(a: string, b: string): { comp: string, altId?: string, resNo: number, insCode: string } | undefined {
         const toksA = a.split('.');
         const toksB = b.split('.');
 
