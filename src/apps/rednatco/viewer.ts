@@ -52,6 +52,7 @@ import { ParamDefinition as PD } from '../../mol-util/param-definition';
 import { ObjectKeys } from '../../mol-util/type-helpers';
 import './molstar.css';
 import './rednatco-molstar.css';
+import {Sphere3D} from '../../mol-math/geometry';
 
 const Extensions = {
     'ntcs-prop': PluginSpec.Behavior(DnatcoNtCs),
@@ -509,23 +510,7 @@ export class ReDNATCOMspViewer {
             return;
 
         const bSphere = getBoundingSphere(locis.map((l) => ({ loci: l })));
-        const snapshot = this.plugin.canvas3d.camera.getSnapshot();
-        const radius = (bSphere.radius < 1 ? 1 : bSphere.radius) * 8;
-
-        const v = Vec3();
-        const u = Vec3();
-        Vec3.set(v, bSphere.center[0], bSphere.center[1], bSphere.center[2]);
-        Vec3.set(u, snapshot.position[0], snapshot.position[1], snapshot.position[2]);
-        Vec3.sub(u, u, v);
-        Vec3.normalize(u, u);
-        Vec3.scale(u, u, radius);
-        Vec3.add(v, u, v);
-
-        snapshot.target = bSphere.center;
-        snapshot.position = v;
-        snapshot.radius = radius;
-
-        PluginCommands.Camera.SetSnapshot(this.plugin, { snapshot, durationMs: AnimationDurationMsec });
+        this.repositionCamera(bSphere);
     }
 
     private getBuilder(id: IDs.ID, sub: IDs.Substructure | '' = '', ref = BaseRef) {
@@ -574,7 +559,27 @@ export class ReDNATCOMspViewer {
         };
     }
 
-    private resetCameraRadius() {
+    private repositionCamera(boundingSphere: Sphere3D) {
+        const snapshot = this.plugin.canvas3d!.camera.getSnapshot();
+        const radius = (boundingSphere.radius < 1 ? 1 : boundingSphere.radius) * 8;
+
+        const v = Vec3();
+        const u = Vec3();
+        Vec3.set(v, boundingSphere.center[0], boundingSphere.center[1], boundingSphere.center[2]);
+        Vec3.set(u, snapshot.position[0], snapshot.position[1], snapshot.position[2]);
+        Vec3.sub(u, u, v);
+        Vec3.normalize(u, u);
+        Vec3.scale(u, u, radius);
+        Vec3.add(v, u, v);
+
+        snapshot.target = boundingSphere.center;
+        snapshot.position = v;
+        snapshot.radius = radius;
+
+        PluginCommands.Camera.SetSnapshot(this.plugin, { snapshot, durationMs: AnimationDurationMsec });
+    }
+
+    private resetCamera() {
         if (!this.plugin.canvas3d)
             return;
 
@@ -591,10 +596,7 @@ export class ReDNATCOMspViewer {
             return;
 
         const bSphere = getBoundingSphere(locis.map((l) => ({ loci: l })));
-        const snapshot = this.plugin.canvas3d.camera.getSnapshot();
-        snapshot.radius = bSphere.radius;
-        snapshot.target = bSphere.center;
-        PluginCommands.Camera.SetSnapshot(this.plugin, { snapshot, durationMs: AnimationDurationMsec });
+        this.repositionCamera(bSphere);
     }
 
     private stepFromName(name: string) {
@@ -1509,7 +1511,10 @@ export class ReDNATCOMspViewer {
     }
 
     notifyStructureDeselected() {
-        this.app.viewerStructureDeselected();
+        if (this.selections.length === 0)
+            this.resetCamera();
+        else
+            this.app.viewerStructureDeselected();
     }
 
     notifyStepSelected(name: string) {
@@ -1775,7 +1780,7 @@ export class ReDNATCOMspViewer {
         } else if (sub === 'protein') {
             if (!display.structures.showProtein) {
                 await PluginCommands.State.RemoveObject(this.plugin, { state: this.plugin.state.data, ref: IDs.ID('visual', sub, BaseRef) });
-                this.resetCameraRadius();
+                this.resetCamera();
             } else {
                 const b = this.getBuilder('structure', sub);
                 if (b) {
@@ -1790,7 +1795,7 @@ export class ReDNATCOMspViewer {
         } else if (sub === 'water') {
             if (!display.structures.showWater) {
                 await PluginCommands.State.RemoveObject(this.plugin, { state: this.plugin.state.data, ref: IDs.ID('visual', sub, BaseRef) });
-                this.resetCameraRadius();
+                this.resetCamera();
             } else {
                 const b = this.getBuilder('structure', sub);
                 if (b) {
