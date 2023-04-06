@@ -12,6 +12,7 @@ import { Residue } from './residue';
 import { toggleArray } from './util';
 import { ToolBar, ToolBarContent } from './tool-bar';
 import { Color } from '../../mol-util/color';
+import { deepClone } from '../../mol-util/object';
 import { assertUnreachable } from '../../mol-util/type-helpers';
 import './assets/imgs/density-wireframe.svg';
 import './assets/imgs/nucleic.svg';
@@ -106,7 +107,7 @@ export class ReDNATCOMsp extends React.Component<ReDNATCOMsp.Props, State> {
         super(props);
 
         this.state = {
-            display: { ...Display },
+            display: deepClone(Display),
             showControls: false,
         };
     }
@@ -225,7 +226,6 @@ export class ReDNATCOMsp extends React.Component<ReDNATCOMsp.Props, State> {
         } else if (cmd.type === 'select-structures') {
             const succeeded = await this.viewer.actionSelectStructures(cmd.selections, this.state.display);
             if (succeeded.length > 0) {
-                //this.viewer.focusOnSelection([succeeded[succeeded.length - 1]]);
                 this.viewer.focusOnSelection(succeeded);
                 ReDNATCOMspApi.event(Api.Events.StructuresSelectedOk(succeeded));
             } else

@@ -16,6 +16,7 @@ import { DnatcoTypes } from '../../extensions/dnatco/types';
 import { NtCTubeTypes } from '../../extensions/dnatco/ntc-tube/types';
 import { ConfalPyramidsParams } from '../../extensions/dnatco/confal-pyramids/representation';
 import { OrderedSet } from '../../mol-data/int/ordered-set';
+import { Sphere3D } from '../../mol-math/geometry';
 import { BoundaryHelper } from '../../mol-math/geometry/boundary-helper';
 import { Vec3 } from '../../mol-math/linear-algebra/3d';
 import { EmptyLoci, Loci } from '../../mol-model/loci';
@@ -52,7 +53,6 @@ import { ParamDefinition as PD } from '../../mol-util/param-definition';
 import { ObjectKeys } from '../../mol-util/type-helpers';
 import './molstar.css';
 import './rednatco-molstar.css';
-import {Sphere3D} from '../../mol-math/geometry';
 
 const Extensions = {
     'ntcs-prop': PluginSpec.Behavior(DnatcoNtCs),
