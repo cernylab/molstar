@@ -1,8 +1,8 @@
-/* eslint-disable array-bracket-spacing, no-multi-spaces, indent */
+/* eslint-disable array-bracket-spacing, no-multi-spaces, indent, @typescript-eslint/indent */
 
-import {ObjectKeys} from "../../mol-util/type-helpers";
+import { ObjectKeys } from '../../mol-util/type-helpers';
 
-export type Ring = 'purine'|'pyrimidine'|'PSU';
+export type Ring = 'purine' | 'pyrimidine' | 'PSU';
 
 export const ReferenceCompounds: Record<string, [string, string]> = {
     AA00: [ 'A',  'G'],

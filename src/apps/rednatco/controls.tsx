@@ -147,8 +147,8 @@ export namespace RangeSlider {
         min: number;
         max: number;
         step: number;
-        value: number|null;
-        onChange: (n: number|null) => void;
+        value: number | null;
+        onChange: (n: number | null) => void;
     }
 }
 
