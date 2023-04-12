@@ -239,6 +239,11 @@ export class ReDNATCOMsp extends React.Component<ReDNATCOMsp.Props, State> {
             this.viewer.actionSwitchSelectionGranularity(cmd.granularity);
         } else if (cmd.type === 'unhighlight') {
             this.viewer.actionUnhighlight();
+        } else if (cmd.type === 'freeze') {
+            if (cmd.freeze)
+                this.viewer.plugin.canvas3d?.pause();
+            else
+                this.viewer.plugin.canvas3d?.resume();
         }
     }
 

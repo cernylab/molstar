@@ -74,6 +74,11 @@ export namespace ReDNATCOMspApi {
             return { type: 'filter', filter };
         }
 
+        export type Freeze = { type: 'freeze', freeze: boolean };
+        export function Freeze(freeze: boolean): Freeze {
+            return { type: 'freeze', freeze };
+        }
+
         export type Highlight = { type: 'highlight', highlights: Payloads.AtomSelection[] };
         export function Highlight(highlights: Payloads.AtomSelection[]): Highlight {
             return { type: 'highlight', highlights };
@@ -135,6 +140,7 @@ export namespace ReDNATCOMspApi {
     export type Command =
         Commands.DeselectStructures |
         Commands.Filter |
+        Commands.Freeze |
         Commands.Highlight |
         Commands.Redraw |
         Commands.SelectStructures |
