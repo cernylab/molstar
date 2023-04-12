@@ -241,9 +241,9 @@ export class ReDNATCOMsp extends React.Component<ReDNATCOMsp.Props, State> {
             this.viewer.actionUnhighlight();
         } else if (cmd.type === 'freeze') {
             if (cmd.freeze)
-                this.viewer.plugin.canvas3d?.pause();
+                this.viewer.plugin.canvas3d!.pause(true);
             else
-                this.viewer.plugin.canvas3d?.resume();
+                this.viewer.plugin.canvas3d!.resume();
         }
     }
 
