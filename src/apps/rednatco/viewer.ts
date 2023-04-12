@@ -400,17 +400,17 @@ export class ReDNATCOMspViewer {
     private app: ReDNATCOMsp;
     private selections = new Array<StruSelection>();
 
-    constructor(public plugin: PluginUIContext, interactionContext: { self?: ReDNATCOMspViewer }, app: ReDNATCOMsp) {
+    constructor(public plugin: PluginUIContext, interactionContext: { self?: ReDNATCOMspViewer }, options: Partial<Api.Options>, app: ReDNATCOMsp) {
         interactionContext.self = this;
         this.app = app;
 
         this.plugin.canvas3d?.setProps({
             renderer: {
-                highlightColor: Color(0x49ff92),
+                highlightColor: options.highlightColor ? Color(options.highlightColor) : Color(0x49ff92),
             },
             marking: {
-                highlightEdgeColor: Color(0x49ff92),
-                highlightEdgeStrength: 2.0,
+                highlightEdgeColor: options.highlightColor ? Color(options.highlightColor) : Color(0x49ff92),
+                highlightEdgeStrength: options.highlightThickness ? options.highlightThickness : 2.0,
             }
         });
     }
@@ -914,7 +914,7 @@ export class ReDNATCOMspViewer {
         };
     }
 
-    static async create(target: HTMLElement, app: ReDNATCOMsp) {
+    static async create(target: HTMLElement, options: Partial<Api.Options>, app: ReDNATCOMsp) {
         const interactCtx: { self?: ReDNATCOMspViewer } = { self: undefined };
         const defaultSpec = DefaultPluginUISpec();
         const spec: PluginUISpec = {
@@ -963,7 +963,7 @@ export class ReDNATCOMspViewer {
         plugin.managers.interactivity.setProps({ granularity: 'two-residues' });
         plugin.selectionMode = true;
 
-        return new ReDNATCOMspViewer(plugin, interactCtx, app);
+        return new ReDNATCOMspViewer(plugin, interactCtx, options, app);
     }
 
     async changeChainColor(subs: IDs.Substructure[], display: Display) {

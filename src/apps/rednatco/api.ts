@@ -202,10 +202,15 @@ export namespace ReDNATCOMspApi {
         'selected-structures': Payloads.StructureSelection[],
     }
 
+    export type Options = {
+        highlightColor: number;
+        highlightThickness: number;
+    }
+
     export interface Object {
         command: (cmd: Command) => Promise<void>;
         event: (evt: Event) => void;
-        init: (elemId: string, onEvent?: (evt: Event) => void) => void;
+        init: (elemId: string, onEvent?: (evt: Event) => void, options?: Partial<Options>) => void;
         isReady: () => boolean;
         loadStructure: (coords: { data: string, type: CoordinatesFormat, modelNumber: number }, densityMaps: { data: Uint8Array, type: DensityMapFormat, kind: DensityMapKind }[] | null) => void;
         query: <K extends keyof Queries>(type: K) => Queries[K],

@@ -312,7 +312,7 @@ export class ReDNATCOMsp extends React.Component<ReDNATCOMsp.Props, State> {
     componentDidMount() {
         if (!this.viewer) {
             const elem = document.getElementById(this.props.elemId + '-viewer');
-            ReDNATCOMspViewer.create(elem!, this).then(viewer => {
+            ReDNATCOMspViewer.create(elem!, this.props.options, this).then(viewer => {
                 this.viewer = viewer;
                 this.viewer.loadReferenceConformers().then(() => {
                     ReDNATCOMspApi._bind(this);
@@ -759,14 +759,15 @@ export class ReDNATCOMsp extends React.Component<ReDNATCOMsp.Props, State> {
 export namespace ReDNATCOMsp {
     export interface Props {
         elemId: string;
+        options: Partial<Api.Options>;
     }
 
-    export function init(elemId: string) {
+    export function init(elemId: string, options: Partial<Api.Options>) {
         const elem = document.getElementById(elemId);
         if (!elem)
             throw new Error(`Element ${elemId} does not exist`);
 
-        ReactDOM.render(<ReDNATCOMsp elemId={elemId} />, elem);
+        ReactDOM.render(<ReDNATCOMsp elemId={elemId} options={options} />, elem);
     }
 }
 
