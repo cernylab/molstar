@@ -79,8 +79,8 @@ export namespace ReDNATCOMspApi {
             return { type: 'freeze', freeze };
         }
 
-        export type Highlight = { type: 'highlight', highlights: Payloads.AtomSelection[] };
-        export function Highlight(highlights: Payloads.AtomSelection[]): Highlight {
+        export type Highlight = { type: 'highlight', highlights: (Payloads.AtomSelection | Payloads.ResidueSelection)[] };
+        export function Highlight(highlights: (Payloads.AtomSelection | Payloads.ResidueSelection)[]): Highlight {
             return { type: 'highlight', highlights };
         }
 

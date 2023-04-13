@@ -1618,14 +1618,18 @@ export class ReDNATCOMspViewer {
             await this.visualizeNucleic(true, struLoci, display);
     }
 
-    async actionHighlight(highlights: Api.Payloads.AtomSelection[]) {
+    async actionHighlight(highlights: (Api.Payloads.AtomSelection | Api.Payloads.ResidueSelection)[]) {
         const struLoci = this.getNucleicStructure();
         if (!struLoci)
             return;
 
         let toHighlight;
         for (const hl of highlights) {
-            const loci = Search.findAtom(hl.chain, hl.seqId, hl.altId, hl.insCode, hl.cifAtomId, struLoci, 'auth');
+            const loci = hl.type === 'atom'
+                ? Search.findAtom(hl.chain, hl.seqId, hl.altId, hl.insCode, hl.cifAtomId, struLoci, 'auth')
+                : hl.type === 'residue'
+                    ? Search.findResidue(hl.chain, hl.seqId, hl.altId, hl.insCode, struLoci, 'auth')
+                    : EmptyLoci;
             if (loci.kind === 'empty-loci')
                 continue;
 
