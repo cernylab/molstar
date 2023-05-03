@@ -11,8 +11,6 @@ import React from 'react';
 import ReactDOM from 'react-dom';
 import { Colors } from './colors';
 import { PushButton, SpinBox } from './controls';
-import './assets/imgs/triangle-down.svg';
-import './assets/imgs/triangle-up.svg';
 
 const PALETTE_CURSOR_HALFSIZE = 10;
 const VALUE_CURSOR_THICKNESS = 3;
@@ -683,7 +681,7 @@ export namespace ColorPicker {
         pathPrefix: string;
     }
 
-    export function create<T>(evt: React.MouseEvent<T, MouseEvent>, initialColor: number, handler: OnColorPicked, pathPrefix = '') {
+    export function create<T>(evt: React.MouseEvent<T, MouseEvent>, initialColor: number, handler: OnColorPicked, pathPrefix = '/') {
         const tainer = document.createElement('div');
         tainer.classList.add('rmsp-color-picker-nest');
         document.body.appendChild(tainer);

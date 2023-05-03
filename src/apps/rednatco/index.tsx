@@ -338,7 +338,7 @@ export class ReDNATCOMsp extends React.Component<ReDNATCOMsp.Props, State> {
                         controlBlocks={[
                             {
                                 id: 'structure',
-                                icon: './imgs/nucleic.svg',
+                                icon: '/imgs/nucleic.svg',
                                 content:
                                     <ToolBarContent style={{ width: '10em' }}>
                                         <div className='rmsp-control-line'>
@@ -521,7 +521,7 @@ export class ReDNATCOMsp extends React.Component<ReDNATCOMsp.Props, State> {
                             },
                             {
                                 id: 'ntc',
-                                icon: './imgs/pyramid.svg',
+                                icon: '/imgs/pyramid.svg',
                                 content:
                                     <ToolBarContent style={{ width: '10em' }}>
                                         <div className='rmsp-control-vertical-section-caption'>
@@ -562,7 +562,7 @@ export class ReDNATCOMsp extends React.Component<ReDNATCOMsp.Props, State> {
                             },
                             {
                                 id: 'colors',
-                                icon: './imgs/palette.svg',
+                                icon: '/imgs/palette.svg',
                                 content:
                                     <ToolBarContent>
                                         <div className='rmsp-control-vertical-section-caption'>
@@ -696,7 +696,7 @@ export class ReDNATCOMsp extends React.Component<ReDNATCOMsp.Props, State> {
                             },
                             {
                                 id: 'density-maps',
-                                icon: './imgs/density-wireframe.svg',
+                                icon: '/imgs/density-wireframe.svg',
                                 content:
                                     <ToolBarContent>
                                         <DensityMapControls
