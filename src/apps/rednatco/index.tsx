@@ -88,6 +88,8 @@ class Locker {
     }
 
     unlock() {
+        if (!this.isLocked)
+            console.warn('Trying to unlock an unlocked Lock!!!');
         this.isLocked = false;
     }
 }
@@ -102,6 +104,10 @@ export class ReDNATCOMsp extends React.Component<ReDNATCOMsp.Props, State> {
     private viewer: ReDNATCOMspViewer | undefined = undefined;
     // Used to lock out access to the viewer when it might be busy modifying its state tree
     private viewerLocker = new Locker();
+    // Used to enqueue commands to ensure that they are processed in the order in which
+    // they arrived and do not step on each other
+    private commandQueue = new Array<Api.Command>();
+    private commandQueueRunning = false;
 
     constructor(props: ReDNATCOMsp.Props) {
         super(props);
@@ -119,6 +125,11 @@ export class ReDNATCOMsp extends React.Component<ReDNATCOMsp.Props, State> {
         return updated;
     }
 
+    private enqueueCommand(cmd: Api.Command) {
+        this.commandQueue.push(cmd);
+        this.scheduleCommandQueue();
+    }
+
     private finalizeNtCColorUpdate(display: Display) {
         this.viewer!.changeNtCColors(display).then(() => {
             if (display.structures.showNucleic && display.structures.nucleicRepresentation === 'ntc-tube') {
@@ -128,6 +139,66 @@ export class ReDNATCOMsp extends React.Component<ReDNATCOMsp.Props, State> {
             } else
                 this.setState({ ...this.state, display });
         });
+    }
+
+    private async runCommand(cmd: Api.Command) {
+        if (cmd.type === 'redraw')
+            window.dispatchEvent(new Event('resize'));
+        else if (cmd.type === 'deselect-structures') {
+            await this.viewer!.actionDeselectStructures(this.state.display);
+        } else if (cmd.type === 'filter') {
+            const ret = await this.viewer!.actionApplyFilter(cmd.filter, this.state.display);
+            if (!ret) {
+                ReDNATCOMspApi.event(Api.Events.FilterFailed(''));
+                return;
+            }
+
+            this.currentFilter = cmd.filter;
+            ReDNATCOMspApi.event(Api.Events.FilterApplied());
+        } else if (cmd.type === 'highlight') {
+            this.viewer!.actionHighlight(cmd.highlights);
+        } else if (cmd.type === 'select-structures') {
+            const succeeded = await this.viewer!.actionSelectStructures(cmd.selections, this.state.display);
+            if (succeeded.length > 0) {
+                this.viewer!.focusOnSelection(succeeded);
+                ReDNATCOMspApi.event(Api.Events.StructuresSelectedOk(succeeded));
+            } else
+                ReDNATCOMspApi.event(Api.Events.StructuresSelectedFail());
+        } else if (cmd.type === 'switch-model') {
+            if (cmd.model < 1 || cmd.model > this.viewer!.getModelCount()) {
+                return;
+            }
+
+            this.viewer!.switchModel(cmd.model);
+        } else if (cmd.type === 'switch-selection-granularity') {
+            this.viewer!.actionSwitchSelectionGranularity(cmd.granularity);
+        } else if (cmd.type === 'unhighlight') {
+            this.viewer!.actionUnhighlight();
+        } else if (cmd.type === 'freeze') {
+            if (cmd.freeze)
+                this.viewer!.plugin.canvas3d!.pause(true);
+            else
+                this.viewer!.plugin.canvas3d!.resume();
+        }
+    }
+
+    private scheduleCommandQueue() {
+        if (!this.commandQueueRunning) {
+            this.commandQueueRunning = true;
+
+            window.setTimeout(async () => {
+                // Run until we drain the queue
+                while (true) {
+                    const cmd = this.commandQueue.shift();
+                    if (!cmd)
+                        break;
+
+                    await this.runCommand(cmd);
+                }
+
+                this.commandQueueRunning = false;
+            }, 0);
+        }
     }
 
     private updateChainColor(color: number) {
@@ -208,43 +279,7 @@ export class ReDNATCOMsp extends React.Component<ReDNATCOMsp.Props, State> {
         if (!this.viewer)
             return;
 
-        if (cmd.type === 'redraw')
-            window.dispatchEvent(new Event('resize'));
-        else if (cmd.type === 'deselect-structures') {
-            await this.viewer.actionDeselectStructures(this.state.display);
-        } else if (cmd.type === 'filter') {
-            const ret = await this.viewer.actionApplyFilter(cmd.filter, this.state.display);
-            if (!ret) {
-                ReDNATCOMspApi.event(Api.Events.FilterFailed(''));
-                return;
-            }
-
-            this.currentFilter = cmd.filter;
-            ReDNATCOMspApi.event(Api.Events.FilterApplied());
-        } else if (cmd.type === 'highlight') {
-            this.viewer.actionHighlight(cmd.highlights);
-        } else if (cmd.type === 'select-structures') {
-            const succeeded = await this.viewer.actionSelectStructures(cmd.selections, this.state.display);
-            if (succeeded.length > 0) {
-                this.viewer.focusOnSelection(succeeded);
-                ReDNATCOMspApi.event(Api.Events.StructuresSelectedOk(succeeded));
-            } else
-                ReDNATCOMspApi.event(Api.Events.StructuresSelectedFail());
-        } else if (cmd.type === 'switch-model') {
-            if (cmd.model < 1 || cmd.model > this.viewer.getModelCount())
-                return;
-
-            this.viewer.switchModel(cmd.model);
-        } else if (cmd.type === 'switch-selection-granularity') {
-            this.viewer.actionSwitchSelectionGranularity(cmd.granularity);
-        } else if (cmd.type === 'unhighlight') {
-            this.viewer.actionUnhighlight();
-        } else if (cmd.type === 'freeze') {
-            if (cmd.freeze)
-                this.viewer.plugin.canvas3d!.pause(true);
-            else
-                this.viewer.plugin.canvas3d!.resume();
-        }
+        this.enqueueCommand(cmd);
     }
 
     loadStructure(coords: { data: string, type: Api.CoordinatesFormat, modelNumber: number }, densityMaps: { data: Uint8Array, type: Api.DensityMapFormat, kind: Api.DensityMapKind }[] | null) {

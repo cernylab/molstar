@@ -1645,8 +1645,10 @@ export class ReDNATCOMspViewer {
 
     async actionSelectStructures(selections: Api.Commands.StructureSelection[], display: Display) {
         const struLoci = this.getNucleicStructure();
-        if (!struLoci)
+        if (!struLoci) {
+            console.warn('There are no nucleic acids in the structure');
             return [];
+        }
 
         // First we need to check that all selections use the same model
         let modelNum;
@@ -1686,7 +1688,8 @@ export class ReDNATCOMspViewer {
                     const prevLoci = sel.prev ? this.stepLoci(sel.prev.name, struLoci)[0] : EmptyLoci;
                     const nextLoci = sel.next ? this.stepLoci(sel.next.name, struLoci)[0] : EmptyLoci;
 
-                    this.addSelection(StruSelection(sel.step)); // Expect that the "stepFromName" check ensures that the step is present in the structure
+                    // Expect that the "stepFromName" check ensures that the step is present in the structure
+                    selectionExtended = this.addSelection(StruSelection(sel.step)) || selectionExtended;
                     succeeded.push(sel.step);
 
                     if (prevLoci.kind === 'element-loci') {
