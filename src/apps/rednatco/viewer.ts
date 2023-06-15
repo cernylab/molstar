@@ -5,7 +5,8 @@ import { ReDNATCOMsp, Display, VisualRepresentations } from './index';
 import { NtCColors } from './colors';
 import { Filters } from './filters';
 import { Filtering } from './filtering';
-import { ReferenceConformersPdbs } from './reference-conformers-pdbs';
+import { type NtCs } from './reference-conformers';
+import { referencePdb } from './reference-conformers-pdbs';
 import { Residue } from './residue';
 import { Search } from './search';
 import { Step } from './step';
@@ -339,7 +340,7 @@ export namespace SubstructureVisual {
 }
 
 type OtherStruObjectParams = {
-    kind: 'model' | 'structure' | 'other',
+    kind: 'data' | 'model' | 'structure' | 'other',
 }
 type VisualStruObjectParams = {
     kind: 'visual',
@@ -532,10 +533,6 @@ export class ReDNATCOMspViewer {
         if (!parent)
             return undefined;
         return parent.obj?.type.name === 'Structure' ? parent.obj : undefined;
-    }
-
-    private ntcRef(ntc: string) {
-        return rcref(ntc);
     }
 
     private pyramidsParams(colors: NtCColors.Conformers, visible: Map<string, boolean>, transparent: boolean) {
@@ -841,8 +838,6 @@ export class ReDNATCOMspViewer {
 
             // If the selection is a step, it can have a reference we have to superpose.
             if (sel.selector.type === 'step' && sel.selector.reference) {
-                const ntcRef = this.ntcRef(sel.selector.reference.NtC);
-
                 if (sel.update) {
                     // We need to remove the entire reference because the reference model might have changed
                     for (const obj of sel.objects.filter((x) => !x.primary))
@@ -851,10 +846,29 @@ export class ReDNATCOMspViewer {
                     sel.objects = sel.objects.filter((x) => x.primary);
                 }
 
+                // Create the reference step model based on the bases that make up the step
+                const stepDesc = Step.fromName(sel.selector.name)!;
+                const pdbData = referencePdb(sel.selector.reference.NtC as NtCs, stepDesc.compId1, stepDesc.compId2);
+                const ntcRef = rcref(sel.selector.name);
+                const dRef = IDs.ID('data', '', ntcRef);
+                const mRef = IDs.ID('model', '', ntcRef);
+
+                b.toRoot()
+                    .apply(RawData, { data: pdbData, label: `Reference ${sel.selector.reference.NtC}` }, { ref: dRef })
+                    .apply(StateTransforms.Model.TrajectoryFromPDB, {})
+                    .apply(StateTransforms.Model.ModelFromTrajectory, {}, { ref: mRef });
+
+                sel.objects.push(StruObject(dRef, '', { kind: 'data' }, false));
+                sel.objects.push(StruObject(mRef, dRef, { kind: 'model' }, false));
+
+                // Commit now so that we can access the model
+                await b.commit();
+                b = this.plugin.state.data.build();
+
                 let objRef = UUID.create22();
-                b.to(IDs.ID('model', '', ntcRef))
+                b.to(mRef)
                     .apply(StateTransforms.Model.StructureFromModel, {}, { ref: objRef });
-                sel.objects.push(StruObject(objRef, ntcRef, { kind: 'structure' }, false));
+                sel.objects.push(StruObject(objRef, mRef, { kind: 'structure' }, false));
 
                 // Now we actually need to commit to get the added Structure object to appear in the state tree
                 await b.commit();
@@ -1488,22 +1502,6 @@ export class ReDNATCOMspViewer {
             this.steps = ntcInfo.steps;
             this.stepNames = ntcInfo.stepNames;
         }
-    }
-
-    async loadReferenceConformers() {
-        const b = this.plugin.state.data.build().toRoot();
-
-        for (const c in ReferenceConformersPdbs) {
-            const cfmr = ReferenceConformersPdbs[c as keyof typeof ReferenceConformersPdbs];
-            const bRef = rcref(c);
-            const mRef = IDs.ID('model', '', bRef);
-            b.toRoot();
-            b.apply(RawData, { data: cfmr, label: `Reference ${c}` }, { ref: IDs.ID('data', '', bRef) })
-                .apply(StateTransforms.Model.TrajectoryFromPDB, {}, { ref: IDs.ID('trajectory', '', bRef) })
-                .apply(StateTransforms.Model.ModelFromTrajectory, {}, { ref: mRef });
-        }
-
-        await b.commit();
     }
 
     notifyResidueSelected(desc: Residue.Description) {

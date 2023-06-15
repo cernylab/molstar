@@ -349,10 +349,8 @@ export class ReDNATCOMsp extends React.Component<ReDNATCOMsp.Props, State> {
             const elem = document.getElementById(this.props.elemId + '-viewer');
             ReDNATCOMspViewer.create(elem!, this.props.options, this).then(viewer => {
                 this.viewer = viewer;
-                this.viewer.loadReferenceConformers().then(() => {
-                    ReDNATCOMspApi._bind(this);
-                    ReDNATCOMspApi.event(Api.Events.Ready());
-                });
+                ReDNATCOMspApi._bind(this);
+                ReDNATCOMspApi.event(Api.Events.Ready());
             });
         }
     }
