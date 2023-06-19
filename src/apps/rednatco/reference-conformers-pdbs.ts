@@ -19348,6 +19348,10 @@ function isDNABase(base: string) {
     return DNABases.includes(base);
 }
 
+function isHydrogen(refAtom: RefAtom) {
+    return refAtom[0][0] === 'H';
+}
+
 function putStr(target: string[], s: string, start: number) {
     if (s.length + start > target.length)
         throw new Error('Cannot put string into string');
@@ -19380,7 +19384,7 @@ function toStandardBase(base: string): StandardBases {
     throw new Error(`I do not know how to convert ${base} to a standard base`);
 }
 
-export function referencePdb(ntc: NtCs, firstBase: string, secondBase: string) {
+export function referencePdb(ntc: NtCs, firstBase: string, secondBase: string, showHydrogens: boolean) {
     const stdFirstBase = toStandardBase(firstBase);
     const stdSecondBase = toStandardBase(secondBase);
     const firstIsDNA = isDNABase(firstBase);
@@ -19390,20 +19394,26 @@ export function referencePdb(ntc: NtCs, firstBase: string, secondBase: string) {
 
     let serialNo = 0;
     for (const refAtom of ReferenceDinuleotides[ntc].primary[0]) {
-        if (refAtom[0] === "O2'" && firstIsDNA)
+        if ((refAtom[0] === "O2'" && firstIsDNA) || (isHydrogen(refAtom) && !showHydrogens))
             continue;
         pdb += atomLine(refAtom, stdFirstBase, 1, serialNo++) + '\n';
     }
-    for (const refAtom of ReferenceDinuleotides[ntc][stdFirstBase][0])
+    for (const refAtom of ReferenceDinuleotides[ntc][stdFirstBase][0]) {
+        if (isHydrogen(refAtom) && !showHydrogens)
+            continue;
         pdb += atomLine(refAtom, stdFirstBase, 1, serialNo++) + '\n';
+    }
 
     for (const refAtom of ReferenceDinuleotides[ntc].primary[1]) {
-        if (refAtom[0] === "O2'" && secondIsDNA)
+        if ((refAtom[0] === "O2'" && secondIsDNA) || (isHydrogen(refAtom) && !showHydrogens))
             continue;
         pdb += atomLine(refAtom, stdSecondBase, 2, serialNo++) + '\n';
     }
-    for (const refAtom of ReferenceDinuleotides[ntc][stdSecondBase][1])
+    for (const refAtom of ReferenceDinuleotides[ntc][stdSecondBase][1]) {
+        if (isHydrogen(refAtom) && !showHydrogens)
+            continue;
         pdb += atomLine(refAtom, stdSecondBase, 2, serialNo++) + '\n';
+    }
 
     pdb += 'TER\nEND\n';
 

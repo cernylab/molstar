@@ -205,6 +205,7 @@ export namespace ReDNATCOMspApi {
     export type Options = {
         highlightColor: number;
         highlightThickness: number;
+        hydrogensInReferences: boolean;
     }
 
     export interface Object {

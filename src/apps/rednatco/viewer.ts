@@ -400,10 +400,12 @@ export class ReDNATCOMspViewer {
     private stepNames: Map<string, number> = new Map();
     private app: ReDNATCOMsp;
     private selections = new Array<StruSelection>();
+    private hydrogensInReferences;
 
     constructor(public plugin: PluginUIContext, interactionContext: { self?: ReDNATCOMspViewer }, options: Partial<Api.Options>, app: ReDNATCOMsp) {
         interactionContext.self = this;
         this.app = app;
+        this.hydrogensInReferences = options.hydrogensInReferences ?? false;
 
         this.plugin.canvas3d?.setProps({
             renderer: {
@@ -848,7 +850,7 @@ export class ReDNATCOMspViewer {
 
                 // Create the reference step model based on the bases that make up the step
                 const stepDesc = Step.fromName(sel.selector.name)!;
-                const pdbData = referencePdb(sel.selector.reference.NtC as NtCs, stepDesc.compId1, stepDesc.compId2);
+                const pdbData = referencePdb(sel.selector.reference.NtC as NtCs, stepDesc.compId1, stepDesc.compId2, this.hydrogensInReferences);
                 const ntcRef = rcref(sel.selector.name);
                 const dRef = IDs.ID('data', '', ntcRef);
                 const mRef = IDs.ID('model', '', ntcRef);
