@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/quotes */
-import { type NtCs, BaseAtomsKinds } from './reference-conformers';
+import { type KnownBase, type NtCs, KnownBasesProps } from './reference-conformers';
 
 export const StandardBases = ['A', 'C', 'G', 'T', 'U'] as const;
 export type StandardBases = typeof StandardBases[number];
@@ -19343,11 +19343,6 @@ function atomLine(def: RefAtom, base: StandardBases, seqId: number, serialNo: nu
     return template.join('');
 }
 
-const DNABases = ['DA', 'DC', 'DG', 'DT'];
-function isDNABase(base: string) {
-    return DNABases.includes(base);
-}
-
 function isHydrogen(refAtom: RefAtom) {
     return refAtom[0][0] === 'H';
 }
@@ -19360,35 +19355,11 @@ function putStr(target: string[], s: string, start: number) {
         target[idx + start] = s[idx];
 }
 
-function toStandardBase(base: string): StandardBases {
-    // Gentle reader... this function is a very quicky concocted hack.
-    // This intent is not do to anything clever or correct, the intent is to do something.
-    // This code attempts to solve a problem that has not been sufficiently thought through (again)
-    // and therefore is just as half-assed as the proposed solution itself...
-
-    if (StandardBases.includes(base as StandardBases))
-        return base as StandardBases;
-
-    if (base === 'PSU')
-        return 'U';
-
-    for (const nonStdBase in BaseAtomsKinds) {
-        if (base === nonStdBase) {
-            const rr = BaseAtomsKinds[nonStdBase];
-            if (rr === 'purine')
-                return 'A';
-            return 'C';
-        }
-    }
-
-    throw new Error(`I do not know how to convert ${base} to a standard base`);
-}
-
-export function referencePdb(ntc: NtCs, firstBase: string, secondBase: string, showHydrogens: boolean) {
-    const stdFirstBase = toStandardBase(firstBase);
-    const stdSecondBase = toStandardBase(secondBase);
-    const firstIsDNA = isDNABase(firstBase);
-    const secondIsDNA = isDNABase(secondBase);
+export function referencePdb(ntc: NtCs, firstBase: KnownBase, secondBase: KnownBase, showHydrogens: boolean) {
+    const stdFirstBase = KnownBasesProps[firstBase][2];
+    const stdSecondBase = KnownBasesProps[secondBase][2];
+    const firstIsDNA = KnownBasesProps[firstBase][1];
+    const secondIsDNA = KnownBasesProps[secondBase][1];
 
     let pdb = '';
 

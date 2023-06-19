@@ -1,11 +1,10 @@
 import * as IDs from './idents';
-import * as RefCfmr from './reference-conformers';
 import { ReDNATCOMspApi as Api } from './api';
 import { ReDNATCOMsp, Display, VisualRepresentations } from './index';
 import { NtCColors } from './colors';
 import { Filters } from './filters';
 import { Filtering } from './filtering';
-import { type NtCs } from './reference-conformers';
+import { type NtCs, isKnownBase, referenceAtoms } from './reference-conformers';
 import { referencePdb } from './reference-conformers-pdbs';
 import { Residue } from './residue';
 import { Search } from './search';
@@ -179,7 +178,7 @@ function superpositionAtomsIndices(loci: StructureElement.Loci) {
     // Gather element indices for the first residue
     loc.element = es.unit.elements[OrderedSet.getAt(es.indices, 0)];
     const compId1 = StructureProperties.atom.label_comp_id(loc);
-    const atoms1 = RefCfmr.referenceAtoms(compId1.toUpperCase(), 'first');
+    const atoms1 = referenceAtoms(compId1.toUpperCase(), 'first');
     if (!gather(atoms1, 0, secondIdx)) {
         console.log('No ref atoms for first');
         return [];
@@ -188,7 +187,7 @@ function superpositionAtomsIndices(loci: StructureElement.Loci) {
     // Gather element indices for the second residue
     loc.element = es.unit.elements[OrderedSet.getAt(es.indices, secondIdx)];
     const compId2 = StructureProperties.atom.label_comp_id(loc);
-    const atoms2 = RefCfmr.referenceAtoms(compId2.toUpperCase(), 'second');
+    const atoms2 = referenceAtoms(compId2.toUpperCase(), 'second');
     if (!gather(atoms2, secondIdx, len)) {
         console.log('No ref atoms for second');
         return [];
@@ -848,65 +847,67 @@ export class ReDNATCOMspViewer {
                     sel.objects = sel.objects.filter((x) => x.primary);
                 }
 
-                // Create the reference step model based on the bases that make up the step
                 const stepDesc = Step.fromName(sel.selector.name)!;
-                const pdbData = referencePdb(sel.selector.reference.NtC as NtCs, stepDesc.compId1, stepDesc.compId2, this.hydrogensInReferences);
-                const ntcRef = rcref(sel.selector.name);
-                const dRef = IDs.ID('data', '', ntcRef);
-                const mRef = IDs.ID('model', '', ntcRef);
+                if (isKnownBase(stepDesc.compId1) && isKnownBase(stepDesc.compId2)) {
+                    // Create the reference step model based on the bases that make up the step
+                    const pdbData = referencePdb(sel.selector.reference.NtC as NtCs, stepDesc.compId1, stepDesc.compId2, this.hydrogensInReferences);
+                    const ntcRef = rcref(sel.selector.name);
+                    const dRef = IDs.ID('data', '', ntcRef);
+                    const mRef = IDs.ID('model', '', ntcRef);
 
-                b.toRoot()
-                    .apply(RawData, { data: pdbData, label: `Reference ${sel.selector.reference.NtC}` }, { ref: dRef })
-                    .apply(StateTransforms.Model.TrajectoryFromPDB, {})
-                    .apply(StateTransforms.Model.ModelFromTrajectory, {}, { ref: mRef });
+                    b.toRoot()
+                        .apply(RawData, { data: pdbData, label: `Reference ${sel.selector.reference.NtC}` }, { ref: dRef })
+                        .apply(StateTransforms.Model.TrajectoryFromPDB, {})
+                        .apply(StateTransforms.Model.ModelFromTrajectory, {}, { ref: mRef });
 
-                sel.objects.push(StruObject(dRef, '', { kind: 'data' }, false));
-                sel.objects.push(StruObject(mRef, dRef, { kind: 'model' }, false));
+                    sel.objects.push(StruObject(dRef, '', { kind: 'data' }, false));
+                    sel.objects.push(StruObject(mRef, dRef, { kind: 'model' }, false));
 
-                // Commit now so that we can access the model
-                await b.commit();
-                b = this.plugin.state.data.build();
+                    // Commit now so that we can access the model
+                    await b.commit();
+                    b = this.plugin.state.data.build();
 
-                let objRef = UUID.create22();
-                b.to(mRef)
-                    .apply(StateTransforms.Model.StructureFromModel, {}, { ref: objRef });
-                sel.objects.push(StruObject(objRef, mRef, { kind: 'structure' }, false));
+                    let objRef = UUID.create22();
+                    b.to(mRef)
+                        .apply(StateTransforms.Model.StructureFromModel, {}, { ref: objRef });
+                    sel.objects.push(StruObject(objRef, mRef, { kind: 'structure' }, false));
 
-                // Now we actually need to commit to get the added Structure object to appear in the state tree
-                await b.commit();
-                b = this.plugin.state.data.build();
+                    // Now we actually need to commit to get the added Structure object to appear in the state tree
+                    await b.commit();
+                    b = this.plugin.state.data.build();
 
-                const refStru = this.plugin.state.data.cells.get(objRef)!.obj!;
-                const refLoci = Structure.toStructureElementLoci(refStru.data);
+                    const refStru = this.plugin.state.data.cells.get(objRef)!.obj!;
+                    const refLoci = Structure.toStructureElementLoci(refStru.data);
 
-                const { bTransform } = this.superpose(refLoci, loci);
-                if (isNaN(bTransform[0])) {
-                    console.warn(`Cannot superpose reference conformer ${ntcRef} onto selection`);
-                } else {
-                    let objRef2 = UUID.create22();
+                    const { bTransform } = this.superpose(refLoci, loci);
+                    if (isNaN(bTransform[0])) {
+                        console.warn(`Cannot superpose reference conformer ${ntcRef} onto selection`);
+                    } else {
+                        let objRef2 = UUID.create22();
 
-                    b.to(objRef)
-                        .apply(
-                            StateTransforms.Model.TransformStructureConformation,
-                            { transform: { name: 'matrix', params: { data: bTransform, transpose: false } } },
-                            { ref: objRef2 }
-                        );
-                    sel.objects.push(StruObject(objRef2, objRef, { kind: 'other' }, false));
-
-                    objRef = objRef2;
-                    objRef2 = UUID.create22();
-                    const ntcVisualParams = NtCReferenceVisuals(Color(sel.selector.reference.color));
-
-                    if (display.structures.showNucleic) {
                         b.to(objRef)
                             .apply(
-                                StateTransforms.Representation.StructureRepresentation3D,
-                                ntcVisualParams,
+                                StateTransforms.Model.TransformStructureConformation,
+                                { transform: { name: 'matrix', params: { data: bTransform, transpose: false } } },
                                 { ref: objRef2 }
                             );
-                    }
+                        sel.objects.push(StruObject(objRef2, objRef, { kind: 'other' }, false));
 
-                    sel.objects.push(StruObject(objRef2, objRef, { kind: 'visual', params: { molstar: ntcVisualParams, useChainColor: false } }, false));
+                        objRef = objRef2;
+                        objRef2 = UUID.create22();
+                        const ntcVisualParams = NtCReferenceVisuals(Color(sel.selector.reference.color));
+
+                        if (display.structures.showNucleic) {
+                            b.to(objRef)
+                                .apply(
+                                    StateTransforms.Representation.StructureRepresentation3D,
+                                    ntcVisualParams,
+                                    { ref: objRef2 }
+                                );
+                        }
+
+                        sel.objects.push(StruObject(objRef2, objRef, { kind: 'visual', params: { molstar: ntcVisualParams, useChainColor: false } }, false));
+                    }
                 }
             }
 
