@@ -80,8 +80,8 @@ function getBoundingSphere(locis: Representation.Loci[]) {
     return SphereBoundaryHelper.getSphere();
 }
 
-export function filterLociByAltId(altId: string, loci: StructureElement.Loci) {
-    if (altId === '')
+export function filterLoci(filters: { seqId: number, altId: string, insCode: string }[], loci: StructureElement.Loci) {
+    if (filters.length === 0)
         return loci;
 
     const _loc = StructureElement.Location.create();
@@ -92,12 +92,21 @@ export function filterLociByAltId(altId: string, loci: StructureElement.Loci) {
 
     const N = OrderedSet.size(loci.elements[0].indices);
     const filteredIndices = [];
+
     for (let idx = 0; idx < N; idx++) {
         const uI = OrderedSet.getAt(e.indices, idx);
         _loc.element = OrderedSet.getAt(_loc.unit.elements, uI);
-        const _altId = StructureProperties.atom.label_alt_id(_loc);
-        if (_altId === '' || altId === _altId)
-            filteredIndices.push(uI);
+
+        for (const { seqId, altId, insCode } of filters) {
+            const _seqId = StructureProperties.residue.auth_seq_id(_loc);
+            const _altId = StructureProperties.atom.label_alt_id(_loc);
+            const _insCode = StructureProperties.residue.pdbx_PDB_ins_code(_loc);
+
+            if ((_altId === '' || altId === _altId) && _seqId === seqId && _insCode === insCode) {
+                filteredIndices.push(uI);
+                break;
+            }
+        }
     }
 
     const filteredLoci = StructureElement.Loci(
@@ -712,12 +721,10 @@ export class ReDNATCOMspViewer {
         return Search.findResidue(sel.chain, sel.seqId, sel.altId, sel.insCode, struLoci, 'auth');
     }
 
-    private stepLoci(name: string, struLoci: StructureElement.Loci): [loci: (StructureElement.Loci | EmptyLoci), altId: string] {
+    private stepLoci(name: string, struLoci: StructureElement.Loci): [loci: (StructureElement.Loci | EmptyLoci), step: Step.ExtendedDescription | null] {
         const step = this.stepFromName(name);
         if (!step)
-            return [EmptyLoci, ''];
-
-        const altId = step.altId1 ? step.altId1 : step.altId2 ? step.altId2 : '';
+            return [EmptyLoci, null];
 
         return [
             Search.findStep(
@@ -727,7 +734,7 @@ export class ReDNATCOMspViewer {
                 struLoci,
                 'auth'
             ),
-            altId
+            step,
         ];
     }
 
@@ -770,20 +777,24 @@ export class ReDNATCOMspViewer {
             const type = sel.selector.type;
             let color = display.structures.chainColor;
 
-            let altId = '';
+            const lociFilters = [];
             let loci: (EmptyLoci | StructureElement.Loci) = EmptyLoci;
             if (type === 'step') {
-                const [_loci, _altId] = this.stepLoci(sel.selector.name, struLoci);
-                loci = _loci; altId = _altId;
+                const [_loci, step] = this.stepLoci(sel.selector.name, struLoci);
+                loci = _loci;
+                if (step) {
+                    lociFilters.push({ seqId: step.resNo1, altId: step.altId1 ?? '', insCode: step.insCode1 });
+                    lociFilters.push({ seqId: step.resNo2, altId: step.altId2 ?? '', insCode: step.insCode2 });
+                }
             } else if (type === 'residue') {
                 loci = this.residueLoci(sel.selector, struLoci);
                 color = Color(sel.selector.color);
-                altId = sel.selector.altId;
+                lociFilters.push({ seqId: sel.selector.seqId, altId: sel.selector.altId, insCode: sel.selector.insCode });
             } else if (type === 'atom') {
                 loci = this.atomLoci(sel.selector, struLoci);
                 if (loci.kind !== 'empty-loci')
                     loci = Structure.toStructureElementLoci(StructureElement.Loci.toStructure(loci)); // Necessary to avoid selecting the entire struLoci
-                // We're not setting altId because it makes no sense for a single atom
+                // We're not setting any loci filters because it makes no sense for a single atom
             }
 
             // Visualize the selected bit
@@ -794,9 +805,9 @@ export class ReDNATCOMspViewer {
 
             // We need to use the "full" substructure (atoms in all altconfs) to carve out
             // the selected residue from the "remainder-slice".
-            // However, we need to use the filtered (only the altconf we want) for display. Why am I putting up with this?
+            // However, we need to use the filtered (only the altconfs we want) for display. Why am I putting up with this?
             selectedLocis.push(loci); // Push the unfilitered loci first
-            loci = filterLociByAltId(altId, loci);
+            loci = filterLoci(lociFilters, loci);
 
             // REVIEW: Can we safely skip processing of selections that already
             // have some objects associated with them?
