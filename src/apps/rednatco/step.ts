@@ -23,6 +23,23 @@ export namespace Step {
         closestNtC: string;
     };
 
+    function getAltId(loci: StructureElement.Loci, authSeqId: number) {
+        const es = loci.elements[0]; // Ignore multiple selections
+        const loc = Location.create(loci.structure, es.unit);
+
+        for (let idx = 0; idx < OrderedSet.size(es.indices); idx++) {
+            loc.element = es.unit.elements[OrderedSet.getAt(es.indices, idx)];
+            if (StructureProperties.residue.auth_seq_id(loc) !== authSeqId)
+                continue;
+
+            const altId = StructureProperties.atom.label_alt_id(loc);
+            if (altId)
+                return altId;
+        }
+
+        return '';
+    }
+
     function nameResidue(seqId: number, compId: string, altId: string | undefined, insCode: string) {
         return `${compId}${altId ? `.${altId}` : ''}_${seqId}${insCode !== '' ? `.${insCode}` : '' }`;
     }
@@ -72,7 +89,7 @@ export namespace Step {
             chain: StructureProperties.chain.auth_asym_id(loc),
             resNo1: StructureProperties.residue.auth_seq_id(loc),
             compId1: StructureProperties.atom.auth_comp_id(loc),
-            altId1: StructureProperties.atom.label_alt_id(loc) === '' ? void 0 : StructureProperties.atom.label_alt_id(loc),
+            altId1: getAltId(loci, StructureProperties.residue.auth_seq_id(loc)),
             insCode1: StructureProperties.residue.pdbx_PDB_ins_code(loc),
             resNo2: -1,
             compId2: '',
@@ -96,7 +113,7 @@ export namespace Step {
 
         description.resNo2 = StructureProperties.residue.auth_seq_id(loc);
         description.compId2 = StructureProperties.atom.auth_comp_id(loc);
-        description.altId2 = StructureProperties.atom.label_alt_id(loc) === '' ? void 0 : StructureProperties.atom.label_alt_id(loc);
+        description.altId2 = getAltId(loci, StructureProperties.residue.auth_seq_id(loc));
         description.insCode2 = StructureProperties.residue.pdbx_PDB_ins_code(loc);
         description.name = nameStep(
             description.entryId,
@@ -105,6 +122,11 @@ export namespace Step {
             description.resNo2, description.compId2, description.altId2, description.insCode2,
             multipleModels
         );
+
+        // Note about altIds
+        // If there are multiple altIds available in the input Loci, getAltId() will return
+        // whichever altId it sees first. This may, in principle return description of a non-existent step
+        // At the moment there is no good way how to constrain this behavior without some heuristics
 
         return description;
     }
