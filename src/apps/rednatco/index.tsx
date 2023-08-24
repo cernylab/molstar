@@ -18,6 +18,7 @@ import './assets/imgs/density-wireframe.svg';
 import './assets/imgs/nucleic.svg';
 import './assets/imgs/palette.svg';
 import './assets/imgs/pyramid.svg';
+import './assets/imgs/reload.svg';
 import './index.html';
 
 const ConformersByClass = {
