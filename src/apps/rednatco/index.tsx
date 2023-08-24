@@ -618,7 +618,7 @@ export class ReDNATCOMsp extends React.Component<ReDNATCOMsp.Props, State> {
                                                     <div className='rmsp-control-horitontal-spacer'>{'\u00A0'}</div>
 
                                                     <IconButton
-                                                        img='imgs/reload.svg'
+                                                        img='/imgs/reload.svg'
                                                         onClicked={() => this.updateClassColor({ cls: k, color: NtCColors.Classes[k] })}
                                                         enabled={true}
                                                     />
@@ -662,7 +662,7 @@ export class ReDNATCOMsp extends React.Component<ReDNATCOMsp.Props, State> {
                                                         <div className='rmsp-control-horitontal-spacer'>{'\u00A0'}</div>
 
                                                         <IconButton
-                                                            img='imgs/reload.svg'
+                                                            img='/imgs/reload.svg'
                                                             onClicked={() => {
                                                                 this.updateConformerColor([
                                                                     { conformer: uprKey, color: NtCColors.Conformers[uprKey] },
@@ -697,7 +697,7 @@ export class ReDNATCOMsp extends React.Component<ReDNATCOMsp.Props, State> {
                                                 <div className='rmsp-control-horitontal-spacer'>{'\u00A0'}</div>
 
                                                 <IconButton
-                                                    img='imgs/reload.svg'
+                                                    img='/imgs/reload.svg'
                                                     onClicked={() => this.updateChainColor(DefaultChainColor)}
                                                     enabled={true}
                                                 />
@@ -719,7 +719,7 @@ export class ReDNATCOMsp extends React.Component<ReDNATCOMsp.Props, State> {
                                                 <div className='rmsp-control-horitontal-spacer'>{'\u00A0'}</div>
 
                                                 <IconButton
-                                                    img='imgs/reload.svg'
+                                                    img='/imgs/reload.svg'
                                                     onClicked={() => this.updateChainColor(DefaultWaterColor)}
                                                     enabled={true}
                                                 />

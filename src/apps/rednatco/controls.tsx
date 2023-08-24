@@ -275,11 +275,11 @@ export class SpinBox extends React.Component<SpinBox.Props, SpinBoxState> {
                 <div className='rmsp-spinbox-buttons'>
                     <img
                         className='rmsp-spinbox-button'
-                        src={`${this.props.pathPrefix}imgs/triangle-up.svg`} onClick={() => this.increase()}
+                        src={`${this.props.pathPrefix}/imgs/triangle-up.svg`} onClick={() => this.increase()}
                     />
                     <img
                         className='rmsp-spinbox-button'
-                        src={`${this.props.pathPrefix}imgs/triangle-down.svg`} onClick={() => this.decrease()}
+                        src={`${this.props.pathPrefix}/imgs/triangle-down.svg`} onClick={() => this.decrease()}
                     />
                 </div>
             </div>
