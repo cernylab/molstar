@@ -97,14 +97,14 @@ export namespace Colors {
 
 export namespace NtCColors {
     export const Classes = {
-        A: Color(0xFFC1C1),
+        A: Color(0xFFEBA1),
         B: Color(0xC8CFFF),
         BII: Color(0x0059DA),
         miB: Color(0x3BE8FB),
         Z: Color(0x01F60E),
         IC: Color(0xFA5CFB),
         OPN: Color(0xE90000),
-        SYN: Color(0xFFFF01),
+        SYN: Color(0xFF8222),
         N: Color(0xF2F2F2),
     };
     export type Classes = typeof Classes;

@@ -8,14 +8,14 @@
 import { Color, ColorMap } from '../../mol-util/color';
 
 export const DefaultNtCClassColors = {
-    A: 0xFFC1C1,
+    A: 0xFFEBA1,
     B: 0xC8CFFF,
     BII: 0x0059DA,
     miB: 0x3BE8FB,
     Z: 0x01F60E,
     IC: 0xFA5CFB,
     OPN: 0xE90000,
-    SYN: 0xFFFF01,
+    SYN: 0xFF8222,
     N: 0xF2F2F2,
 };
 export const ErrorColor = Color(0xFFA10A);
