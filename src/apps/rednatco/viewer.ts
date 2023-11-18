@@ -422,6 +422,9 @@ export class ReDNATCOMspViewer {
             marking: {
                 highlightEdgeColor: options.highlightColor ? Color(options.highlightColor) : Color(0x49ff92),
                 highlightEdgeStrength: options.highlightThickness ? options.highlightThickness : 2.0,
+            },
+            camera: {
+                mode: 'orthographic',
             }
         });
     }
