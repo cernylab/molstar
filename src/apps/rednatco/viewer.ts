@@ -635,7 +635,8 @@ export class ReDNATCOMspViewer {
                             params: {
                                 sizeFactor: 0.2,
                                 sizeAspectRatio: 0.35,
-                                excludeTypes: ['hydrogen-bond', 'aromatic'],
+                                //excludeTypes: ['hydrogen-bond', 'aromatic'],
+                                excludeTypes: ['hydrogen-bond'],
                                 aromaticBonds: false,
                             },
                         },
