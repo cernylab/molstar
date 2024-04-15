@@ -57,7 +57,7 @@ export type DensityMapDisplay = {
 
 const Display = {
     structures: {
-        nucleicRepresentation: 'cartoon' as VisualRepresentations,
+        nucleicRepresentation: 'ntc-tube' as VisualRepresentations,
         showNucleic: true,
 
         proteinRepresentation: 'cartoon' as Omit<VisualRepresentations, 'ntc-tube'>,
@@ -65,7 +65,7 @@ const Display = {
 
         showWater: false,
 
-        showPyramids: true,
+        showPyramids: false,
         pyramidsTransparent: false,
 
         classColors: { ...NtCColors.Classes },
@@ -466,6 +466,43 @@ export class ReDNATCOMsp extends React.Component<ReDNATCOMsp.Props, State> {
 
                                         <div className='rmsp-control-vertical-spacer' />
 
+                                        <div className='rmsp-control-vertical-section-caption'>
+                                            Pyramids
+                                        </div>
+                                        <div className='rmsp-control-line'>
+                                            <div className='rmsp-control-item'>
+                                                <ToggleButton
+                                                    text={this.state.display.structures.showPyramids ? 'Shown' : 'Hidden'}
+                                                    enabled={ready}
+                                                    switchedOn={this.state.display.structures.showPyramids}
+                                                    onClicked={() => {
+                                                        const display = { ...this.state.display };
+                                                        display.structures.showPyramids = !display.structures.showPyramids;
+                                                        this.viewer!.changePyramids(display).then(() => {
+                                                            this.setState({ ...this.state, display });
+                                                        });
+                                                    }}
+                                                />
+                                            </div>
+                                        </div>
+                                        <div className='rmsp-control-line'>
+                                            <div className='rmsp-control-item'>
+                                                <PushButton
+                                                    text={this.state.display.structures.pyramidsTransparent ? 'Transp.' : 'Solid'}
+                                                    enabled={this.state.display.structures.showPyramids}
+                                                    onClicked={() => {
+                                                        const display = { ...this.state.display };
+                                                        display.structures.pyramidsTransparent = !display.structures.pyramidsTransparent;
+                                                        this.viewer!.changePyramids(display).then(() => {
+                                                            this.setState({ ...this.state, display });
+                                                        });
+                                                    }}
+                                                />
+                                            </div>
+                                        </div>
+
+                                        <div className='rmsp-control-vertical-spacer' />
+
                                         <div className='rmsp-control-line'>
                                             <div className='rmsp-control-item'>
                                                 <ToggleButton
@@ -547,47 +584,6 @@ export class ReDNATCOMsp extends React.Component<ReDNATCOMsp.Props, State> {
                                                             this.setState({ ...this.state, display });
                                                             this.viewerLocker.unlock();
                                                         }).catch(() => this.viewerLocker.unlock());
-                                                    }}
-                                                />
-                                            </div>
-                                        </div>
-                                    </ToolBarContent>
-                            },
-                            {
-                                id: 'ntc',
-                                icon: '/imgs/pyramid.svg',
-                                content:
-                                    <ToolBarContent style={{ width: '10em' }}>
-                                        <div className='rmsp-control-vertical-section-caption'>
-                                            Pyramids
-                                        </div>
-                                        <div className='rmsp-control-line'>
-                                            <div className='rmsp-control-item'>
-                                                <ToggleButton
-                                                    text={this.state.display.structures.showPyramids ? 'Shown' : 'Hidden'}
-                                                    enabled={ready}
-                                                    switchedOn={this.state.display.structures.showPyramids}
-                                                    onClicked={() => {
-                                                        const display = { ...this.state.display };
-                                                        display.structures.showPyramids = !display.structures.showPyramids;
-                                                        this.viewer!.changePyramids(display).then(() => {
-                                                            this.setState({ ...this.state, display });
-                                                        });
-                                                    }}
-                                                />
-                                            </div>
-                                        </div>
-                                        <div className='rmsp-control-line'>
-                                            <div className='rmsp-control-item'>
-                                                <PushButton
-                                                    text={this.state.display.structures.pyramidsTransparent ? 'Transp.' : 'Solid'}
-                                                    enabled={this.state.display.structures.showPyramids}
-                                                    onClicked={() => {
-                                                        const display = { ...this.state.display };
-                                                        display.structures.pyramidsTransparent = !display.structures.pyramidsTransparent;
-                                                        this.viewer!.changePyramids(display).then(() => {
-                                                            this.setState({ ...this.state, display });
-                                                        });
                                                     }}
                                                 />
                                             </div>
