@@ -119,12 +119,10 @@ export namespace ToolBar {
     }
 }
 
-export class ToolBarContent extends React.Component<{ children: React.ReactNode | React.ReactNode[], style?: CSSProperties }> {
-    render() {
-        return (
-            <div className='rmsp-toolbar-control-block-content' style={this.props.style}>
-                {this.props.children}
-            </div>
-        );
-    }
+export const ToolBarContent: React.FC<{ children: React.ReactNode | React.ReactNode[], style?: CSSProperties }> = ({ children, style }) => {
+    return (
+        <div className='rmsp-toolbar-control-block-content' style={style}>
+            {children}
+        </div>
+    );
 }

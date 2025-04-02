@@ -60,56 +60,49 @@ export namespace CollapsibleVertical {
     }
 }
 
-export class ColorBox extends React.Component<{ caption: string, color: Color }> {
-    render() {
-        const lum = luminance(this.props.color);
-        return (
-            <div
-                className='rmsp-color-box'
-                style={{ backgroundColor: Color.toStyle(this.props.color) }}
+export const ColorBox: React.FC<{ caption: string, color: Color }> = ({ caption, color }) => {
+    const lum = luminance(color);
+
+    return (
+        <div
+            className='flex h-full items-center justify-center cursor-pointer px-2 py-[.15rem]'
+            style={{ backgroundColor: Color.toStyle(color) }}
+        >
+            <span
+                className='font-roboto-bold m-[.15rem]'
+                style={{ color: lum > 0.6 ? '#30595c' : 'white' }}
             >
-                <span
-                    style={{
-                        color: lum > 0.6 ? 'black' : 'white',
-                        fontWeight: 'bold',
-                        margin: '0.15em',
-                        whiteSpace: 'nowrap',
-                    }}
-                >
-                    {this.props.caption}
-                </span>
-            </div>
-        );
-    }
+                {caption}
+            </span>
+        </div>
+    );
 }
 
-export class IconButton extends React.Component<{ img: string, enabled: boolean, onClicked: () => void }> {
-    render() {
-        return (
-            <div
-                className={`rmsp-icon-button ${this.props.enabled ? '' : 'rmsp-icon-button-disabled'}`}
-                onClick={() => this.props.onClicked()}
-            >
-                <img
-                    className='rmsp-icon-button-icon'
-                    src={this.props.img}
-                />
-            </div>
-        );
-    }
+export const IconButton: React.FC<{ img: string, enabled: boolean, onClicked: () => void }> = ({ img, enabled, onClicked }) => {
+    
+    return (
+        <div
+            className={`flex justify-center items-center w-6 cursor-pointer ${enabled ? '' : 'rmsp-icon-button-disabled'}`}
+            onClick={() => onClicked()}
+        >
+            <img
+                className='rmsp-icon-button-icon object-contain p-1'
+                src={img}
+            />
+        </div>
+    );
+
 }
 
-export class PushButton extends React.Component<{ text: string, enabled: boolean, onClicked: () => void }> {
-    render() {
-        return (
-            <div
-                className={`rmsp-pushbutton ${this.props.enabled ? '' : 'rmsp-pushbutton-disabled'}`}
-                onClick={() => this.props.enabled ? this.props.onClicked() : {}}
-            >
-                <div className={`${this.props.enabled ? 'rmsp-pushbutton-text' : 'rmsp-pushbutton-text-disabled'}`}>{this.props.text}</div>
-            </div>
-        );
-    }
+export const PushButton: React.FC<{ text: string, enabled: boolean, onClicked: () => void }> = ({ text, enabled, onClicked }) => {
+    return (
+        <div
+            className={`flex justify-center bg-primary-first px-4 py-2 rounded-smaller cursor-pointer items-center h-fit ${enabled ? '' : 'rmsp-pushbutton-disabled'}`}
+            onClick={() => enabled ? onClicked() : {}}
+        >
+            <div className={`${enabled ? 'text-white font-roboto-bold' : 'rmsp-pushbutton-text-disabled'}`}>{text}</div>
+        </div>
+    );
 }
 
 export class ToggleButton extends React.Component<{ text: string, enabled: boolean, switchedOn: boolean, onClicked: () => void }> {
@@ -125,24 +118,21 @@ export class ToggleButton extends React.Component<{ text: string, enabled: boole
     }
 }
 
-export class RangeSlider extends React.Component<RangeSlider.Props> {
-    render() {
-        return (
-            <input
-                className='rmsp-range-slider'
-                type='range'
-                value={this.props.value ? this.props.value : 0}
-                min={this.props.min}
-                max={this.props.max}
-                step={this.props.step}
-                onChange={evt => {
-                    const n = stof(evt.currentTarget.value);
-                    if (n !== undefined)
-                        this.props.onChange(n);
-                }}
-            />
-        );
-    }
+export const RangeSlider: React.FC<RangeSlider.Props> = ({ min, max, step, value, onChange }) => {
+    return (
+        <input
+            className='rmsp-range-slider bg-primary-first h-[.1px] w-19'
+            type='range'
+            value={value ?? 0}
+            min={min}
+            max={max}
+            step={step}
+            onChange={evt => {
+                const n = stof(evt.currentTarget.value);
+                if (n !== undefined) onChange(n);
+            }}
+        />
+    );
 }
 export namespace RangeSlider {
     export interface Props {
@@ -245,11 +235,12 @@ export class SpinBox extends React.Component<SpinBox.Props, SpinBoxState> {
     }
 
     render() {
+
         return (
-            <div className='rmsp-spinbox-container'>
+            <div className='flex border-[.1px] border-primary-first rounded-smaller'>
                 <input
                     type='text'
-                    className={this.props.disabled ? this.clsDisabled() : this.clsEnabled()}
+                    className={`w-15 px-3 text-14px ${this.props.disabled ? this.clsDisabled() : this.clsEnabled()}`}
                     value={this.state.displayedValue}
                     onChange={evt => {
                         const v = evt.currentTarget.value;
@@ -272,14 +263,14 @@ export class SpinBox extends React.Component<SpinBox.Props, SpinBoxState> {
                         }
                     }}
                 />
-                <div className='rmsp-spinbox-buttons'>
+                <div className='rmsp-spinbox-buttons flex flex-col '>
                     <img
-                        className='rmsp-spinbox-button'
-                        src={`${this.props.pathPrefix}/imgs/triangle-up.svg`} onClick={() => this.increase()}
+                        className='rmsp-spinbox-button cursor-pointer h-5'
+                        src='/imgs/triangle-up.svg' onClick={() => this.increase()}
                     />
                     <img
-                        className='rmsp-spinbox-button'
-                        src={`${this.props.pathPrefix}/imgs/triangle-down.svg`} onClick={() => this.decrease()}
+                        className='rmsp-spinbox-button cursor-pointer h-5'
+                        src='/imgs/triangle-down.svg' onClick={() => this.decrease()}
                     />
                 </div>
             </div>

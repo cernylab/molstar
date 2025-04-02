@@ -405,13 +405,10 @@ export class ColorPicker extends React.Component<ColorPicker.Props, State> {
         return (
             <div
                 ref={this.selfRef}
+                className='rounded-standard border-primary-first border-[.1px] bg-white backdrop-blur-sm absolute p-2'
                 style={{
-                    background: 'white',
-                    border: '0.15em solid #ccc',
                     boxShadow: '0 0 0.3em 0 rgba(0, 0, 0, 0.5)',
                     left: this.calcLeft(),
-                    padding: '0.5em',
-                    position: 'absolute',
                     top: this.calcTop(),
                     zIndex: 99,
                 }}
@@ -504,12 +501,7 @@ export class ColorPicker extends React.Component<ColorPicker.Props, State> {
                         }}
                     />
                 </div>
-                <div
-                    style={{
-                        display: 'flex',
-                        marginBottom: '0.5em',
-                    }}
-                >
+                <div className='flex mb-2'>
                     <div
                         style={{
                             background: Colors.colorToHexString(this.props.initialColor),
@@ -525,117 +517,110 @@ export class ColorPicker extends React.Component<ColorPicker.Props, State> {
                         }}
                     />
                 </div>
-                <div
-                    style={{
-                        display: 'grid',
-                        gridColumnGap: '0.5em',
-                        gridTemplateColumns: 'auto 4em auto 4em auto 4em',
-                        marginBottom: '0.5em',
-                    }}
-                >
-                    <div>R</div>
-                    <SpinBox
-                        min={MIN_RGB}
-                        max={MAX_RGB}
-                        step={1}
-                        value={Math.round(Colors.hsv2rgb(this.state.h, this.state.s, this.state.v).r)}
-                        onChange={rIn => {
-                            if (!isRgbVal(rIn))
-                                return;
+                <div className='flex mb-2'>
+                    <div className='flex mr-4'>
+                        <div className='font-roboto-bold mr-4 my-auto'>R</div>
+                        <SpinBox
+                            min={MIN_RGB}
+                            max={MAX_RGB}
+                            step={1}
+                            value={Math.round(Colors.hsv2rgb(this.state.h, this.state.s, this.state.v).r)}
+                            onChange={rIn => {
+                                if (!isRgbVal(rIn))
+                                    return;
 
-                            const { g, b } = Colors.hsv2rgb(this.state.h, this.state.s, this.state.v);
-                            this.updateColorRgb({ r: rIn, g, b });
-                        }}
-                        pathPrefix={this.props.pathPrefix}
-                    />
-                    <div>G</div>
-                    <SpinBox
-                        min={MIN_RGB}
-                        max={MAX_RGB}
-                        step={1}
-                        value={Math.round(Colors.hsv2rgb(this.state.h, this.state.s, this.state.v).g)}
-                        onChange={gIn => {
-                            if (!isRgbVal(gIn))
-                                return;
+                                const { g, b } = Colors.hsv2rgb(this.state.h, this.state.s, this.state.v);
+                                this.updateColorRgb({ r: rIn, g, b });
+                            }}
+                            pathPrefix={this.props.pathPrefix}
+                        />
+                    </div>
+                    <div className='flex mr-4'>
+                        <div className='font-roboto-bold mr-4 my-auto'>G</div>
+                        <SpinBox
+                            min={MIN_RGB}
+                            max={MAX_RGB}
+                            step={1}
+                            value={Math.round(Colors.hsv2rgb(this.state.h, this.state.s, this.state.v).g)}
+                            onChange={gIn => {
+                                if (!isRgbVal(gIn))
+                                    return;
 
-                            const { r, b } = Colors.hsv2rgb(this.state.h, this.state.s, this.state.v);
-                            this.updateColorRgb({ r, g: gIn, b });
-                        }}
-                        pathPrefix={this.props.pathPrefix}
-                    />
-                    <div>B</div>
-                    <SpinBox
-                        min={MIN_RGB}
-                        max={MAX_RGB}
-                        step={1}
-                        value={Math.round(Colors.hsv2rgb(this.state.h, this.state.s, this.state.v).b)}
-                        onChange={bIn => {
-                            if (!isRgbVal(bIn))
-                                return;
+                                const { r, b } = Colors.hsv2rgb(this.state.h, this.state.s, this.state.v);
+                                this.updateColorRgb({ r, g: gIn, b });
+                            }}
+                            pathPrefix={this.props.pathPrefix}
+                        />
+                    </div>
+                    <div className='flex'>
+                        <div className='font-roboto-bold mr-4 my-auto'>B</div>
+                        <SpinBox
+                            min={MIN_RGB}
+                            max={MAX_RGB}
+                            step={1}
+                            value={Math.round(Colors.hsv2rgb(this.state.h, this.state.s, this.state.v).b)}
+                            onChange={bIn => {
+                                if (!isRgbVal(bIn))
+                                    return;
 
-                            const { r, g } = Colors.hsv2rgb(this.state.h, this.state.s, this.state.v);
-                            this.updateColorRgb({ r, g, b: bIn });
-                        }}
-                        pathPrefix={this.props.pathPrefix}
-                    />
+                                const { r, g } = Colors.hsv2rgb(this.state.h, this.state.s, this.state.v);
+                                this.updateColorRgb({ r, g, b: bIn });
+                            }}
+                            pathPrefix={this.props.pathPrefix}
+                        />
+                    </div>
                 </div>
-                <div
-                    style={{
-                        display: 'grid',
-                        gridColumnGap: '0.5em',
-                        gridTemplateColumns: 'auto 4em auto 4em auto 4em',
-                        marginBottom: '0.5em',
-                    }}
-                >
-                    <div>H</div>
-                    <SpinBox
-                        min={MIN_HUE}
-                        max={MAX_HUE}
-                        step={1}
-                        value={Math.round(this.state.h)}
-                        onChange={hIn => {
-                            if (!isHueVal(hIn))
-                                return;
+                <div className='flex mb-2'>
+                    <div className='flex mr-4'>
+                        <div className='font-roboto-bold mr-4 my-auto'>H</div>
+                        <SpinBox
+                            min={MIN_HUE}
+                            max={MAX_HUE}
+                            step={1}
+                            value={Math.round(this.state.h)}
+                            onChange={hIn => {
+                                if (!isHueVal(hIn))
+                                    return;
 
-                            this.updateColorHsv({ h: hIn, s: this.state.s, v: this.state.v });
-                        }}
-                        pathPrefix={this.props.pathPrefix}
-                    />
-                    <div>S</div>
-                    <SpinBox
-                        min={MIN_SATVAL}
-                        max={MAX_SATVAL}
-                        step={1}
-                        value={Math.round(this.state.s * 100)}
-                        onChange={sIn => {
-                            if (!isSatValVal(sIn))
-                                return;
+                                this.updateColorHsv({ h: hIn, s: this.state.s, v: this.state.v });
+                            }}
+                            pathPrefix={this.props.pathPrefix}
+                        />
+                    </div>
+                    <div className='flex mr-4'>
+                        <div className='font-roboto-bold mr-4 my-auto'>S</div>
+                        <SpinBox
+                            min={MIN_SATVAL}
+                            max={MAX_SATVAL}
+                            step={1}
+                            value={Math.round(this.state.s * 100)}
+                            onChange={sIn => {
+                                if (!isSatValVal(sIn))
+                                    return;
 
-                            this.updateColorHsv({ h: this.state.h, s: sIn / 100, v: this.state.v });
-                        }}
-                        pathPrefix={this.props.pathPrefix}
-                    />
-                    <div>V</div>
-                    <SpinBox
-                        min={MIN_SATVAL}
-                        max={MAX_SATVAL}
-                        step={1}
-                        value={Math.round(this.state.v * 100)}
-                        onChange={vIn => {
-                            if (!isSatValVal(vIn))
-                                return;
+                                this.updateColorHsv({ h: this.state.h, s: sIn / 100, v: this.state.v });
+                            }}
+                            pathPrefix={this.props.pathPrefix}
+                        />
+                    </div>
+                    <div className='flex'>
+                        <div className='font-roboto-bold mr-4 my-auto'>V</div>
+                        <SpinBox
+                            min={MIN_SATVAL}
+                            max={MAX_SATVAL}
+                            step={1}
+                            value={Math.round(this.state.v * 100)}
+                            onChange={vIn => {
+                                if (!isSatValVal(vIn))
+                                    return;
 
-                            this.updateColorHsv({ h: this.state.h, s: this.state.s, v: vIn / 100 });
-                        }}
-                        pathPrefix={this.props.pathPrefix}
-                    />
+                                this.updateColorHsv({ h: this.state.h, s: this.state.s, v: vIn / 100 });
+                            }}
+                            pathPrefix={this.props.pathPrefix}
+                        />
+                    </div>
                 </div>
-                <div
-                    style={{
-                        display: 'flex',
-                        gap: '0.5em',
-                    }}
-                >
+                <div className='flex gap-2'>
                     <PushButton
                         text='OK'
                         onClicked={() => {

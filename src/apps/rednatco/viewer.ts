@@ -53,6 +53,7 @@ import { ParamDefinition as PD } from '../../mol-util/param-definition';
 import { ObjectKeys } from '../../mol-util/type-helpers';
 import './molstar.css';
 import './rednatco-molstar.css';
+import './output.css'
 
 const Extensions = {
     'ntcs-prop': PluginSpec.Behavior(DnatcoNtCs),
@@ -249,8 +250,8 @@ const ReDNATCOLociSelectionBindings = {
 };
 const ReDNATCOLociSelectionParams = {
     bindings: PD.Value(ReDNATCOLociSelectionBindings, { isHidden: true }),
-    onDeselected: PD.Value(() => {}, { isHidden: true }),
-    onSelected: PD.Value((loci: Representation.Loci) => {}, { isHidden: true }),
+    onDeselected: PD.Value(() => { }, { isHidden: true }),
+    onSelected: PD.Value((loci: Representation.Loci) => { }, { isHidden: true }),
 };
 type ReDNATCOLociSelectionProps = PD.Values<typeof ReDNATCOLociSelectionParams>;
 

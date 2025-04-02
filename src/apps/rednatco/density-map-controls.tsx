@@ -1,11 +1,12 @@
 import React from 'react';
 import { ReDNATCOMspApi as Api } from './api';
 import { ColorPicker } from './color-picker';
-import { ColorBox, RangeSlider, SpinBox, ToggleButton } from './controls';
+import { ColorBox, RangeSlider, SpinBox } from './controls';
 import { DensityMapDisplay } from './index';
 import { isoBounds, isoToFixed } from './util';
 import { ReDNATCOMspViewer as Viewer } from './viewer';
 import { Color } from '../../mol-util/color';
+import SwitchBox from './SwitchBox';
 
 export class DensityMapControls extends React.Component<DensityMapControls.Props> {
     private colors(index: number, colors: DensityMapDisplay['colors']) {
@@ -14,7 +15,7 @@ export class DensityMapControls extends React.Component<DensityMapControls.Props
         for (let idx = 0; idx < colors.length; idx++) {
             const c = colors[idx];
             const e =
-                <div className='rmsp-control-item'
+                <div
                     key={idx}
                     style={{ backgroundColor: Color.toHexString(c.color) }}
                     onClick={(evt) => {
@@ -48,87 +49,70 @@ export class DensityMapControls extends React.Component<DensityMapControls.Props
 
             const d = display[idx];
             const elem = (
-                <React.Fragment key={idx}>
-                    <div className='rmsp-control-section-caption'>
-                        {this.mapName(d.kind)}
-                    </div>
-                    <div className='rmsp-control-line'>
-                        <div className='rmsp-control-item'>
-                            <ToggleButton
-                                text='Wire'
-                                switchedOn={d.representations.includes('wireframe')}
-                                onClicked={() => this.props.toggleWireframe(idx)}
-                                enabled={true}
-                            />
+                <div className='bg-molstar rounded-lg p-2 mb-2' key={idx}>
+                    <div className='flex justify-between'>
+                        <div className='text-18px font-roboto-bold'>
+                            {this.mapName(d.kind)}
                         </div>
-                        <div className='rmsp-control-item'>
-                            <ToggleButton
-                                text='Solid'
-                                switchedOn={d.representations.includes('solid')}
-                                onClicked={() => this.props.toggleSolid(idx)}
-                                enabled={true}
-                            />
+                        <div className='flex'>
+                            { this.colors(idx, d.colors) }
                         </div>
-                        { this.colors(idx, d.colors) }
                     </div>
+                    <SwitchBox name='Wire' visible={d.representations.includes('wireframe')} onToggle={() => this.props.toggleWireframe(idx)} enabled={true} />
+                    <SwitchBox name='Solid' visible={d.representations.includes('solid')} onToggle={() => this.props.toggleSolid(idx)} enabled={true} />
 
-                    <div className='rmsp-control-section-caption'>
-                        Iso:
-                    </div>
-                    <div className='rmsp-control-line'>
-                        <div className='rmsp-control-item'>
-                            <RangeSlider
-                                min={_isoBounds.min}
-                                max={_isoBounds.max}
-                                step={_isoBounds.step}
-                                value={isoToFixed(d.isoValue, _isoBounds.step)}
-                                onChange={(v) => this.props.changeIso(idx, v!)}
-                            />
+                    <div className='mb-2'>
+                        <div className='font-roboto-bold uppercase'>
+                            Iso
                         </div>
-                        <div className='rmsp-control-item-squished'>
-                            <div style={{ display: 'grid', gridTemplateColumns: '4em 1fr' }}>
-                                <SpinBox
+                        <div className='flex items-center'>
+                            <div className='mr-2'>
+                                <RangeSlider
                                     min={_isoBounds.min}
                                     max={_isoBounds.max}
                                     step={_isoBounds.step}
-                                    maxNumDecimals={Math.log10(_isoBounds.step) >= 0 ? 0 : -Math.log10(_isoBounds.step)}
                                     value={isoToFixed(d.isoValue, _isoBounds.step)}
-                                    onChange={(n) => this.props.changeIso(idx, n)}
-                                    pathPrefix=''
+                                    onChange={(v) => this.props.changeIso(idx, v!)}
                                 />
-                                <div />
                             </div>
+                            <SpinBox
+                                min={_isoBounds.min}
+                                max={_isoBounds.max}
+                                step={_isoBounds.step}
+                                maxNumDecimals={Math.log10(_isoBounds.step) >= 0 ? 0 : -Math.log10(_isoBounds.step)}
+                                value={isoToFixed(d.isoValue, _isoBounds.step)}
+                                onChange={(n) => this.props.changeIso(idx, n)}
+                                pathPrefix=''
+                            />
                         </div>
                     </div>
 
-                    <div className='rmsp-control-section-caption'>
-                        Transp:
-                    </div>
-                    <div className='rmsp-control-line'>
-                        <div className='rmsp-control-item'>
-                            <RangeSlider
-                                min={0}
-                                max={100}
-                                step={1}
-                                value={(1.0 - d.alpha) * 100}
-                                onChange={(n) => this.props.changeAlpha(idx, 1.0 - (n! / 100))}
-                            />
+                    <div>
+                        <div className='font-roboto-bold uppercase'>
+                            Transp
                         </div>
-                        <div className='rmsp-control-item-squished'>
-                            <div style={{ display: 'grid', gridTemplateColumns: '4em 1fr' }}>
-                                <SpinBox
+                        <div className='flex items-center'>
+                            <div className='mr-2'>
+                                <RangeSlider
                                     min={0}
                                     max={100}
                                     step={1}
-                                    maxNumDecimals={0}
                                     value={(1.0 - d.alpha) * 100}
-                                    onChange={(n) => this.props.changeAlpha(idx, 1.0 - (n / 100))}
-                                    pathPrefix=''
+                                    onChange={(n) => this.props.changeAlpha(idx, 1.0 - (n! / 100))}
                                 />
-                            </div>
+                            </div>               
+                            <SpinBox
+                                min={0}
+                                max={100}
+                                step={1}
+                                maxNumDecimals={0}
+                                value={(1.0 - d.alpha) * 100}
+                                onChange={(n) => this.props.changeAlpha(idx, 1.0 - (n / 100))}
+                                pathPrefix=''
+                            />
                         </div>
                     </div>
-                </React.Fragment>
+                </div>
             );
             ctrls.push(elem);
         }
@@ -149,11 +133,10 @@ export class DensityMapControls extends React.Component<DensityMapControls.Props
 
     render() {
         return (
-            <div className='rmsp-controls'>
+            <div className='rmsp-controls overflow-auto p-2'>
                 {this.controls(this.props.display).map((x, idx) => (
                     <React.Fragment key={idx}>
                         {x}
-                        <div className='rmsp-control-vertical-spacer' /><div />
                     </React.Fragment>
                 ))}
             </div>
