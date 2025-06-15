@@ -11,11 +11,10 @@ export namespace Superpose {
     export function positions(points: ElementIndex[], conformation: SymmetryOperator.ArrayMapping<ElementIndex>) {
         const positions = MinimizeRmsd.Positions.empty(points.length);
 
-        const { x, y, z } = conformation;
         points.forEach((v, idx) => {
-            positions.x[idx] = x(v);
-            positions.y[idx] = y(v);
-            positions.z[idx] = z(v);
+            positions.x[idx] = conformation.x(v);
+            positions.y[idx] = conformation.y(v);
+            positions.z[idx] = conformation.z(v);
         });
 
         return positions;

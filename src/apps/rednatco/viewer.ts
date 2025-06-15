@@ -36,6 +36,7 @@ import { StructureRepresentation3D } from '../../mol-plugin-state/transforms/rep
 import { RawData } from '../../mol-plugin-state/transforms/data';
 import { createPluginUI } from '../../mol-plugin-ui';
 import { PluginUIContext } from '../../mol-plugin-ui/context';
+import { renderReact18 } from '../../mol-plugin-ui/react18';
 import { DefaultPluginUISpec, PluginUISpec } from '../../mol-plugin-ui/spec';
 import { Representation } from '../../mol-repr/representation';
 import { StateObjectCell, StateObject } from '../../mol-state';
@@ -641,7 +642,7 @@ export class ReDNATCOMspViewer {
                                 aromaticBonds: false,
                             },
                         },
-                        colorTheme: { name: 'element-symbol', params: { carbonColor: { name: 'custom', params: visual.color } } },
+                        colorTheme: { name: 'element-symbol', params: { carbonColor: { name: 'uniform', params: visual.color } } },
                     };
             }
         } else if (visual.type === 'ntc') {
@@ -991,7 +992,7 @@ export class ReDNATCOMspViewer {
             ]
         };
 
-        const plugin = await createPluginUI(target, spec);
+        const plugin = await createPluginUI({ target, render: renderReact18, spec });
 
         plugin.managers.interactivity.setProps({ granularity: 'two-residues' });
         plugin.selectionMode = true;
