@@ -20,6 +20,7 @@ import './assets/imgs/palette.svg';
 import './assets/imgs/pyramid.svg';
 import './assets/imgs/reload.svg';
 import './index.html';
+import './output.css';
 import SwitchBox from './SwitchBox';
 
 const ConformersByClass = {

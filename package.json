@@ -22,7 +22,7 @@
     "build": "npm run build:apps && npm run build:lib",
     "build:apps": "node ./scripts/build.mjs -a -e --prd",
     "build:lib": "concurrently \"tsc --incremental\" \"tsc --build tsconfig.commonjs.json --incremental\" && npm run build:lib-extra",
-    "build:lib-extra": "node scripts/write-version.mjs && cpx \"src/**/*.{scss,html,ico,jpg}\" lib/ && cpx \"src/**/*.{scss,html,ico,jpg}\" lib/commonjs/ && tsc-alias -p tsconfig.json",
+    "build:lib-extra": "node scripts/write-version.mjs && cpx \"src/**/*.{css,scss,html,ico,jpg}\" lib/ && cpx \"src/**/*.{css,scss,html,ico,jpg}\" lib/commonjs/ && tsc-alias -p tsconfig.json",
     "rebuild": "npm run clean && npm run build",
     "dev": "node ./scripts/build.mjs",
     "dev:all": "node ./scripts/build.mjs -a -e -bt",
