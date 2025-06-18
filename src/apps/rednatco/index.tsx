@@ -1,5 +1,5 @@
 import React from 'react';
-import ReactDOM from 'react-dom';
+import RDC from 'react-dom/client';
 import { ReDNATCOMspApi as Api } from './api';
 import { ReDNATCOMspApiImpl } from './api-impl';
 import { DensityMapControls } from './density-map-controls';
@@ -388,7 +388,7 @@ export class ReDNATCOMsp extends React.Component<ReDNATCOMsp.Props, State> {
     handleTogglePyramidsVisibility() {
         const display = { ...this.state.display };
         display.structures.showPyramids = !display.structures.showPyramids;
-    
+
         this.viewer!.changePyramids(display).then(() => {
             this.setState({ ...this.state, display });
         });
@@ -416,16 +416,16 @@ export class ReDNATCOMsp extends React.Component<ReDNATCOMsp.Props, State> {
         this.setState(prevState => {
             const display = { ...prevState.display };
             const isNtCTube = type === "ntc-tube";
-    
+
             if (display.structures.nucleicRepresentation !== type) {
                 display.structures.nucleicRepresentation = type;
                 display.structures.showPyramids = isNtCTube ? false : display.structures.showPyramids;
             }
-    
+
             return { display };
         }, () => {
             const updateViewer = this.viewer!.changeRepresentation("nucleic", this.state.display);
-    
+
             if (type === "ntc-tube") {
                 updateViewer
                     .then(() => this.viewer!.changePyramids(this.state.display))
@@ -441,11 +441,11 @@ export class ReDNATCOMsp extends React.Component<ReDNATCOMsp.Props, State> {
 
         this.setState(prevState => {
             const display = { ...prevState.display };
-    
+
             if (display.structures.proteinRepresentation !== type) {
                 display.structures.proteinRepresentation = type;
             }
-    
+
             return { display };
         }, () => {
             this.viewer!.changeRepresentation("protein", this.state.display)
@@ -454,8 +454,6 @@ export class ReDNATCOMsp extends React.Component<ReDNATCOMsp.Props, State> {
     }
 
     render() {
-        //const ready = this.viewer?.isReady() ?? false;
-
         const hasNucleic = this.viewer?.has('structure', 'nucleic') ?? false;
         const hasProtein = this.viewer?.has('structure', 'protein') ?? false;
         const hasWater = this.viewer?.has('structure', 'water') ?? false;
@@ -497,7 +495,6 @@ export class ReDNATCOMsp extends React.Component<ReDNATCOMsp.Props, State> {
                                 icon: '/imgs/nucleic.svg',
                                 content:
                                     <ToolBarContent>
-                                        
                                         <SwitchBox visible={this.state.display.structures.showNucleic} name={nucleic.name} options={nucleic.options} onToggle={() => this.handleToggleStructureVisibility('showNucleic', 'nucleic')} enabled={hasNucleic} />
 
                                         <SwitchBox visible={this.state.display.structures.showPyramids} name={pyramids.name} options={pyramids.options} onToggle={() => this.handleTogglePyramidsVisibility()} />
@@ -706,8 +703,9 @@ export namespace ReDNATCOMsp {
         const elem = document.getElementById(elemId);
         if (!elem)
             throw new Error(`Element ${elemId} does not exist`);
+        const root = RDC.createRoot(elem);
 
-        ReactDOM.render(<ReDNATCOMsp elemId={elemId} options={options} />, elem);
+        root.render(<ReDNATCOMsp elemId={elemId} options={options} />);
     }
 }
 
