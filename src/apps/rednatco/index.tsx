@@ -511,6 +511,52 @@ export class ReDNATCOMsp extends React.Component<ReDNATCOMsp.Props, State> {
                                 content:
                                     <ToolBarContent>
                                         <div className='rmsp-control-vertical-section-caption font-roboto-bold'>
+                                            Structure
+                                        </div>
+                                        <div className='rmsp-control-line'>
+                                            <div className='rmsp-control-item-group'>
+                                                <div
+                                                    className='rmsp-control-item'
+                                                    onClick={evt => ColorPicker.create(
+                                                        evt,
+                                                        this.state.display.structures.chainColor,
+                                                        color => this.updateChainColor(color)
+                                                    )}
+                                                >
+                                                    <ColorBox caption='Chains' color={this.state.display.structures.chainColor} />
+                                                </div>
+
+                                                <IconButton
+                                                    img='/imgs/reload.svg'
+                                                    onClicked={() => this.updateChainColor(DefaultChainColor)}
+                                                    enabled={true}
+                                                />
+                                            </div>
+                                        </div>
+                                        <div className='rmsp-control-line'>
+                                            <div className='rmsp-control-item-group'>
+                                                <div
+                                                    className='rmsp-control-item'
+                                                    onClick={evt => ColorPicker.create(
+                                                        evt,
+                                                        this.state.display.structures.waterColor,
+                                                        color => this.updateWaterColor(color)
+                                                    )}
+                                                >
+                                                    <ColorBox caption='Waters' color={this.state.display.structures.waterColor} />
+                                                </div>
+
+                                                <IconButton
+                                                    img='/imgs/reload.svg'
+                                                    onClicked={() => this.updateChainColor(DefaultWaterColor)}
+                                                    enabled={true}
+                                                />
+                                            </div>
+                                        </div>
+
+                                        <div className='rmsp-control-vertical-spacer' />
+
+                                        <div className='rmsp-control-vertical-section-caption font-roboto-bold'>
                                             NtC classes
                                         </div>
                                         {(['A', 'B', 'BII', 'miB', 'Z', 'IC', 'OPN', 'SYN', 'N'] as (keyof NtCColors.Classes)[]).map(k =>
@@ -583,52 +629,6 @@ export class ReDNATCOMsp extends React.Component<ReDNATCOMsp.Props, State> {
                                                 </div>
                                             );
                                         })}
-
-                                        <div className='rmsp-control-vertical-spacer' />
-
-                                        <div className='rmsp-control-vertical-section-caption font-roboto-bold'>
-                                            Structure
-                                        </div>
-                                        <div className='rmsp-control-line'>
-                                            <div className='rmsp-control-item-group'>
-                                                <div
-                                                    className='rmsp-control-item'
-                                                    onClick={evt => ColorPicker.create(
-                                                        evt,
-                                                        this.state.display.structures.chainColor,
-                                                        color => this.updateChainColor(color)
-                                                    )}
-                                                >
-                                                    <ColorBox caption='Chains' color={this.state.display.structures.chainColor} />
-                                                </div>
-
-                                                <IconButton
-                                                    img='/imgs/reload.svg'
-                                                    onClicked={() => this.updateChainColor(DefaultChainColor)}
-                                                    enabled={true}
-                                                />
-                                            </div>
-                                        </div>
-                                        <div className='rmsp-control-line'>
-                                            <div className='rmsp-control-item-group'>
-                                                <div
-                                                    className='rmsp-control-item'
-                                                    onClick={evt => ColorPicker.create(
-                                                        evt,
-                                                        this.state.display.structures.waterColor,
-                                                        color => this.updateWaterColor(color)
-                                                    )}
-                                                >
-                                                    <ColorBox caption='Waters' color={this.state.display.structures.waterColor} />
-                                                </div>
-
-                                                <IconButton
-                                                    img='/imgs/reload.svg'
-                                                    onClicked={() => this.updateChainColor(DefaultWaterColor)}
-                                                    enabled={true}
-                                                />
-                                            </div>
-                                        </div>
                                     </ToolBarContent>
                             },
                             {
