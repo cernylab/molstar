@@ -485,6 +485,31 @@ export class ReDNATCOMsp extends React.Component<ReDNATCOMsp.Props, State> {
 
         return (
             <div className='rmsp-app'>
+                <div className='flex'>
+                    {(['A', 'B', 'BII', 'miB', 'Z', 'IC', 'OPN', 'SYN', 'N'] as (keyof NtCColors.Classes)[]).map(k =>
+                        <div className='rmsp-control-line w-full' key={k}>
+                            <div className='rmsp-control-item-group'>
+                                <div
+                                    className='rmsp-control-item cursor-pointer'
+                                    onClick={evt => ColorPicker.create(
+                                        evt,
+                                        this.state.display.structures.classColors[k],
+                                        color => this.updateClassColor({ cls: k, color })
+                                    )}
+                                >
+                                    <ColorBox caption={k} color={this.state.display.structures.classColors[k]} />
+                                </div> 
+
+                                <IconButton
+                                    img='/imgs/reload.svg'
+                                    color={this.state.display.structures.classColors[k]}
+                                    onClicked={() => this.updateClassColor({ cls: k, color: NtCColors.Classes[k] })}
+                                    enabled={true}
+                                />
+                            </div>
+                        </div>
+                    )}
+                </div>
                 <div className='flex flex-row h-full'>
                     <ViewerToolBar
                         orientation='vertical'

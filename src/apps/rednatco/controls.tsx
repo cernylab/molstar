@@ -78,11 +78,12 @@ export const ColorBox: React.FC<{ caption: string, color: Color }> = ({ caption,
     );
 }
 
-export const IconButton: React.FC<{ img: string, enabled: boolean, onClicked: () => void }> = ({ img, enabled, onClicked }) => {
+export const IconButton: React.FC<{ img: string, enabled: boolean, onClicked: () => void, color?: Color }> = ({ img, enabled, onClicked, color }) => {
     
     return (
         <div
             className={`flex justify-center items-center w-6 cursor-pointer ${enabled ? '' : 'rmsp-icon-button-disabled'}`}
+            style={{ backgroundColor: color ? Color.toStyle(color) : undefined }}
             onClick={() => onClicked()}
         >
             <img
