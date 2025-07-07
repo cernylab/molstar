@@ -109,6 +109,18 @@ export namespace NtCColors {
     };
     export type Classes = typeof Classes;
 
+    export const Tooltips: Record<keyof Classes, string> = {
+        A: 'A-form, mainly found in the RNA structures. (For more, see Help by clicking the tooltip icon)',
+        B: 'B-form, mainly found in the double-helical DNA. (For more, see Help by clicking the tooltip icon)',
+        BII: 'BII-form, important for duplex bending. (For more, see Help by clicking the tooltip icon)',
+        miB: 'miB - B-form like conformers with unusual torsional values. (For more, see Help by clicking the tooltip icon)',
+        Z: 'Z-form, found mainly in DNA, less frequently in RNA. (For more, see Help by clicking the tooltip icon)',
+        IC: 'Parallel distant bases, can be intercalated. (For more, see Help by clicking the tooltip icon)',
+        OPN: 'Conformers with distant and unusually oriented bases. (For more, see Help by clicking the tooltip icon)',
+        SYN: 'Conformers with one of the bases in the syn orientation. (For more, see Help by clicking the tooltip icon)',
+        N: 'Unassigned conformations. (For more, see Help by clicking the tooltip icon)',
+    } as const;
+
     export const Conformers = {
         NANT_Upr: Classes.N,
         NANT_Lwr: Classes.N,

@@ -19,9 +19,11 @@ import './assets/imgs/nucleic.svg';
 import './assets/imgs/palette.svg';
 import './assets/imgs/pyramid.svg';
 import './assets/imgs/reload.svg';
+import './assets/imgs/tooltip.png';
 import './index.html';
 import './output.css';
 import SwitchBox from './SwitchBox';
+import { Tooltip } from './Tooltip';
 
 const ConformersByClass = {
     A: ['AA00_Upr', 'AA00_Lwr', 'AA02_Upr', 'AA02_Lwr', 'AA03_Upr', 'AA03_Lwr', 'AA04_Upr', 'AA04_Lwr', 'AA08_Upr', 'AA08_Lwr', 'AA09_Upr', 'AA09_Lwr', 'AA01_Upr', 'AA01_Lwr', 'AA05_Upr', 'AA05_Lwr', 'AA06_Upr', 'AA06_Lwr', 'AA10_Upr', 'AA10_Lwr', 'AA11_Upr', 'AA11_Lwr', 'AA07_Upr', 'AA07_Lwr', 'AA12_Upr', 'AA12_Lwr', 'AA13_Upr', 'AA13_Lwr', 'AB01_Upr', 'AB02_Upr', 'AB03_Upr', 'AB04_Upr', 'AB05_Upr', 'BA01_Lwr', 'BA05_Lwr', 'BA09_Lwr', 'BA08_Lwr', 'BA10_Lwr', 'BA13_Lwr', 'BA16_Lwr', 'BA17_Lwr', 'AAS1_Lwr', 'AB1S_Upr'],
@@ -465,7 +467,7 @@ export class ReDNATCOMsp extends React.Component<ReDNATCOMsp.Props, State> {
                 { name: 'Cartoon', function: () => this.handleChangeNucleicRepresentation('cartoon') },
                 { name: 'Ball-and-stick', function: () => this.handleChangeNucleicRepresentation('ball-and-stick') }
             ]
-        }
+        };
 
         const pyramids = {
             name: "pyramids",
@@ -499,6 +501,12 @@ export class ReDNATCOMsp extends React.Component<ReDNATCOMsp.Props, State> {
                                 >
                                     <ColorBox caption={k} color={this.state.display.structures.classColors[k]} />
                                 </div> 
+                                
+                                <Tooltip
+                                    text={NtCColors.Tooltips[k]}
+                                    img='/imgs/tooltip.png'
+                                    color={this.state.display.structures.classColors[k]}
+                                />
 
                                 <IconButton
                                     img='/imgs/reload.svg'

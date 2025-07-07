@@ -91,6 +91,19 @@ function fileLoaderPlugin(options) {
                     handleFileError(error, 'copy', args.path);
                 }
             });
+            build.onLoad({ filter: /\.png$/ }, async (args) => {
+                try {
+                    const name = path.basename(args.path);
+                    mkDir(path.resolve(options.out, 'imgs'));
+                    await fs.promises.copyFile(args.path, path.resolve(options.out, 'imgs', name));
+                    return {
+                        contents: `imgs/${name}`,
+                        loader: 'text',
+                    };
+                } catch (error) {
+                    handleFileError(error, 'copy', args.path);
+                }
+            });
             build.onLoad({ filter: /\.css$/ }, async (args) => {
                 try {
                     const name = path.basename(args.path);
