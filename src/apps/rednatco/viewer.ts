@@ -571,6 +571,37 @@ export class ReDNATCOMspViewer {
         };
     }
 
+    private basePairsParams(
+        colors: NtCColors.Conformers,
+        size = 0.3
+    ) {
+        return {
+            type: {
+                name: 'base-pairs-ladder',
+                params: {
+                    barRadius: 0.5 * size,
+                    barScale: 1.0 * size,
+                    ballRadius: 1.3 * size,
+                    showPairs: true,
+                    showUnpaired: true,
+                }
+            },
+            colorTheme: {
+                name: 'base-pairs-ladder',
+                params: {
+                    colors: {
+                        name: 'custom',
+                        params: colors
+                    }
+                }
+            },
+            sizeTheme: {
+                name: 'uniform',
+                params: {}
+            }
+        };
+    }
+
     private repositionCamera(boundingSphere: Sphere3D) {
         const snapshot = this.plugin.canvas3d!.camera.getSnapshot();
         const radius = (boundingSphere.radius < 1 ? 1 : boundingSphere.radius) * 8;
@@ -1089,6 +1120,23 @@ export class ReDNATCOMspViewer {
             await PluginCommands.State.RemoveObject(this.plugin, { state: this.plugin.state.data, ref: IDs.ID('pyramids', 'nucleic', BaseRef) });
     }
 
+    async changeBasePairsLadder(display: Display) {
+        const structRef = IDs.ID('structure', 'nucleic', BaseRef);
+        const ladderRef = IDs.ID('base-pairs-ladder', 'nucleic', BaseRef);
+        const b = this.plugin.state.data.build().to(structRef);
+
+        if (display.structures.showBasePairsLadder) {
+            b.apply(
+                StateTransforms.Representation.StructureRepresentation3D,
+                this.basePairsParams(display.structures.conformerColors)
+            );
+        } else {
+            b.delete(ladderRef);
+        }
+
+        await b.commit();
+    }
+
     async changeWaterColor(display: Display) {
         const color = Color(display.structures.waterColor);
 
@@ -1456,6 +1504,15 @@ export class ReDNATCOMspViewer {
                     StateTransforms.Representation.StructureRepresentation3D,
                     this.pyramidsParams(display.structures.conformerColors ?? NtCColors.Conformers, new Map(), display.structures.pyramidsTransparent ?? false),
                     { ref: IDs.ID('pyramids', 'nucleic', BaseRef) }
+                );
+        }
+
+        if (display.structures.showBasePairsLadder) {
+            b3.to(IDs.ID('structure', 'nucleic', BaseRef))
+                .apply(
+                    StateTransforms.Representation.StructureRepresentation3D,
+                    this.basePairsParams(display.structures.conformerColors),
+                    { ref: IDs.ID('base-pairs-ladder', 'nucleic', BaseRef) }
                 );
         }
 

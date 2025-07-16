@@ -1,0 +1,1 @@
+export { BasePairs } from './behavior';

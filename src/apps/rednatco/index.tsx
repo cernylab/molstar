@@ -44,7 +44,8 @@ const ViewerToolBar = ToolBar.Specialize<ToolBarItems>();
 type BooleanStructureKey =
   | 'showProtein'
   | 'showNucleic'
-  | 'showWater';
+  | 'showWater'
+  | 'showBasePairsLadder';
 
 type Substructure = 'protein' | 'nucleic' | 'water';
 
@@ -78,6 +79,8 @@ const Display = {
 
         showPyramids: false,
         pyramidsTransparent: false,
+
+        showBasePairsLadder: true,
 
         classColors: { ...NtCColors.Classes },
         conformerColors: { ...NtCColors.Conformers },
@@ -132,9 +135,10 @@ export class ReDNATCOMsp extends React.Component<ReDNATCOMsp.Props, State> {
         this.handleToggleStructureVisibility = this.handleToggleStructureVisibility.bind(this);
         this.handlePyramidsTransp = this.handlePyramidsTransp.bind(this);
         this.handlePyramidsSolid = this.handlePyramidsSolid.bind(this);
-        this.handleChangeNucleicRepresentation = this.handleChangeNucleicRepresentation.bind(this)
-        this.handleChangeProteinRepresentation = this.handleChangeProteinRepresentation.bind(this)
-        this.handleTogglePyramidsVisibility = this.handleTogglePyramidsVisibility.bind(this)
+        this.handleChangeNucleicRepresentation = this.handleChangeNucleicRepresentation.bind(this);
+        this.handleChangeProteinRepresentation = this.handleChangeProteinRepresentation.bind(this);
+        this.handleTogglePyramidsVisibility = this.handleTogglePyramidsVisibility.bind(this);
+        this.handleBasePairsVisibility = this.handleBasePairsVisibility.bind(this);
     }
 
     private classColorToConformers(k: keyof ConformersByClass, color: Color) {
@@ -387,6 +391,15 @@ export class ReDNATCOMsp extends React.Component<ReDNATCOMsp.Props, State> {
         }).catch(() => this.viewerLocker.unlock());
     }
 
+    handleBasePairsVisibility() {
+        const display = { ...this.state.display };
+        display.structures.showBasePairsLadder = !display.structures.showBasePairsLadder;
+
+        this.viewer!.changeBasePairsLadder(display).then(() => {
+            this.setState({ ...this.state, display });
+        });
+    }
+
     handleTogglePyramidsVisibility() {
         const display = { ...this.state.display };
         display.structures.showPyramids = !display.structures.showPyramids;
@@ -459,6 +472,7 @@ export class ReDNATCOMsp extends React.Component<ReDNATCOMsp.Props, State> {
         const hasNucleic = this.viewer?.has('structure', 'nucleic') ?? false;
         const hasProtein = this.viewer?.has('structure', 'protein') ?? false;
         const hasWater = this.viewer?.has('structure', 'water') ?? false;
+        const hasBasePairsLadder = this.viewer?.has('base-pairs-ladder', 'nucleic') ?? false;
 
         const nucleic = {
             name: 'nucleic',
@@ -536,6 +550,7 @@ export class ReDNATCOMsp extends React.Component<ReDNATCOMsp.Props, State> {
 
                                         <SwitchBox visible={this.state.display.structures.showWater} name='water' onToggle={() => this.handleToggleStructureVisibility('showWater', 'water')} enabled={hasWater} />
 
+                                        <SwitchBox visible={this.state.display.structures.showBasePairsLadder} name='base pairs ladder' onToggle={() => this.handleBasePairsVisibility()} enabled={hasBasePairsLadder} />
                                     </ToolBarContent>
                             },
                             {

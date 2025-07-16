@@ -9,6 +9,7 @@
 
 import { ANVILMembraneOrientation } from '../../extensions/anvil/behavior';
 import { Backgrounds } from '../../extensions/backgrounds';
+import { BasePairs } from '../../extensions/base-pairs';
 import { DnatcoNtCs } from '../../extensions/dnatco';
 import { G3DFormat, G3dProvider } from '../../extensions/g3d/format';
 import { GeometryExport } from '../../extensions/geo-export';
@@ -69,6 +70,7 @@ const CustomFormats = [
 
 export const ExtensionMap = {
     'backgrounds': PluginSpec.Behavior(Backgrounds),
+    'base-pairs': PluginSpec.Behavior(BasePairs),
     'dnatco-ntcs': PluginSpec.Behavior(DnatcoNtCs),
     'pdbe-structure-quality-report': PluginSpec.Behavior(PDBeStructureQualityReport),
     'assembly-symmetry': PluginSpec.Behavior(AssemblySymmetry),

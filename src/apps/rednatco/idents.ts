@@ -8,9 +8,9 @@ export type ID =
     'structure' |        /* Possibly filtered structure as PSO - this is what shall be used to create visuals from */
     'structure-slice' |  /* Slice of a structure, possibly made by subtraction. To be applied on filtered structures */
     'visual' |           /* Visual PSO - the thing that is actually drawn on the screen */
-    'pyramids' | 'superposition'; /* Additional identifiers for DNATCO-specific objects */
+    'pyramids' | 'superposition' | 'base-pairs-ladder'; /* Additional identifiers for DNATCO-specific objects */
 
-export type Substructure = 'protein' | 'water' | 'nucleic';
+export type Substructure = 'protein' | 'water' | 'nucleic' | 'base-pairs-ladder';
 
 export function ID(id: ID, sub: Substructure | '', ref: string) {
     if (sub === '')
