@@ -59,17 +59,19 @@ export class ToolBar<ID extends string> extends React.Component<ToolBar.Props<ID
     renderIconBar() {
         const icons = new Array<JSX.Element>();
         for (const blk of this.props.controlBlocks) {
-            icons.push(
-                <Icon
-                    img={blk.icon}
-                    status={blk.disabled
-                        ? 'disabled'
-                        : this.state.selected === blk.id
-                            ? 'selected' : 'normal'
-                    }
-                    onClicked={!blk.disabled ? () => this.setState({ ...this.state, selected: this.state.selected === blk.id ? null : blk.id }) : () => {}}
-                />
-            );
+            if (!blk.disabled) {
+                icons.push(
+                    <Icon
+                        img={blk.icon}
+                        status={blk.disabled
+                            ? 'disabled'
+                            : this.state.selected === blk.id
+                                ? 'selected' : 'normal'
+                        }
+                        onClicked={!blk.disabled ? () => this.setState({ ...this.state, selected: this.state.selected === blk.id ? null : blk.id }) : () => {}}
+                    />
+                );
+            }
         }
 
         return icons;
