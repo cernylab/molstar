@@ -12,6 +12,7 @@ import { Step } from './step';
 import { Superpose } from './superpose';
 import { isoBounds, prettyIso } from './util';
 import { BasePairs } from '../../extensions/base-pairs';
+import { BasePairs as BasePairsProp } from '../../extensions/base-pairs/property';
 import { DnatcoNtCs } from '../../extensions/dnatco';
 import { DnatcoTypes } from '../../extensions/dnatco/types';
 import { NtCTubeTypes } from '../../extensions/dnatco/ntc-tube/types';
@@ -1016,6 +1017,14 @@ export class ReDNATCOMspViewer {
         return new ReDNATCOMspViewer(plugin, interactCtx, options, app);
     }
 
+    areBasePairsAvailable() {
+        const obj = this.plugin.state.data.cells.get(IDs.ID('model', '', BaseRef))?.obj;
+        if (!obj)
+            return false;
+        const struModel = (obj as StateObject<Model>);
+        return BasePairsProp.isApplicable(struModel.data);
+    }
+
     async changeChainColor(subs: IDs.Substructure[], display: Display) {
         const b = this.plugin.state.data.build();
 
@@ -1502,7 +1511,7 @@ export class ReDNATCOMspViewer {
                 );
         }
 
-        if (display.structures.showBasePairsLadder) {
+        if (this.areBasePairsAvailable() && display.structures.showBasePairsLadder) {
             b3.to(IDs.ID('structure', 'nucleic', BaseRef))
                 .apply(
                     StateTransforms.Representation.StructureRepresentation3D,

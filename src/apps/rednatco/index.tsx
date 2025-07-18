@@ -471,7 +471,7 @@ export class ReDNATCOMsp extends React.Component<ReDNATCOMsp.Props, State> {
         const hasNucleic = this.viewer?.has('structure', 'nucleic') ?? false;
         const hasProtein = this.viewer?.has('structure', 'protein') ?? false;
         const hasWater = this.viewer?.has('structure', 'water') ?? false;
-        const hasBasePairsLadder = true;
+        const hasBasePairsLadder = this.viewer?.areBasePairsAvailable() ?? false;
 
         const nucleic = {
             name: 'nucleic',
