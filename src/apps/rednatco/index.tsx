@@ -44,8 +44,7 @@ const ViewerToolBar = ToolBar.Specialize<ToolBarItems>();
 type BooleanStructureKey =
   | 'showProtein'
   | 'showNucleic'
-  | 'showWater'
-  | 'showBasePairsLadder';
+  | 'showWater';
 
 type Substructure = 'protein' | 'nucleic' | 'water';
 
@@ -472,7 +471,7 @@ export class ReDNATCOMsp extends React.Component<ReDNATCOMsp.Props, State> {
         const hasNucleic = this.viewer?.has('structure', 'nucleic') ?? false;
         const hasProtein = this.viewer?.has('structure', 'protein') ?? false;
         const hasWater = this.viewer?.has('structure', 'water') ?? false;
-        const hasBasePairsLadder = this.viewer?.has('base-pairs-ladder', 'nucleic') ?? false;
+        const hasBasePairsLadder = true;
 
         const nucleic = {
             name: 'nucleic',
@@ -514,8 +513,8 @@ export class ReDNATCOMsp extends React.Component<ReDNATCOMsp.Props, State> {
                                     )}
                                 >
                                     <ColorBox caption={k} color={this.state.display.structures.classColors[k]} />
-                                </div> 
-                                
+                                </div>
+
                                 <Tooltip
                                     text={NtCColors.Tooltips[k]}
                                     img='/imgs/tooltip.png'

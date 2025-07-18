@@ -10,7 +10,7 @@ export type ID =
     'visual' |           /* Visual PSO - the thing that is actually drawn on the screen */
     'pyramids' | 'superposition' | 'base-pairs-ladder'; /* Additional identifiers for DNATCO-specific objects */
 
-export type Substructure = 'protein' | 'water' | 'nucleic' | 'base-pairs-ladder';
+export type Substructure = 'protein' | 'water' | 'nucleic';
 
 export function ID(id: ID, sub: Substructure | '', ref: string) {
     if (sub === '')

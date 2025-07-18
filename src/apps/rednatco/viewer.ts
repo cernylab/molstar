@@ -11,6 +11,7 @@ import { Search } from './search';
 import { Step } from './step';
 import { Superpose } from './superpose';
 import { isoBounds, prettyIso } from './util';
+import { BasePairs } from '../../extensions/base-pairs';
 import { DnatcoNtCs } from '../../extensions/dnatco';
 import { DnatcoTypes } from '../../extensions/dnatco/types';
 import { NtCTubeTypes } from '../../extensions/dnatco/ntc-tube/types';
@@ -54,10 +55,11 @@ import { ParamDefinition as PD } from '../../mol-util/param-definition';
 import { ObjectKeys } from '../../mol-util/type-helpers';
 import './molstar.css';
 import './rednatco-molstar.css';
-import './output.css'
+import './output.css';
 
 const Extensions = {
-    'ntcs-prop': PluginSpec.Behavior(DnatcoNtCs),
+    'base-pairs': PluginSpec.Behavior(BasePairs),
+    'ntcs': PluginSpec.Behavior(DnatcoNtCs),
 };
 
 const AnimationDurationMsec = 150;
@@ -571,34 +573,17 @@ export class ReDNATCOMspViewer {
         };
     }
 
-    private basePairsParams(
-        colors: NtCColors.Conformers,
-        size = 0.3
-    ) {
+    private basePairsLadderParams(size = 1.0) {
         return {
             type: {
                 name: 'base-pairs-ladder',
                 params: {
-                    barRadius: 0.5 * size,
-                    barScale: 1.0 * size,
-                    ballRadius: 1.3 * size,
-                    showPairs: true,
-                    showUnpaired: true,
                 }
             },
             colorTheme: {
                 name: 'base-pairs-ladder',
-                params: {
-                    colors: {
-                        name: 'custom',
-                        params: colors
-                    }
-                }
+                params: {},
             },
-            sizeTheme: {
-                name: 'uniform',
-                params: {}
-            }
         };
     }
 
@@ -1121,20 +1106,30 @@ export class ReDNATCOMspViewer {
     }
 
     async changeBasePairsLadder(display: Display) {
-        const structRef = IDs.ID('structure', 'nucleic', BaseRef);
-        const ladderRef = IDs.ID('base-pairs-ladder', 'nucleic', BaseRef);
-        const b = this.plugin.state.data.build().to(structRef);
-
         if (display.structures.showBasePairsLadder) {
-            b.apply(
-                StateTransforms.Representation.StructureRepresentation3D,
-                this.basePairsParams(display.structures.conformerColors)
-            );
-        } else {
-            b.delete(ladderRef);
-        }
-
-        await b.commit();
+            if (!this.has('base-pairs-ladder', 'nucleic')) {
+                const b = this.getBuilder('structure', 'nucleic');
+                if (b) {
+                    b.apply(
+                        StateTransforms.Representation.StructureRepresentation3D,
+                        this.basePairsLadderParams(),
+                        { ref: IDs.ID('base-pairs-ladder', 'nucleic', BaseRef) }
+                    );
+                    await b.commit();
+                }
+            } else {
+                const b = this.getBuilder('base-pairs-ladder', 'nucleic');
+                b.update(
+                    StateTransforms.Representation.StructureRepresentation3D,
+                    old => ({
+                        ...old,
+                        ...this.basePairsLadderParams(),
+                    })
+                );
+                await b.commit();
+            }
+        } else
+            await PluginCommands.State.RemoveObject(this.plugin, { state: this.plugin.state.data, ref: IDs.ID('base-pairs-ladder', 'nucleic', BaseRef) });
     }
 
     async changeWaterColor(display: Display) {
@@ -1436,7 +1431,7 @@ export class ReDNATCOMspViewer {
             : t.apply(StateTransforms.Data.ParseCif).apply(StateTransforms.Model.TrajectoryFromMmCif, {}, { ref: IDs.ID('trajectory', '', BaseRef) })
         )(this.plugin.state.data.build().toRoot().apply(RawData, { data: coords.data }, { ref: IDs.ID('data', '', BaseRef) }))
             .apply(StateTransforms.Model.ModelFromTrajectory, { modelIndex: modelNumber - 1 }, { ref: IDs.ID('model', '', BaseRef) }) // WARNING: The modelNumber - 1 is a major hack!!!
-            .apply(StateTransforms.Model.StructureFromModel, {}, { ref: IDs.ID('entire-structure', '', BaseRef) })
+            .apply(StateTransforms.Model.StructureFromModel, { type: { name: 'assembly', params: {} } }, { ref: IDs.ID('entire-structure', '', BaseRef) })
             // Extract substructures
             .apply(StateTransforms.Model.StructureComplexElement, { type: 'nucleic' }, { ref: IDs.ID('entire-structure', 'nucleic', BaseRef) })
             .to(IDs.ID('entire-structure', '', BaseRef))
@@ -1511,7 +1506,7 @@ export class ReDNATCOMspViewer {
             b3.to(IDs.ID('structure', 'nucleic', BaseRef))
                 .apply(
                     StateTransforms.Representation.StructureRepresentation3D,
-                    this.basePairsParams(display.structures.conformerColors),
+                    this.basePairsLadderParams(),
                     { ref: IDs.ID('base-pairs-ladder', 'nucleic', BaseRef) }
                 );
         }
