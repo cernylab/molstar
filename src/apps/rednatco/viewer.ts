@@ -574,15 +574,17 @@ export class ReDNATCOMspViewer {
         };
     }
 
-    private basePairsLadderParams(size = 1.0) {
+    private basePairsLadderParams(display: Display) {
         return {
             type: {
                 name: 'base-pairs-ladder',
                 params: {
+                    showPairs: display.structures.showPairedBases,
+                    showUnpaired: display.structures.showUnpairedBases
                 }
             },
             colorTheme: {
-                name: 'base-pairs-ladder',
+                name: 'base-pairs-ladder-simple',
                 params: {},
             },
         };
@@ -654,7 +656,7 @@ export class ReDNATCOMspViewer {
                             params: {
                                 sizeFactor: 0.2,
                                 sizeAspectRatio: 0.35,
-                                //excludeTypes: ['hydrogen-bond', 'aromatic'],
+                                // excludeTypes: ['hydrogen-bond', 'aromatic'],
                                 excludeTypes: ['hydrogen-bond'],
                                 aromaticBonds: false,
                             },
@@ -1121,7 +1123,7 @@ export class ReDNATCOMspViewer {
                 if (b) {
                     b.apply(
                         StateTransforms.Representation.StructureRepresentation3D,
-                        this.basePairsLadderParams(),
+                        this.basePairsLadderParams(display),
                         { ref: IDs.ID('base-pairs-ladder', 'nucleic', BaseRef) }
                     );
                     await b.commit();
@@ -1132,7 +1134,7 @@ export class ReDNATCOMspViewer {
                     StateTransforms.Representation.StructureRepresentation3D,
                     old => ({
                         ...old,
-                        ...this.basePairsLadderParams(),
+                        ...this.basePairsLadderParams(display),
                     })
                 );
                 await b.commit();
@@ -1515,7 +1517,7 @@ export class ReDNATCOMspViewer {
             b3.to(IDs.ID('structure', 'nucleic', BaseRef))
                 .apply(
                     StateTransforms.Representation.StructureRepresentation3D,
-                    this.basePairsLadderParams(),
+                    this.basePairsLadderParams(display),
                     { ref: IDs.ID('base-pairs-ladder', 'nucleic', BaseRef) }
                 );
         }

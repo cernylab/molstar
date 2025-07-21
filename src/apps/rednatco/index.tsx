@@ -79,7 +79,9 @@ const Display = {
         showPyramids: false,
         pyramidsTransparent: false,
 
-        showBasePairsLadder: true,
+        showBasePairsLadder: false,
+        showPairedBases: true,
+        showUnpairedBases: true,
 
         classColors: { ...NtCColors.Classes },
         conformerColors: { ...NtCColors.Conformers },
@@ -399,6 +401,19 @@ export class ReDNATCOMsp extends React.Component<ReDNATCOMsp.Props, State> {
         });
     }
 
+    handleBasePairsRepresentation(representation: 'all' | 'paired' | 'unpaired') {
+        const display = { ...this.state.display };
+
+        display.structures.showPairedBases = representation === 'all' || representation === 'paired';
+        display.structures.showUnpairedBases = representation === 'all' || representation === 'unpaired';
+
+        display.structures.showBasePairsLadder = true;
+
+        this.viewer!.changeBasePairsLadder(display).then(() => {
+            this.setState({ ...this.state, display });
+        });
+    }
+
     handleTogglePyramidsVisibility() {
         const display = { ...this.state.display };
         display.structures.showPyramids = !display.structures.showPyramids;
@@ -498,6 +513,15 @@ export class ReDNATCOMsp extends React.Component<ReDNATCOMsp.Props, State> {
             ],
         };
 
+        const basePairs = {
+            name: "base pairs",
+            options: [
+                { name: "All", function: () => this.handleBasePairsRepresentation('all') },
+                { name: "Paired", function: () => this.handleBasePairsRepresentation('paired') },
+                { name: "Unpaired", function: () => this.handleBasePairsRepresentation('unpaired') },
+            ],
+        };
+
         return (
             <div className='rmsp-app'>
                 <div className='flex'>
@@ -549,7 +573,7 @@ export class ReDNATCOMsp extends React.Component<ReDNATCOMsp.Props, State> {
 
                                         <SwitchBox visible={this.state.display.structures.showWater} name='water' onToggle={() => this.handleToggleStructureVisibility('showWater', 'water')} enabled={hasWater} />
 
-                                        <SwitchBox visible={this.state.display.structures.showBasePairsLadder} name='base pairs ladder' onToggle={() => this.handleBasePairsVisibility()} enabled={hasBasePairsLadder} />
+                                        <SwitchBox visible={this.state.display.structures.showBasePairsLadder} name={basePairs.name} options={basePairs.options} onToggle={() => this.handleBasePairsVisibility()} enabled={hasBasePairsLadder} />
                                     </ToolBarContent>
                             },
                             {
