@@ -61,7 +61,7 @@ export function Tooltip({ text, img, color }: TooltipProps) {
                     className="w-4 cursor-pointer"
                     src={img}
                     alt="tooltip icon"
-                    onClick={() => window.goToAbout?.('help', 'theCanaAlphabet')}
+                    onClick={() => window.goToAbout?.('help', 'ntcFamilies')}
                 />
 
                 {show && (
