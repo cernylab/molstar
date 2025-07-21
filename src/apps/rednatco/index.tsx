@@ -79,6 +79,12 @@ const Display = {
         showPyramids: false,
         pyramidsTransparent: false,
 
+        showBasePairsLadder: false,
+        showPairedBases: true,
+        showUnpairedBases: true,
+        showSimpleTheme: true,
+        showDetailedTheme: false,
+
         classColors: { ...NtCColors.Classes },
         conformerColors: { ...NtCColors.Conformers },
         chainColor: DefaultChainColor,
@@ -132,9 +138,12 @@ export class ReDNATCOMsp extends React.Component<ReDNATCOMsp.Props, State> {
         this.handleToggleStructureVisibility = this.handleToggleStructureVisibility.bind(this);
         this.handlePyramidsTransp = this.handlePyramidsTransp.bind(this);
         this.handlePyramidsSolid = this.handlePyramidsSolid.bind(this);
-        this.handleChangeNucleicRepresentation = this.handleChangeNucleicRepresentation.bind(this)
-        this.handleChangeProteinRepresentation = this.handleChangeProteinRepresentation.bind(this)
-        this.handleTogglePyramidsVisibility = this.handleTogglePyramidsVisibility.bind(this)
+        this.handleChangeNucleicRepresentation = this.handleChangeNucleicRepresentation.bind(this);
+        this.handleChangeProteinRepresentation = this.handleChangeProteinRepresentation.bind(this);
+        this.handleTogglePyramidsVisibility = this.handleTogglePyramidsVisibility.bind(this);
+        this.handleBasePairsVisibility = this.handleBasePairsVisibility.bind(this);
+        this.handleBasePairsRepresentation = this.handleBasePairsRepresentation.bind(this);
+        this.handleBasePairsTheme = this.handleBasePairsTheme.bind(this);
     }
 
     private classColorToConformers(k: keyof ConformersByClass, color: Color) {
@@ -387,6 +396,41 @@ export class ReDNATCOMsp extends React.Component<ReDNATCOMsp.Props, State> {
         }).catch(() => this.viewerLocker.unlock());
     }
 
+    handleBasePairsVisibility() {
+        const display = { ...this.state.display };
+        display.structures.showBasePairsLadder = !display.structures.showBasePairsLadder;
+
+        this.viewer!.changeBasePairsLadder(display).then(() => {
+            this.setState({ ...this.state, display });
+        });
+    }
+
+    handleBasePairsRepresentation(representation: 'all' | 'paired' | 'unpaired') {
+        const display = { ...this.state.display };
+
+        display.structures.showPairedBases = representation === 'all' || representation === 'paired';
+        display.structures.showUnpairedBases = representation === 'all' || representation === 'unpaired';
+
+        display.structures.showBasePairsLadder = true;
+
+        this.viewer!.changeBasePairsLadder(display).then(() => {
+            this.setState({ ...this.state, display });
+        });
+    }
+
+    handleBasePairsTheme(theme: 'simple' | 'detailed') {
+        const display = { ...this.state.display };
+
+        display.structures.showSimpleTheme = theme === 'simple';
+        display.structures.showDetailedTheme = theme === 'detailed';
+
+        display.structures.showBasePairsLadder = true;
+
+        this.viewer!.changeBasePairsLadder(display).then(() => {
+            this.setState({ ...this.state, display });
+        });
+    }
+
     handleTogglePyramidsVisibility() {
         const display = { ...this.state.display };
         display.structures.showPyramids = !display.structures.showPyramids;
@@ -459,6 +503,7 @@ export class ReDNATCOMsp extends React.Component<ReDNATCOMsp.Props, State> {
         const hasNucleic = this.viewer?.has('structure', 'nucleic') ?? false;
         const hasProtein = this.viewer?.has('structure', 'protein') ?? false;
         const hasWater = this.viewer?.has('structure', 'water') ?? false;
+        const hasBasePairsLadder = this.viewer?.areBasePairsAvailable() ?? false;
 
         const nucleic = {
             name: 'nucleic',
@@ -485,6 +530,15 @@ export class ReDNATCOMsp extends React.Component<ReDNATCOMsp.Props, State> {
             ],
         };
 
+        const basePairs = {
+            name: "base pairs",
+            options: [
+                { name: "All", function: () => this.handleBasePairsRepresentation('all') },
+                { name: "Paired", function: () => this.handleBasePairsRepresentation('paired') },
+                { name: "Unpaired", function: () => this.handleBasePairsRepresentation('unpaired') },
+            ],
+        };
+
         return (
             <div className='rmsp-app'>
                 <div className='flex'>
@@ -500,8 +554,8 @@ export class ReDNATCOMsp extends React.Component<ReDNATCOMsp.Props, State> {
                                     )}
                                 >
                                     <ColorBox caption={k} color={this.state.display.structures.classColors[k]} />
-                                </div> 
-                                
+                                </div>
+
                                 <Tooltip
                                     text={NtCColors.Tooltips[k]}
                                     img='/imgs/tooltip.png'
@@ -536,6 +590,7 @@ export class ReDNATCOMsp extends React.Component<ReDNATCOMsp.Props, State> {
 
                                         <SwitchBox visible={this.state.display.structures.showWater} name='water' onToggle={() => this.handleToggleStructureVisibility('showWater', 'water')} enabled={hasWater} />
 
+                                        <SwitchBox visible={this.state.display.structures.showBasePairsLadder} name={basePairs.name} options={basePairs.options} onToggle={() => this.handleBasePairsVisibility()} enabled={hasBasePairsLadder} />
                                     </ToolBarContent>
                             },
                             {
@@ -543,6 +598,21 @@ export class ReDNATCOMsp extends React.Component<ReDNATCOMsp.Props, State> {
                                 icon: '/imgs/palette.svg',
                                 content:
                                     <ToolBarContent>
+                                        {this.state.display.structures.showBasePairsLadder && (
+                                            <>
+                                                <div className='rmsp-control-vertical-section-caption font-roboto-bold'>
+                                                    Base pairs theme
+                                                </div>
+                                                <div className='flex flex-col items-start mt-1 mb-3'>
+                                                    <button className={`${this.state.display.structures.showSimpleTheme ? 'font-roboto-bold' : 'font-roboto-regular'} mb-1`} onClick={() => this.handleBasePairsTheme('simple')}>
+                                                        Simple
+                                                    </button>
+                                                    <button className={`${this.state.display.structures.showDetailedTheme ? 'font-roboto-bold' : 'font-roboto-regular'}`} onClick={() => this.handleBasePairsTheme('detailed')}>
+                                                        Detailed
+                                                    </button>
+                                                </div>
+                                            </>
+                                        )}
                                         <div className='rmsp-control-vertical-section-caption font-roboto-bold'>
                                             Structure
                                         </div>
