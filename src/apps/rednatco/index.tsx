@@ -82,6 +82,8 @@ const Display = {
         showBasePairsLadder: false,
         showPairedBases: true,
         showUnpairedBases: true,
+        showSimpleTheme: true,
+        showDetailedTheme: false,
 
         classColors: { ...NtCColors.Classes },
         conformerColors: { ...NtCColors.Conformers },
@@ -140,6 +142,8 @@ export class ReDNATCOMsp extends React.Component<ReDNATCOMsp.Props, State> {
         this.handleChangeProteinRepresentation = this.handleChangeProteinRepresentation.bind(this);
         this.handleTogglePyramidsVisibility = this.handleTogglePyramidsVisibility.bind(this);
         this.handleBasePairsVisibility = this.handleBasePairsVisibility.bind(this);
+        this.handleBasePairsRepresentation = this.handleBasePairsRepresentation.bind(this);
+        this.handleBasePairsTheme = this.handleBasePairsTheme.bind(this);
     }
 
     private classColorToConformers(k: keyof ConformersByClass, color: Color) {
@@ -414,6 +418,19 @@ export class ReDNATCOMsp extends React.Component<ReDNATCOMsp.Props, State> {
         });
     }
 
+    handleBasePairsTheme(theme: 'simple' | 'detailed') {
+        const display = { ...this.state.display };
+
+        display.structures.showSimpleTheme = theme === 'simple';
+        display.structures.showDetailedTheme = theme === 'detailed';
+
+        display.structures.showBasePairsLadder = true;
+
+        this.viewer!.changeBasePairsLadder(display).then(() => {
+            this.setState({ ...this.state, display });
+        });
+    }
+
     handleTogglePyramidsVisibility() {
         const display = { ...this.state.display };
         display.structures.showPyramids = !display.structures.showPyramids;
@@ -581,6 +598,21 @@ export class ReDNATCOMsp extends React.Component<ReDNATCOMsp.Props, State> {
                                 icon: '/imgs/palette.svg',
                                 content:
                                     <ToolBarContent>
+                                        {this.state.display.structures.showBasePairsLadder && (
+                                            <>
+                                                <div className='rmsp-control-vertical-section-caption font-roboto-bold'>
+                                                    Base pairs theme
+                                                </div>
+                                                <div className='flex flex-col items-start mt-1 mb-3'>
+                                                    <button className={`${this.state.display.structures.showSimpleTheme ? 'font-roboto-bold' : 'font-roboto-regular'} mb-1`} onClick={() => this.handleBasePairsTheme('simple')}>
+                                                        Simple
+                                                    </button>
+                                                    <button className={`${this.state.display.structures.showDetailedTheme ? 'font-roboto-bold' : 'font-roboto-regular'}`} onClick={() => this.handleBasePairsTheme('detailed')}>
+                                                        Detailed
+                                                    </button>
+                                                </div>
+                                            </>
+                                        )}
                                         <div className='rmsp-control-vertical-section-caption font-roboto-bold'>
                                             Structure
                                         </div>

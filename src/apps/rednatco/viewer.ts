@@ -575,6 +575,8 @@ export class ReDNATCOMspViewer {
     }
 
     private basePairsLadderParams(display: Display) {
+        const theme = display.structures.showSimpleTheme ? 'base-pairs-ladder-simple' : 'base-pairs-ladder-detailed';
+
         return {
             type: {
                 name: 'base-pairs-ladder',
@@ -584,7 +586,7 @@ export class ReDNATCOMspViewer {
                 }
             },
             colorTheme: {
-                name: 'base-pairs-ladder-simple',
+                name: theme,
                 params: {},
             },
         };

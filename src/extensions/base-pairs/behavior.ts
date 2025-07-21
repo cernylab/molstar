@@ -1,5 +1,5 @@
 import { BasePairsLadderPreset } from './ladder/behavior';
-import { BasePairsLadderColorThemeProvider } from './ladder/color';
+import { BasePairsLadderDetailedColorThemeProvider, BasePairsLadderSimpleColorThemeProvider } from './ladder/color';
 import { BasePairsLadderProvider } from './ladder/property';
 import { BasePairsLadderRepresentationProvider } from './ladder/representation';
 import { ParamDefinition as PD } from '../../mol-util/param-definition';
@@ -16,7 +16,8 @@ export const BasePairs = PluginBehavior.create<{ autoAttach: boolean, showToolTi
         register(): void {
             this.ctx.customModelProperties.register(BasePairsLadderProvider, this.params.autoAttach);
 
-            this.ctx.representation.structure.themes.colorThemeRegistry.add(BasePairsLadderColorThemeProvider);
+            this.ctx.representation.structure.themes.colorThemeRegistry.add(BasePairsLadderDetailedColorThemeProvider);
+            this.ctx.representation.structure.themes.colorThemeRegistry.add(BasePairsLadderSimpleColorThemeProvider);
             this.ctx.representation.structure.registry.add(BasePairsLadderRepresentationProvider);
 
             this.ctx.builders.structure.representation.registerPreset(BasePairsLadderPreset);
@@ -26,7 +27,8 @@ export const BasePairs = PluginBehavior.create<{ autoAttach: boolean, showToolTi
             this.ctx.customModelProperties.unregister(BasePairsLadderProvider.descriptor.name);
 
             this.ctx.representation.structure.registry.remove(BasePairsLadderRepresentationProvider);
-            this.ctx.representation.structure.themes.colorThemeRegistry.remove(BasePairsLadderColorThemeProvider);
+            this.ctx.representation.structure.themes.colorThemeRegistry.remove(BasePairsLadderSimpleColorThemeProvider);
+            this.ctx.representation.structure.themes.colorThemeRegistry.remove(BasePairsLadderDetailedColorThemeProvider);
 
             this.ctx.builders.structure.representation.unregisterPreset(BasePairsLadderPreset);
         }

@@ -21,20 +21,35 @@ function toColorMapParams(defn: Record<string, Color>) {
     return params;
 }
 
-const LadderColors = {
+const DetailedLadderColors = {
     'Hoogsteen': Color(0x0F0FCD),
     'Sugar': Color(0xFF0000),
-    'cWW_Complementary': Color(0x6BED00),
+    'cWW_Complementary': Color(0xFAFAFA),
     'WW_Other': Color(0xFFFF00),
     'Cis_Ball': Color(0xFAFAFA),
     'Trans_Ball': Color(0x363636),
     Default: DefaultColor,
 };
 
+const SimpleLadderColors = {
+    'Hoogsteen': Color(0xC70039),
+    'Sugar': Color(0xC70039),
+    'cWW_Complementary': Color(0xFAFAFA),
+    'WW_Other': Color(0xC70039),
+    'Cis_Ball': Color(0xFAFAFA),
+    'Trans_Ball': Color(0x363636),
+    Default: DefaultColor,
+};
+
+const DefaultLadderColors = {
+    detailed: DetailedLadderColors,
+    simple: SimpleLadderColors
+};
+
 export const BasePairsLadderColorThemeParams = {
     colors: PD.MappedStatic('default', {
         default: PD.EmptyGroup(),
-        custom: PD.Group(toColorMapParams(LadderColors)),
+        custom: PD.Group(toColorMapParams(DetailedLadderColors)),
     }),
 };
 export type BasePairsLadderColorThemeParams = typeof BasePairsLadderColorThemeParams;
@@ -43,8 +58,8 @@ export function getBasePairsLadderColorThemeParams(ctx: ThemeDataContext) {
     return PD.clone(BasePairsLadderColorThemeParams);
 }
 
-export function BasePairsLadderColorTheme(ctx: ThemeDataContext, props: PD.Values<BasePairsLadderColorThemeParams>): ColorTheme<BasePairsLadderColorThemeParams> {
-    const colorMap = props.colors.name === 'default' ? LadderColors : props.colors.params;
+export function BasePairsLadderColorTheme(ctx: ThemeDataContext, props: PD.Values<BasePairsLadderColorThemeParams>, variant: 'simple' | 'detailed'): ColorTheme<BasePairsLadderColorThemeParams> {
+    const colorMap = props.colors.name === 'default' ? DefaultLadderColors[variant] : props.colors.params;
 
     function color(location: Location, isSecondary: boolean): Color {
         if (BasePairsLadderTypes.isLocation(location)) {
@@ -74,7 +89,7 @@ export function BasePairsLadderColorTheme(ctx: ThemeDataContext, props: PD.Value
     }
 
     return {
-        factory: BasePairsLadderColorTheme,
+        factory: (ctx, props) => BasePairsLadderColorTheme(ctx, props, variant),
         granularity: 'group',
         color,
         props,
@@ -82,12 +97,25 @@ export function BasePairsLadderColorTheme(ctx: ThemeDataContext, props: PD.Value
         legend: TableLegend(ObjectKeys(colorMap).map(k => [k.replace('_', ' '), colorMap[k]] as [string, Color])),
     };
 }
-
-export const BasePairsLadderColorThemeProvider: ColorTheme.Provider<BasePairsLadderColorThemeParams, 'base-pairs-ladder'> = {
-    name: 'base-pairs-ladder',
-    label: 'Base Pairs Ladder',
+export const BasePairsLadderSimpleColorThemeProvider: ColorTheme.Provider<BasePairsLadderColorThemeParams, 'base-pairs-ladder-simple'> = {
+    name: 'base-pairs-ladder-simple',
+    label: 'Base Pairs Ladder (Simple)',
     category: ColorThemeCategory.Residue,
-    factory: BasePairsLadderColorTheme,
+    factory: (ctx, props) => BasePairsLadderColorTheme(ctx, props, 'simple'),
+    getParams: getBasePairsLadderColorThemeParams,
+    defaultValues: PD.getDefaultValues(BasePairsLadderColorThemeParams),
+    isApplicable: (ctx: ThemeDataContext) => !!ctx.structure && ctx.structure.models.some(m => BasePairs.isApplicable(m)),
+    ensureCustomProperties: {
+        attach: (ctx: CustomProperty.Context, data: ThemeDataContext) => data.structure ? BasePairsLadderProvider.attach(ctx, data.structure.models[0], void 0, true) : Promise.resolve(),
+        detach: (data) => data.structure && BasePairsLadderProvider.ref(data.structure.models[0], false)
+    }
+};
+
+export const BasePairsLadderDetailedColorThemeProvider: ColorTheme.Provider<BasePairsLadderColorThemeParams, 'base-pairs-ladder-detailed'> = {
+    name: 'base-pairs-ladder-detailed',
+    label: 'Base Pairs Ladder (Detailed)',
+    category: ColorThemeCategory.Residue,
+    factory: (ctx, props) => BasePairsLadderColorTheme(ctx, props, 'detailed'),
     getParams: getBasePairsLadderColorThemeParams,
     defaultValues: PD.getDefaultValues(BasePairsLadderColorThemeParams),
     isApplicable: (ctx: ThemeDataContext) => !!ctx.structure && ctx.structure.models.some(m => BasePairs.isApplicable(m)),

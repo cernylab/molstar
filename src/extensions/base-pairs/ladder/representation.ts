@@ -6,9 +6,10 @@ import { Interval, Segmentation } from '../../../mol-data/int';
 import { Mesh } from '../../../mol-geo/geometry/mesh/mesh';
 import { PickingId } from '../../../mol-geo/geometry/picking';
 import { EmptyLocationIterator, LocationIterator } from '../../../mol-geo/util/location-iterator';
+import { Sphere3D } from '../../../mol-math/geometry';
 import { EmptyLoci, Loci } from '../../../mol-model/loci';
 import { NullLocation } from '../../../mol-model/location';
-import { ElementIndex, Structure, StructureElement, StructureProperties, Unit } from '../../../mol-model/structure';
+import { ElementIndex, ResidueIndex, Structure, StructureElement, StructureProperties, Unit } from '../../../mol-model/structure';
 import { CustomProperty } from '../../../mol-model-props/common/custom-property';
 import { Representation, RepresentationContext, RepresentationParamsGetter } from '../../../mol-repr/representation';
 import { StructureRepresentation, StructureRepresentationProvider, StructureRepresentationStateBuilder, UnitsRepresentation } from '../../../mol-repr/structure/representation';
@@ -25,20 +26,43 @@ import { addCylinder } from '../../../mol-geo/geometry/mesh/builder/cylinder';
 import { BasePairsLadderTypes } from './types';
 import { addSphere } from '../../../mol-geo/geometry/mesh/builder/sphere';
 
+const firstAnchorPos = Vec3();
+const secondAnchorPos = Vec3();
+const midpoint = Vec3();
+const unpairedBsCenter = Vec3();
+
 const BasePairsLadderMeshParams = {
     ...UnitsMeshParams,
     barRadius: PD.Numeric(0.5, { min: 0.1, max: 5.0, step: 0.1 }),
     barScale: PD.Numeric(1.0, { min: 0.1, max: 2.0, step: 0.1 }),
-    ballRadius: PD.Numeric(1.3, { min: 0.1, max: 5.0, step: 0.1 }),
+    cisBallRadius: PD.Numeric(0.6, { min: 0.1, max: 5.0, step: 0.1 }),
+    transBallRadius: PD.Numeric(1.2, { min: 0.1, max: 5.0, step: 0.1 }),
+    unpairedBallRadius: PD.Numeric(1.2, { min: 0.1, max: 5.0, step: 0.1 }),
     showPairs: PD.Boolean(true),
     showUnpaired: PD.Boolean(true),
+    showCisBall: PD.Boolean(true),
+    showTransBall: PD.Boolean(true),
 };
 type BasePairsLadderMeshParams = typeof BasePairsLadderMeshParams;
+
+type ResidueWithUnit = {
+    residue: Segmentation.Segment<ResidueIndex>,
+    unit: Unit.Atomic,
+};
 
 function calcMidpoint(mp: Vec3, v: Vec3, w: Vec3) {
     Vec3.sub(mp, v, w);
     Vec3.scale(mp, mp, 0.5);
     Vec3.add(mp, mp, w);
+}
+
+function findAnchorAtom(r: ResidueWithUnit, alt_id: string, structure: Structure): ElementIndex {
+    const baseType = getNucleotideBaseType(r.unit, r.residue.index);
+    if (!isUsableBaseType(baseType)) return -1 as ElementIndex;
+
+    const anchorAtomName = baseType.isPyrimidine ? 'N1' : 'N9';
+
+    return findAtomInRange(anchorAtomName, alt_id, r.residue.start, r.residue.end, structure, r.unit);
 }
 
 function findAtomInRange(name: string, altId: string, start: number, end: number, structure: Structure, unit: Unit) {
@@ -71,7 +95,7 @@ function findResidue(operId: string, asymId: string, seqId: number, insCode: str
     return void 0;
 }
 
-function findResidueInUnit(asymId: string, seqId: number, insCode: string, structure: Structure, unit: Unit.Atomic) {
+function findResidueInUnit(asymId: string, seqId: number, insCode: string, structure: Structure, unit: Unit.Atomic): ResidueWithUnit | undefined {
     const loc = StructureElement.Location.create(structure, unit, -1 as ElementIndex);
 
     const chainIt = Segmentation.transientSegments(structure.model.atomicHierarchy.chainAtomSegments, unit.elements);
@@ -122,10 +146,6 @@ function isUsableBaseType(bt: { isPurine: boolean, isPyrimidine: boolean }) {
     return bt.isPurine !== bt.isPyrimidine;
 }
 
-const firstAnchorPos = Vec3();
-const secondAnchorPos = Vec3();
-const midpoint = Vec3();
-
 function getAnchorAtoms(first: BasePairsTypes.PairedBase, second: BasePairsTypes.PairedBase, structure: Structure, unit: Unit.Atomic) {
     const firstResidue = findResidueInUnit(first.asym_id, first.seq_id, first.PDB_ins_code, structure, unit);
     if (!firstResidue) {
@@ -136,15 +156,8 @@ function getAnchorAtoms(first: BasePairsTypes.PairedBase, second: BasePairsTypes
         return void 0;
     }
 
-    const firstBaseType = getNucleotideBaseType(firstResidue.unit, firstResidue.residue.index);
-    const secondBaseType = getNucleotideBaseType(secondResidue.unit, secondResidue.residue.index);
-    if (!isUsableBaseType(firstBaseType) || !isUsableBaseType(secondBaseType)) return void 0;
-
-    const firstAnchorAtomName = firstBaseType.isPyrimidine ? 'N1' : 'N9';
-    const secondAnchorAtomName = secondBaseType.isPyrimidine ? 'N1' : 'N9';
-
-    const firstAtom = findAtomInRange(firstAnchorAtomName, first.alt_id, firstResidue.residue.start, firstResidue.residue.end, structure, firstResidue.unit);
-    const secondAtom = findAtomInRange(secondAnchorAtomName, second.alt_id, secondResidue.residue.start, secondResidue.residue.end, structure, secondResidue.unit);
+    const firstAtom = findAnchorAtom(firstResidue, first.alt_id, structure);
+    const secondAtom = findAnchorAtom(secondResidue, second.alt_id, structure);
 
     if (firstAtom === -1 || secondAtom === -1) return void 0;
 
@@ -154,6 +167,19 @@ function getAnchorAtoms(first: BasePairsTypes.PairedBase, second: BasePairsTypes
     return {
         firstAtom: firstAnchorPos,
         secondAtom: secondAnchorPos,
+    };
+}
+
+function calcStepPoints(first: BasePairsTypes.PairedBase, second: BasePairsTypes.PairedBase, structure: Structure, unit: Unit.Atomic) {
+    const anchors = getAnchorAtoms(first, second, structure, unit);
+    if (!anchors) return void 0;
+
+    calcMidpoint(midpoint, anchors.firstAtom, anchors.secondAtom);
+
+    return {
+        firstAtom: anchors.firstAtom,
+        secondAtom: anchors.secondAtom,
+        midpoint,
     };
 }
 
@@ -236,7 +262,7 @@ function createBasePairsLadderMesh(ctx: VisualContext, unit: Unit, structure: St
                             unit.conformation.position(atom, midpoint);
 
                             mb.currentGroup = 3 * itemIdx;
-                            addSphere(mb, midpoint, props.ballRadius, 4);
+                            addSphere(mb, midpoint, props.unpairedBallRadius, 4);
 
                             break;
                         }
@@ -244,20 +270,20 @@ function createBasePairsLadderMesh(ctx: VisualContext, unit: Unit, structure: St
                 } else if (item.kind === 'pair' && props.showPairs) {
                     const matching = isBasePairMatching(item, unit, current);
                     if (matching) {
-                        const anchors = getAnchorAtoms(item.a, item.b, structure, unit);
-                        if (!anchors) {
-                            continue;
-                        }
-                        const { firstAtom, secondAtom } = anchors;
-
-                        calcMidpoint(midpoint, firstAtom, secondAtom);
+                        const points = calcStepPoints(item.a, item.b, structure, unit);
+                        if (!points) continue;
+                        const { firstAtom, secondAtom, midpoint } = points;
 
                         mb.currentGroup = 3 * itemIdx;
                         addCylinder(mb, midpoint, firstAtom, props.barScale, cylinderProps);
                         mb.currentGroup = 3 * itemIdx + 1;
                         addCylinder(mb, midpoint, secondAtom, props.barScale, cylinderProps);
                         mb.currentGroup = 3 * itemIdx + 2;
-                        addSphere(mb, midpoint, props.ballRadius, 4);
+                        if (item.orientation === 'cis' && props.showCisBall) {
+                            addSphere(mb, midpoint, props.cisBallRadius, 4);
+                        } else if (item.orientation === 'trans' && props.showTransBall) {
+                            addSphere(mb, midpoint, props.transBallRadius, 4);
+                        }
                     }
                 }
             }
@@ -309,10 +335,20 @@ function getBasePairsLadderLoci(pickingId: PickingId, structureGroup: StructureG
     const itemIdx = Math.floor(groupId / 3);
     const offsetGroupId = itemIdx * 3 + meshGroupsCount * instanceId;
 
+
     const item = data.items[itemIdx];
     if (item.kind === 'unpaired') {
         const lociItem = { ...item, instanceName: unit.conformation.operator.name };
-        return BasePairsLadderTypes.Loci([lociItem], [0], [offsetGroupId]);
+
+        let bs;
+        const r = findResidueInUnit(item.residue.asym_id, item.residue.seq_id, item.residue.PDB_ins_code, structure, unit);
+        const aa = r ? findAnchorAtom(r, '', structure) : -1;
+        if (aa !== -1) {
+            r!.unit.conformation.position(aa, unpairedBsCenter);
+            bs = Sphere3D.create(unpairedBsCenter, 5.0);
+        }
+
+        return BasePairsLadderTypes.Loci([lociItem], [0], [offsetGroupId], bs);
     } else {
         const opposingUnit = structureGroup.group.units.length === 1
             ? unit
@@ -322,8 +358,11 @@ function getBasePairsLadderLoci(pickingId: PickingId, structureGroup: StructureG
         const instanceNameA = unit.conformation?.operator.name;
         const instanceNameB = opposingUnit.conformation?.operator.name ?? '?';
 
+        const points = calcStepPoints(item.a, item.b, structure, unit);
+        const bs = points ? Sphere3D.create(points.midpoint, 5.0) : void 0;
+
         const lociItem = { ...item, instanceNameA, instanceNameB };
-        return BasePairsLadderTypes.Loci([lociItem], [0], [offsetGroupId]);
+        return BasePairsLadderTypes.Loci([lociItem], [0], [offsetGroupId], bs);
     }
 }
 
@@ -349,9 +388,13 @@ function BasePairsLadderVisual(materialId: number): UnitsVisual<BasePairsLadderM
                 newProps.alpha !== currentProps.alpha ||
                 newProps.barRadius !== currentProps.barRadius ||
                 newProps.barScale !== currentProps.barScale ||
-                newProps.ballRadius !== currentProps.ballRadius ||
+                newProps.cisBallRadius !== currentProps.cisBallRadius ||
+                newProps.transBallRadius !== currentProps.transBallRadius ||
+                newProps.unpairedBallRadius !== currentProps.unpairedBallRadius ||
                 newProps.showPairs !== currentProps.showPairs ||
-                newProps.showUnpaired !== currentProps.showUnpaired
+                newProps.showUnpaired !== currentProps.showUnpaired ||
+                newProps.showCisBall !== currentProps.showCisBall ||
+                newProps.showTransBall !== currentProps.showTransBall
             );
         },
         mustRecreate() {
