@@ -343,8 +343,23 @@ export class ReDNATCOMsp extends React.Component<ReDNATCOMsp.Props, State> {
 
             this.viewer.loadStructure(coords, densityMaps, display, coords.modelNumber).then(() => {
                 this.presentConformers = this.viewer!.getPresentConformers();
-                this.setState({ ...this.state, display });
+                this.setState({ ...this.state, display: this.state.display });
                 ReDNATCOMspApi.event(Api.Events.StructureLoaded());
+                
+                if (this.viewer!.areBasePairsAvailable()) {
+                    this.setState(
+                        ({ display }) => ({
+                            display: {
+                                ...display,
+                                structures: {
+                                    ...display.structures,
+                                    showBasePairsLadder: true
+                                }
+                            },
+                        }),
+                        () => this.viewer!.changeBasePairsLadder(this.state.display)
+                    );
+                }
             });
         }
     }
