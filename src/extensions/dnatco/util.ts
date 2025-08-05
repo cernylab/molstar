@@ -67,18 +67,22 @@ export namespace DnatcoUtil {
     const _loc = StructureElement.Location.create();
     export function residueToLoci(asymId: string, seqId: number, altId: string | undefined, insCode: string, loci: StructureElement.Loci, source: 'label' | 'auth') {
         _loc.structure = loci.structure;
-        for (const e of loci.elements) {
-            _loc.unit = e.unit;
 
-            const getAsymId = source === 'label' ? StructureProperties.chain.label_asym_id : StructureProperties.chain.auth_asym_id;
-            const getSeqId = source === 'label' ? StructureProperties.residue.label_seq_id : StructureProperties.residue.auth_seq_id;
+        let union = StructureElement.Loci(loci.structure, []);
 
-            // Walk the entire unit and look for the requested residue
-            const chainIt = Segmentation.transientSegments(e.unit.model.atomicHierarchy.chainAtomSegments, e.unit.elements);
-            const residueIt = Segmentation.transientSegments(e.unit.model.atomicHierarchy.residueAtomSegments, e.unit.elements);
+        const getAsymId = source === 'label' ? StructureProperties.chain.label_asym_id : StructureProperties.chain.auth_asym_id;
+        const getSeqId = source === 'label' ? StructureProperties.residue.label_seq_id : StructureProperties.residue.auth_seq_id;
 
-            const elemIndex = (idx: number) => OrderedSet.getAt(e.unit.elements, idx);
-            while (chainIt.hasNext) {
+        // Walk all units and look for the requested residue
+        for (const unit of loci.structure.units) {
+            _loc.unit = unit;
+
+            const chainIt = Segmentation.transientSegments(unit.model.atomicHierarchy.chainAtomSegments, unit.elements);
+            const residueIt = Segmentation.transientSegments(unit.model.atomicHierarchy.residueAtomSegments, unit.elements);
+
+            const elemIndex = (idx: number) => OrderedSet.getAt(unit.elements, idx);
+            let goToNextUnit = false;
+            while (chainIt.hasNext && !goToNextUnit) {
                 const chain = chainIt.move();
                 _loc.element = elemIndex(chain.start);
                 const _asymId = getAsymId(_loc);
@@ -86,7 +90,7 @@ export namespace DnatcoUtil {
                     continue; // Wrong chain, skip it
 
                 residueIt.setSegment(chain);
-                while (residueIt.hasNext) {
+                while (residueIt.hasNext && !goToNextUnit) {
                     const residue = residueIt.move();
                     _loc.element = elemIndex(residue.start);
 
@@ -96,22 +100,25 @@ export namespace DnatcoUtil {
                         if (_insCode !== insCode)
                             continue;
                         if (altId) {
-                            const _altIds = residueAltIds(loci.structure, e.unit, residue);
+                            const _altIds = residueAltIds(loci.structure, unit, residue);
                             if (!_altIds.includes(altId))
                                 continue;
                         }
 
                         const start = residue.start as StructureElement.UnitIndex;
                         const end = residue.end as StructureElement.UnitIndex;
-                        return StructureElement.Loci(
+                        const el = StructureElement.Loci(
                             loci.structure,
-                            [{ unit: e.unit, indices: OrderedSet.ofBounds(start, end) }]
+                            [{ unit, indices: OrderedSet.ofBounds(start, end) }]
                         );
+
+                        union = StructureElement.Loci.union(el, union);
+                        goToNextUnit = true;
                     }
                 }
             }
         }
 
-        return EmptyLoci;
+        return union.elements.length > 0 ? union : EmptyLoci;
     }
 }
