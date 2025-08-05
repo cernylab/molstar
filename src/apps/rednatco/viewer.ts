@@ -93,31 +93,33 @@ export function filterLoci(filters: { seqId: number, altId: string, insCode: str
     const e = loci.elements[0];
 
     _loc.structure = loci.structure;
-    _loc.unit = e.unit;
 
     const N = OrderedSet.size(loci.elements[0].indices);
-    const filteredIndices = [];
+    let filteredLoci = StructureElement.Loci(loci.structure, []);
 
     for (let idx = 0; idx < N; idx++) {
         const uI = OrderedSet.getAt(e.indices, idx);
-        _loc.element = OrderedSet.getAt(_loc.unit.elements, uI);
 
-        for (const { seqId, altId, insCode } of filters) {
-            const _seqId = StructureProperties.residue.auth_seq_id(_loc);
-            const _altId = StructureProperties.atom.label_alt_id(_loc);
-            const _insCode = StructureProperties.residue.pdbx_PDB_ins_code(_loc);
+        for (const unit of loci.structure.units) {
+            _loc.unit = unit;
+            _loc.element = OrderedSet.getAt(_loc.unit.elements, uI);
 
-            if ((_altId === '' || altId === _altId) && _seqId === seqId && _insCode === insCode) {
-                filteredIndices.push(uI);
-                break;
+            for (const { seqId, altId, insCode } of filters) {
+                const _seqId = StructureProperties.residue.auth_seq_id(_loc);
+                const _altId = StructureProperties.atom.label_alt_id(_loc);
+                const _insCode = StructureProperties.residue.pdbx_PDB_ins_code(_loc);
+
+                if ((_altId === '' || altId === _altId) && _seqId === seqId && _insCode === insCode) {
+                    const l = StructureElement.Loci(
+                        loci.structure,
+                        [{ unit, indices: OrderedSet.ofSortedArray([uI]) }]
+                    );
+                    filteredLoci = StructureElement.Loci.union(filteredLoci, l);
+                    break;
+                }
             }
         }
     }
-
-    const filteredLoci = StructureElement.Loci(
-        loci.structure,
-        [{ unit: e.unit, indices: OrderedSet.ofSortedArray(filteredIndices) }]
-    );
 
     return Structure.toStructureElementLoci(StructureElement.Loci.toStructure(filteredLoci));
 }
@@ -1792,6 +1794,7 @@ export class ReDNATCOMspViewer {
             } else if (sel.type === 'residue') {
                 const residue = sel.residue;
                 const residueLoci = Search.findResidue(residue.chain, residue.seqId, residue.altId, residue.insCode, struLoci, 'auth');
+
                 if (residueLoci.kind === 'element-loci') {
                     selectionExtended = this.addSelection(StruSelection(residue)) || selectionExtended;
                     succeeded.push(residue);
