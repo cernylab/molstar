@@ -1613,7 +1613,11 @@ export class ReDNATCOMspViewer {
                     const stru = this.plugin.state.data.cells.get(IDs.ID('entire-structure', 'nucleic', BaseRef));
                     if (stru) {
                         const tubeLoci = selected.loci as NtCTubeTypes.Loci;
-                        const stepIdx = tubeLoci.elements[0] / 4; // There are 4 tube segments per step
+
+                        // We need to the MOD because the element index we get from Molstar may point
+                        // to a symmetry copy. There does not seem to be any good way how to detect this.
+                        const elemIdx = tubeLoci.elements[0] % (tubeLoci.data.length * 4);
+                        const stepIdx = elemIdx / 4; // There are 4 tube segments per step
                         const step = tubeLoci.data[stepIdx];
                         if (step)
                             return ntcStepToElementLoci(step, stru.obj!.data);

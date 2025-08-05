@@ -345,7 +345,7 @@ export class ReDNATCOMsp extends React.Component<ReDNATCOMsp.Props, State> {
                 this.presentConformers = this.viewer!.getPresentConformers();
                 this.setState({ ...this.state, display: this.state.display });
                 ReDNATCOMspApi.event(Api.Events.StructureLoaded());
-                
+
                 if (this.viewer!.areBasePairsAvailable()) {
                     this.setState(
                         ({ display }) => ({
