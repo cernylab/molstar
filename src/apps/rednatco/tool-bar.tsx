@@ -58,10 +58,12 @@ export class ToolBar<ID extends string> extends React.Component<ToolBar.Props<ID
 
     renderIconBar() {
         const icons = new Array<JSX.Element>();
-        for (const blk of this.props.controlBlocks) {
+        for (let idx = 0; idx < this.props.controlBlocks.length; idx++) {
+            const blk = this.props.controlBlocks[idx];
             if (!blk.disabled) {
                 icons.push(
                     <Icon
+                        key={idx}
                         img={blk.icon}
                         status={blk.disabled
                             ? 'disabled'
