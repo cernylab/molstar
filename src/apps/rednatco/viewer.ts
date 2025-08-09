@@ -20,6 +20,7 @@ import { ConfalPyramidsParams } from '../../extensions/dnatco/confal-pyramids/re
 import { OrderedSet } from '../../mol-data/int/ordered-set';
 import { Sphere3D } from '../../mol-math/geometry';
 import { BoundaryHelper } from '../../mol-math/geometry/boundary-helper';
+import { SymmetryOperator } from '../../mol-math/geometry/symmetry-operator';
 import { Vec3 } from '../../mol-math/linear-algebra/3d';
 import { EmptyLoci, Loci } from '../../mol-model/loci';
 import { ElementIndex, Model, Structure, StructureElement, StructureProperties, Trajectory } from '../../mol-model/structure';
@@ -692,13 +693,13 @@ export class ReDNATCOMspViewer {
         return {};
     }
 
-    private superpose(reference: StructureElement.Loci, stru: StructureElement.Loci) {
+    private superpose(reference: StructureElement.Loci, stru: StructureElement.Loci, targetConformation: SymmetryOperator.ArrayMapping<ElementIndex>) {
         const refElems = superpositionAtomsIndices(reference);
         const struElems = superpositionAtomsIndices(stru);
 
         return Superpose.superposition(
             { elements: refElems, conformation: reference.elements[0].unit.conformation },
-            { elements: struElems, conformation: stru.elements[0].unit.conformation }
+            { elements: struElems, conformation: targetConformation }
         );
     }
 
@@ -907,46 +908,49 @@ export class ReDNATCOMspViewer {
                     await b.commit();
                     b = this.plugin.state.data.build();
 
-                    let objRef = UUID.create22();
-                    b.to(mRef)
-                        .apply(StateTransforms.Model.StructureFromModel, {}, { ref: objRef });
-                    sel.objects.push(StruObject(objRef, mRef, { kind: 'structure' }, false));
+                    for (const unit of loci.structure.units) {
+                        // Create a new reference structure for each unit we want to superpose onto
+                        let objRef = UUID.create22();
+                        b.to(mRef)
+                            .apply(StateTransforms.Model.StructureFromModel, {}, { ref: objRef });
+                        sel.objects.push(StruObject(objRef, mRef, { kind: 'structure' }, false));
 
-                    // Now we actually need to commit to get the added Structure object to appear in the state tree
-                    await b.commit();
-                    b = this.plugin.state.data.build();
+                        // Now we actually need to commit to get the added Structure object to appear in the state tree
+                        await b.commit();
+                        b = this.plugin.state.data.build();
 
-                    const refStru = this.plugin.state.data.cells.get(objRef)!.obj!;
-                    const refLoci = Structure.toStructureElementLoci(refStru.data);
+                        const refStru = this.plugin.state.data.cells.get(objRef)!.obj!;
+                        const refLoci = Structure.toStructureElementLoci(refStru.data);
 
-                    const { bTransform } = this.superpose(refLoci, loci);
-                    if (isNaN(bTransform[0])) {
-                        console.warn(`Cannot superpose reference conformer ${ntcRef} onto selection`);
-                    } else {
-                        let objRef2 = UUID.create22();
+                        const { bTransform } = this.superpose(refLoci, loci, unit.conformation);
+                        if (isNaN(bTransform[0])) {
+                            console.warn(`Cannot superpose reference conformer ${ntcRef} onto selection`);
+                        } else {
+                            let objRef2 = UUID.create22();
 
-                        b.to(objRef)
-                            .apply(
-                                StateTransforms.Model.TransformStructureConformation,
-                                { transform: { name: 'matrix', params: { data: bTransform, transpose: false } } },
-                                { ref: objRef2 }
-                            );
-                        sel.objects.push(StruObject(objRef2, objRef, { kind: 'other' }, false));
-
-                        objRef = objRef2;
-                        objRef2 = UUID.create22();
-                        const ntcVisualParams = NtCReferenceVisuals(Color(sel.selector.reference.color));
-
-                        if (display.structures.showNucleic) {
                             b.to(objRef)
                                 .apply(
-                                    StateTransforms.Representation.StructureRepresentation3D,
-                                    ntcVisualParams,
+                                    StateTransforms.Model.TransformStructureConformation,
+                                    { transform: { name: 'matrix', params: { data: bTransform, transpose: false } } },
                                     { ref: objRef2 }
                                 );
-                        }
+                            sel.objects.push(StruObject(objRef2, objRef, { kind: 'other' }, false));
 
-                        sel.objects.push(StruObject(objRef2, objRef, { kind: 'visual', params: { molstar: ntcVisualParams, useChainColor: false } }, false));
+                            objRef = objRef2;
+                            objRef2 = UUID.create22();
+                            const ntcVisualParams = NtCReferenceVisuals(Color(sel.selector.reference.color));
+
+                            if (display.structures.showNucleic) {
+                                b.to(objRef)
+                                    .apply(
+                                        StateTransforms.Representation.StructureRepresentation3D,
+                                        ntcVisualParams,
+                                        { ref: objRef2 }
+                                    );
+                            }
+
+                            sel.objects.push(StruObject(objRef2, objRef, { kind: 'visual', params: { molstar: ntcVisualParams, useChainColor: false } }, false));
+                        }
                     }
                 }
             }
