@@ -28,7 +28,6 @@ import { CustomProperties } from '../../custom-property';
 import { StructureSelection } from '../query/selection';
 import { Boundary } from '../../../mol-math/geometry/boundary';
 import { ElementSymbol } from '../model/types';
-import { Unit as _Unit } from '../../../mol-model/structure/structure/unit';
 import { CustomStructureProperty } from '../../../mol-model-props/common/custom-structure-property';
 import { Trajectory } from '../trajectory';
 import { RuntimeContext, Task } from '../../../mol-task';
