@@ -57,12 +57,13 @@ export function Tooltip({ text, img, color }: TooltipProps) {
                 onMouseLeave={() => setShow(false)}
             >
 
-                <img
-                    className="w-4 cursor-pointer"
-                    src={img}
-                    alt="tooltip icon"
-                    onClick={() => window.goToAbout?.('help', 'ntcFamilies')}
-                />
+                <a href='/app/about/help#ntcFamilies'>
+                    <img
+                        className="w-4 cursor-pointer"
+                        src={img}
+                        alt="tooltip icon"
+                    />
+                </a>
 
                 {show && (
                     <div
@@ -77,9 +78,3 @@ export function Tooltip({ text, img, color }: TooltipProps) {
         </div>
     );
 };
-
-declare global {
-  interface Window {
-    goToAbout?: (tab?: string, anchor?: string) => void;
-  }
-}
