@@ -26,6 +26,22 @@ export namespace BasePairsTypes {
         is_coding: boolean,
     };
 
+    export type basePairsLadder = {
+        barRadius: number,
+        barScale: number,
+        cisBallRadius: number,
+        transBallRadius: number,
+        unpairedBallRadius: number,
+        showPairs: boolean,
+        showUnpaired: boolean,
+        showCisBall: boolean,
+        showTransBall: boolean,
+        showBrick: boolean,
+        brickLength: number,
+        brickWidth: number,
+        brickHeight: number,
+    }
+
     // Groups items by seq_id
     export type SeqIdMap = Map<number, number[]>;
     // Groups SeqIdMaps by asym_id

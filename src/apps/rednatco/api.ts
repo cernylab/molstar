@@ -206,6 +206,24 @@ export namespace ReDNATCOMspApi {
         highlightColor: number;
         highlightThickness: number;
         hydrogensInReferences: boolean;
+        basePairsLadder: {
+            barRadius: number;
+            barScale: number;
+            cWWBallRadius: number;
+            cisBallRadius: number;
+            transBallRadius: number;
+            unpairedBallRadius: number;
+            showPairs: boolean;
+            showUnpaired: boolean;
+            showUnpairedBall: boolean;
+            showcWWBall: boolean;
+            showCisBall: boolean;
+            showTransBall: boolean;
+            showBrick: boolean;
+            brickLength: number;
+            brickWidth: number;
+            brickHeight: number;
+        };
     }
 
     export interface Object {
