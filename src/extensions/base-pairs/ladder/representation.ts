@@ -37,7 +37,7 @@ const unpairedBsCenter = Vec3();
 const pN = Vec3();     // anchor N1/N9
 const pC1p = Vec3();   // C1'
 const pC4C2 = Vec3();  // C4 (purine) or C2 (pyrimidine)
-const pCBC6 = Vec3();  // C8 (purine) or C6 (pyrimidine)
+const pC8C6 = Vec3();  // C8 (purine) or C6 (pyrimidine)
 const xAxis = Vec3();
 const yAxis = Vec3();
 const zAxis = Vec3();
@@ -235,7 +235,7 @@ function addNucleotideBrick(
     unit.conformation.position(anchorAtom, pN);   // N1 / N9
     unit.conformation.position(c1pAtom, pC1p);    // C1'
     unit.conformation.position(a1, pC4C2);        // C4 or C2
-    unit.conformation.position(a2, pCBC6);        // C8 or C6
+    unit.conformation.position(a2, pC8C6);        // C8 or C6
 
     // X axis: from sugar (C1') toward anchor (N1/N9)
     Vec3.sub(xAxis, pC1p, pN);
@@ -243,7 +243,7 @@ function addNucleotideBrick(
 
     // Z axis: normal to base plane (cross of two vectors in base plane)
     Vec3.sub(tmpVec, pC4C2, pN);
-    Vec3.sub(brickCenter, pCBC6, pN);
+    Vec3.sub(brickCenter, pC8C6, pN);
     Vec3.cross(zAxis, tmpVec, brickCenter);
     Vec3.normalize(zAxis, zAxis);
 
