@@ -417,11 +417,13 @@ export class ReDNATCOMspViewer {
     private app: ReDNATCOMsp;
     private selections = new Array<StruSelection>();
     private hydrogensInReferences;
+    private basePairsLadderOptions;
 
     constructor(public plugin: PluginUIContext, interactionContext: { self?: ReDNATCOMspViewer }, options: Partial<Api.Options>, app: ReDNATCOMsp) {
         interactionContext.self = this;
         this.app = app;
         this.hydrogensInReferences = options.hydrogensInReferences ?? false;
+        this.basePairsLadderOptions = options.basePairsLadder;
 
         this.plugin.canvas3d?.setProps({
             renderer: {
@@ -580,13 +582,17 @@ export class ReDNATCOMspViewer {
     private basePairsLadderParams(display: Display) {
         const theme = display.structures.showSimpleTheme ? 'base-pairs-ladder-simple' : 'base-pairs-ladder-detailed';
 
+        // Merge config options with display settings (display settings take precedence for show flags)
+        const params = {
+            ...(this.basePairsLadderOptions || {}),
+            showPairs: display.structures.showPairedBases,
+            showUnpaired: display.structures.showUnpairedBases
+        };
+
         return {
             type: {
                 name: 'base-pairs-ladder',
-                params: {
-                    showPairs: display.structures.showPairedBases,
-                    showUnpaired: display.structures.showUnpairedBases
-                }
+                params
             },
             colorTheme: {
                 name: theme,
@@ -597,7 +603,10 @@ export class ReDNATCOMspViewer {
 
     private repositionCamera(boundingSphere: Sphere3D) {
         const snapshot = this.plugin.canvas3d!.camera.getSnapshot();
-        const radius = (boundingSphere.radius < 1 ? 1 : boundingSphere.radius) * 8;
+        //const radius = (boundingSphere.radius < 1 ? 1 : boundingSphere.radius) * 8;
+        // with * 8 the molecule is too small when unselected
+        // trying smaller value (still not optimal, TODO: it involves also rotation, why?)
+        const radius = (boundingSphere.radius < 1 ? 1 : boundingSphere.radius) * 3;
 
         const v = Vec3();
         const u = Vec3();

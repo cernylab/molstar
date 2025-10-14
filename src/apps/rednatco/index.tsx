@@ -130,8 +130,21 @@ export class ReDNATCOMsp extends React.Component<ReDNATCOMsp.Props, State> {
     constructor(props: ReDNATCOMsp.Props) {
         super(props);
 
+        const display = deepClone(Display);
+
+        // Initialize display state from config if provided
+        if (props.options.basePairsLadder) {
+            const config = props.options.basePairsLadder;
+            if (config.showPairs !== undefined) {
+                display.structures.showPairedBases = config.showPairs;
+            }
+            if (config.showUnpaired !== undefined) {
+                display.structures.showUnpairedBases = config.showUnpaired;
+            }
+        }
+
         this.state = {
-            display: deepClone(Display),
+            display,
             showControls: false,
         };
 
