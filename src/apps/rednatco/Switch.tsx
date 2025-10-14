@@ -7,7 +7,7 @@ const Switch = React.forwardRef<HTMLButtonElement, React.ComponentPropsWithoutRe
         <SwitchPrimitive.Root
             ref={ref}
             className={cn(
-            "peer inline-flex h-6 w-11 shrink-0 cursor-pointer items-center rounded-round border-2 border-transparent",
+            "peer inline-flex h-6 w-11 shrink-0 cursor-pointer items-center rounded-full border-2 border-transparent",
             "transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
             "disabled:cursor-not-allowed disabled:opacity-50",
             "data-[state=checked]:bg-primary-first data-[state=unchecked]:bg-gray-200",
@@ -16,7 +16,7 @@ const Switch = React.forwardRef<HTMLButtonElement, React.ComponentPropsWithoutRe
         >
             <SwitchPrimitive.Thumb
             className={cn(
-                "pointer-events-none block h-5 w-5 rounded-round bg-molstar-white shadow-lg",
+                "pointer-events-none block h-5 w-5 rounded-full bg-molstar-white shadow-lg",
                 "transition-transform data-[state=checked]:translate-x-5 data-[state=unchecked]:translate-x-0"
             )}
             />
