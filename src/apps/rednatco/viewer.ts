@@ -13,6 +13,8 @@ import { Superpose } from './superpose';
 import { isoBounds, prettyIso } from './util';
 import { BasePairs } from '../../extensions/base-pairs';
 import { BasePairs as BasePairsProp } from '../../extensions/base-pairs/property';
+import { BasePairsTypes } from '../../extensions/base-pairs/types';
+import { BasePairsLadderTypes } from '../../extensions/base-pairs/ladder/types';
 import { DnatcoNtCs } from '../../extensions/dnatco';
 import { DnatcoTypes } from '../../extensions/dnatco/types';
 import { NtCTubeTypes } from '../../extensions/dnatco/ntc-tube/types';
@@ -91,38 +93,41 @@ export function filterLoci(filters: { seqId: number, altId: string, insCode: str
         return loci;
 
     const _loc = StructureElement.Location.create();
-    const e = loci.elements[0];
-
     _loc.structure = loci.structure;
 
-    const N = OrderedSet.size(loci.elements[0].indices);
     let filteredLoci = StructureElement.Loci(loci.structure, []);
 
-    for (let idx = 0; idx < N; idx++) {
-        const uI = OrderedSet.getAt(e.indices, idx);
+    // Process all elements, not just the first one (important for base pairs in different chains/units)
+    for (const e of loci.elements) {
+        const N = OrderedSet.size(e.indices);
 
-        for (const unit of loci.structure.units) {
-            _loc.unit = unit;
-            _loc.element = OrderedSet.getAt(_loc.unit.elements, uI);
+        for (let idx = 0; idx < N; idx++) {
+            const uI = OrderedSet.getAt(e.indices, idx);
 
-            for (const { seqId, altId, insCode } of filters) {
-                const _seqId = StructureProperties.residue.auth_seq_id(_loc);
-                const _altId = StructureProperties.atom.label_alt_id(_loc);
-                const _insCode = StructureProperties.residue.pdbx_PDB_ins_code(_loc);
+            for (const unit of loci.structure.units) {
+                _loc.unit = unit;
+                _loc.element = OrderedSet.getAt(_loc.unit.elements, uI);
 
-                if ((_altId === '' || altId === _altId) && _seqId === seqId && _insCode === insCode) {
-                    const l = StructureElement.Loci(
-                        loci.structure,
-                        [{ unit, indices: OrderedSet.ofSortedArray([uI]) }]
-                    );
-                    filteredLoci = StructureElement.Loci.union(filteredLoci, l);
-                    break;
+                for (const { seqId, altId, insCode } of filters) {
+                    const _seqId = StructureProperties.residue.auth_seq_id(_loc);
+                    const _altId = StructureProperties.atom.label_alt_id(_loc);
+                    const _insCode = StructureProperties.residue.pdbx_PDB_ins_code(_loc);
+
+                    if ((_altId === '' || altId === _altId) && _seqId === seqId && _insCode === insCode) {
+                        const l = StructureElement.Loci(
+                            loci.structure,
+                            [{ unit, indices: OrderedSet.ofSortedArray([uI]) }]
+                        );
+                        filteredLoci = StructureElement.Loci.union(filteredLoci, l);
+                        break;
+                    }
                 }
             }
         }
     }
 
-    return Structure.toStructureElementLoci(StructureElement.Loci.toStructure(filteredLoci));
+    const result = Structure.toStructureElementLoci(StructureElement.Loci.toStructure(filteredLoci));
+    return result;
 }
 
 function ntcStepToElementLoci(step: DnatcoTypes.Step, stru: Structure) {
@@ -233,8 +238,17 @@ const ReDNATCOLociLabelProvider = PluginBehavior.create({
             label: (loci: Loci) => {
                 switch (loci.kind) {
                     case 'structure-loci':
+                        return lociLabel(loci);
                     case 'element-loci':
+                        // Use context-aware granularity:
+                        // - For data-loci (tubes, ladders), they have their own getLabel
+                        // - For element-loci, check if it's a two-residue selection
+                        const stats = StructureElement.Stats.ofLoci(loci);
+                        const useTwoResidues = stats.residueCount === 2 && stats.elementCount === 0;
+                        const granularity = useTwoResidues ? 'two-residues' : 'residue';
+                        return lociLabel(loci, { granularity });
                     case 'data-loci':
+                        // Data loci (tubes, ladders) use their own getLabel function
                         return lociLabel(loci);
                     default:
                         return '';
@@ -410,6 +424,18 @@ function residuesEqual(a: Api.Payloads.ResidueSelection, b: Api.Payloads.Residue
     );
 }
 
+function basePairsEqual(a: Api.Payloads.BasePairSelection, b: Api.Payloads.BasePairSelection) {
+    return (
+        a.modelNum === b.modelNum &&
+        a.asymId1 === b.asymId1 &&
+        a.seqId1 === b.seqId1 &&
+        a.insCode1 === b.insCode1 &&
+        a.asymId2 === b.asymId2 &&
+        a.seqId2 === b.seqId2 &&
+        a.insCode2 === b.insCode2
+    );
+}
+
 export class ReDNATCOMspViewer {
     private haveMultipleModels = false;
     private steps: Step.ExtendedDescription[] = [];
@@ -418,12 +444,29 @@ export class ReDNATCOMspViewer {
     private selections = new Array<StruSelection>();
     private hydrogensInReferences;
     private basePairsLadderOptions;
+    private ntcTubeAlpha: number;
+    private pyramidAlpha: number;
+    private pairingLadderAlpha: number;
+    private showNtcTubeSegmentForSelectedResidues: boolean;
+    private cameraRadiusFactor: number;
+    private cameraClippingRadius: number;
+    private cameraClippingFar: boolean;
+    private cameraClippingMinNear: number;
+    private lastClickedBasePair?: BasePairsTypes.BasePair;
 
     constructor(public plugin: PluginUIContext, interactionContext: { self?: ReDNATCOMspViewer }, options: Partial<Api.Options>, app: ReDNATCOMsp) {
         interactionContext.self = this;
         this.app = app;
         this.hydrogensInReferences = options.hydrogensInReferences ?? false;
         this.basePairsLadderOptions = options.basePairsLadder;
+        this.ntcTubeAlpha = options.ntcTubeAlpha ?? 0.5;
+        this.pyramidAlpha = options.pyramidAlpha ?? 0.5;
+        this.pairingLadderAlpha = options.pairingLadderAlpha ?? 0.5;
+        this.showNtcTubeSegmentForSelectedResidues = options.showNtcTubeSegmentForSelectedResidues ?? true;
+        this.cameraRadiusFactor = options.cameraRadiusFactor ?? 3;
+        this.cameraClippingRadius = options.cameraClippingRadius ?? 100;
+        this.cameraClippingFar = options.cameraClippingFar ?? true;
+        this.cameraClippingMinNear = options.cameraClippingMinNear ?? 5;
 
         this.plugin.canvas3d?.setProps({
             renderer: {
@@ -477,6 +520,21 @@ export class ReDNATCOMspViewer {
 
                 const _selector = sel.selector;
                 if (atomsEqual(_selector, selector)) {
+                    if (_selector.color !== selector.color) {
+                        _selector.color = selector.color;
+                        sel.update = true;
+                    }
+
+                    return false;
+                }
+            }
+        } else if (selector.type === 'base-pair') {
+            for (const sel of this.selections) {
+                if (sel.selector.type !== 'base-pair')
+                    continue;
+
+                const _selector = sel.selector;
+                if (basePairsEqual(_selector, selector)) {
                     if (_selector.color !== selector.color) {
                         _selector.color = selector.color;
                         sel.update = true;
@@ -566,7 +624,7 @@ export class ReDNATCOMspViewer {
         }
 
         return {
-            type: { name: 'confal-pyramids', params: { ...typeParams, alpha: transparent ? 0.5 : 1.0 } },
+            type: { name: 'confal-pyramids', params: { ...typeParams, alpha: transparent ? this.pyramidAlpha : 1.0 } },
             colorTheme: {
                 name: 'confal-pyramids',
                 params: {
@@ -582,11 +640,19 @@ export class ReDNATCOMspViewer {
     private basePairsLadderParams(display: Display) {
         const theme = display.structures.showSimpleTheme ? 'base-pairs-ladder-simple' : 'base-pairs-ladder-detailed';
 
+        // Check if any residues/steps/base pairs are selected - if so, make the ENTIRE ladder semi-transparent
+        // This ensures the ladder becomes transparent when tube is clicked (step selected) or ladder is clicked (base pair selected)
+        // Note: Per-stick transparency would require mesh-level transparency data which is more complex
+        const hasSelections = this.selections.length > 0;
+
         // Merge config options with display settings (display settings take precedence for show flags)
         const params = {
             ...(this.basePairsLadderOptions || {}),
             showPairs: display.structures.showPairedBases,
-            showUnpaired: display.structures.showUnpairedBases
+            showUnpaired: display.structures.showUnpairedBases,
+            // Make whole ladder semi-transparent when any residues are selected to reduce visual clutter
+            // Use config value for alpha (alpha must be >= 0.5 to keep hover/picking working properly)
+            alpha: hasSelections ? this.pairingLadderAlpha : 1.0
         };
 
         return {
@@ -603,10 +669,9 @@ export class ReDNATCOMspViewer {
 
     private repositionCamera(boundingSphere: Sphere3D) {
         const snapshot = this.plugin.canvas3d!.camera.getSnapshot();
-        //const radius = (boundingSphere.radius < 1 ? 1 : boundingSphere.radius) * 8;
-        // with * 8 the molecule is too small when unselected
-        // trying smaller value (still not optimal, TODO: it involves also rotation, why?)
-        const radius = (boundingSphere.radius < 1 ? 1 : boundingSphere.radius) * 3;
+        // Use the camera radius factor from config to control the zoom level
+        // Higher values zoom out more, lower values zoom in closer
+        const radius = (boundingSphere.radius < 1 ? 1 : boundingSphere.radius) * this.cameraRadiusFactor;
 
         const v = Vec3();
         const u = Vec3();
@@ -620,6 +685,15 @@ export class ReDNATCOMspViewer {
         snapshot.target = boundingSphere.center;
         snapshot.position = v;
         snapshot.radius = radius;
+
+        // Apply camera clipping when zooming in on selected residues
+        this.plugin.canvas3d?.setProps({
+            cameraClipping: {
+                radius: this.cameraClippingRadius,
+                far: this.cameraClippingFar,
+                minNear: this.cameraClippingMinNear,
+            }
+        });
 
         PluginCommands.Camera.SetSnapshot(this.plugin, { snapshot, durationMs: AnimationDurationMsec });
     }
@@ -640,8 +714,33 @@ export class ReDNATCOMspViewer {
         if (locis.length < 1)
             return;
 
+        // Reset camera clipping to default values when resetting camera
+        this.plugin.canvas3d?.setProps({
+            cameraClipping: {
+                radius: 100,
+                far: true,
+                minNear: 5,
+            }
+        });
+
         const bSphere = getBoundingSphere(locis.map((l) => ({ loci: l })));
-        this.repositionCamera(bSphere);
+        const snapshot = this.plugin.canvas3d!.camera.getSnapshot();
+        const radius = (bSphere.radius < 1 ? 1 : bSphere.radius) * this.cameraRadiusFactor;
+
+        const v = Vec3();
+        const u = Vec3();
+        Vec3.set(v, bSphere.center[0], bSphere.center[1], bSphere.center[2]);
+        Vec3.set(u, snapshot.position[0], snapshot.position[1], snapshot.position[2]);
+        Vec3.sub(u, u, v);
+        Vec3.normalize(u, u);
+        Vec3.scale(u, u, radius);
+        Vec3.add(v, u, v);
+
+        snapshot.target = bSphere.center;
+        snapshot.position = v;
+        snapshot.radius = radius;
+
+        PluginCommands.Camera.SetSnapshot(this.plugin, { snapshot, durationMs: AnimationDurationMsec });
     }
 
     private stepFromName(name: string) {
@@ -652,7 +751,7 @@ export class ReDNATCOMspViewer {
         return this.steps[idx];
     }
 
-    private substructureVisuals(visual: SubstructureVisual.Types) {
+    private substructureVisuals(visual: SubstructureVisual.Types, applyTransparency: boolean = false) {
         if (visual.type === 'built-in') {
             switch (visual.repr) {
                 case 'cartoon':
@@ -684,7 +783,9 @@ export class ReDNATCOMspViewer {
                     return {
                         type: {
                             name: 'ntc-tube',
-                            params: {},
+                            params: {
+                                alpha: applyTransparency ? this.ntcTubeAlpha : 1.0
+                            },
                         },
                         colorTheme: {
                             name: 'ntc-tube',
@@ -741,10 +842,13 @@ export class ReDNATCOMspViewer {
                 }
             }
 
+            // Apply transparency to NtC tube when residues are selected
+            const hasSelections = this.selections.length > 0;
+
             b.to(IDs.ID('structure-slice', 'nucleic', BaseRef))
                 .apply(
                     StateTransforms.Representation.StructureRepresentation3D,
-                    this.substructureVisuals(visual),
+                    this.substructureVisuals(visual, hasSelections),
                     { ref: IDs.ID('visual', 'nucleic', BaseRef) }
                 );
         }
@@ -778,23 +882,35 @@ export class ReDNATCOMspViewer {
     }
 
     private async visualizeNucleicNotSelected(struLoci: StructureElement.Loci, selectedLocis: StructureElement.Loci[], display: Display) {
-        const notSelected = structureSubtract(struLoci.structure, structureUnion(struLoci.structure, selectedLocis.map(x => x.structure)));
+        // If showNtcTubeSegmentForSelectedResidues is true, show the entire structure
+        // Otherwise, subtract selected residues to hide those tube segments
+        const structureToShow = this.showNtcTubeSegmentForSelectedResidues
+            ? struLoci.structure
+            : structureSubtract(struLoci.structure, structureUnion(struLoci.structure, selectedLocis.map(x => x.structure)));
+
+        const label = this.showNtcTubeSegmentForSelectedResidues
+            ? 'NA structure (full tube including selected residues)'
+            : 'Not selected NA part of the structure';
+
         const b = this.plugin.state.data.build().to(IDs.ID('structure', 'nucleic', BaseRef))
             .applyOrUpdate(
                 IDs.ID('structure-slice', 'nucleic', BaseRef),
                 StateTransforms.Model.StructureSelectionFromBundle,
-                { bundle: StructureElement.Bundle.fromSubStructure(struLoci.structure, notSelected), label: 'Not selected NA part of the structure' },
+                { bundle: StructureElement.Bundle.fromSubStructure(struLoci.structure, structureToShow), label },
             );
 
         const vis = display.structures.nucleicRepresentation === 'ntc-tube'
             ? SubstructureVisual.NtC('ntc-tube', display.structures.conformerColors)
             : SubstructureVisual.BuiltIn(display.structures.nucleicRepresentation, Color(display.structures.chainColor));
 
+        // Apply transparency to NtC tube when residues are selected (shown as ball-and-stick)
+        const hasSelections = this.selections.length > 0;
+
         if (display.structures.showNucleic) {
             b.to(IDs.ID('structure-slice', 'nucleic', BaseRef))
                 .apply(
                     StateTransforms.Representation.StructureRepresentation3D,
-                    this.substructureVisuals(vis),
+                    this.substructureVisuals(vis, hasSelections),
                     { ref: IDs.ID('visual', 'nucleic', BaseRef) }
                 );
         }
@@ -834,6 +950,42 @@ export class ReDNATCOMspViewer {
                 if (loci.kind !== 'empty-loci')
                     loci = Structure.toStructureElementLoci(StructureElement.Loci.toStructure(loci)); // Necessary to avoid selecting the entire struLoci
                 // We're not setting any loci filters because it makes no sense for a single atom
+            } else if (type === 'base-pair') {
+                const bp = sel.selector as Api.Payloads.BasePairSelection;
+
+                // Find both residues and create a union loci
+                const residue1Loci = Search.findResidue(
+                    bp.asymId1,
+                    bp.seqId1,
+                    bp.altId1,
+                    bp.insCode1,
+                    struLoci,
+                    'label'
+                );
+
+                const residue2Loci = Search.findResidue(
+                    bp.asymId2,
+                    bp.seqId2,
+                    bp.altId2,
+                    bp.insCode2,
+                    struLoci,
+                    'label'
+                );
+
+                if (residue1Loci.kind === 'element-loci' && residue2Loci.kind === 'element-loci') {
+                    // Use structureUnion like findStep does, instead of StructureElement.Loci.union
+                    const union = structureUnion(struLoci.structure, [
+                        StructureElement.Loci.toStructure(residue1Loci),
+                        StructureElement.Loci.toStructure(residue2Loci)
+                    ]);
+                    loci = Structure.toStructureElementLoci(union);
+
+                    color = Color(bp.color);
+                    lociFilters.push({ seqId: bp.authSeqId1, altId: bp.altId1, insCode: bp.insCode1 });
+                    lociFilters.push({ seqId: bp.authSeqId2, altId: bp.altId2, insCode: bp.insCode2 });
+                } else {
+                    console.warn('[Viewer.visualizeNucleic] Could not create loci for base pair');
+                }
             }
 
             // Visualize the selected bit
@@ -971,6 +1123,11 @@ export class ReDNATCOMspViewer {
         if (updateNotSelected)
             await this.visualizeNucleicNotSelected(struLoci, selectedLocis, display);
 
+        // Update ladder transparency when base pairs are selected/deselected
+        if (display.structures.showBasePairsLadder && this.has('base-pairs-ladder', 'nucleic')) {
+            await this.changeBasePairsLadder(display);
+        }
+
         return true;
     }
 
@@ -1047,6 +1204,9 @@ export class ReDNATCOMspViewer {
     async changeChainColor(subs: IDs.Substructure[], display: Display) {
         const b = this.plugin.state.data.build();
 
+        // Apply transparency to NtC tube when residues are selected
+        const hasSelections = this.selections.length > 0;
+
         for (const sub of subs) {
             const vis = visualForSubstructure(sub, display);
 
@@ -1056,7 +1216,7 @@ export class ReDNATCOMspViewer {
                         StateTransforms.Representation.StructureRepresentation3D,
                         old => ({
                             ...old,
-                            ...this.substructureVisuals(vis),
+                            ...this.substructureVisuals(vis, hasSelections),
                         })
                     );
             }
@@ -1182,13 +1342,16 @@ export class ReDNATCOMspViewer {
         const b = this.plugin.state.data.build();
         const vis = visualForSubstructure(sub, display);
 
+        // Apply transparency to NtC tube when residues are selected
+        const hasSelections = this.selections.length > 0;
+
         if (this.has('visual', sub)) {
             b.to(IDs.ID('visual', sub, BaseRef))
                 .update(
                     StateTransforms.Representation.StructureRepresentation3D,
                     old => ({
                         ...old,
-                        ...this.substructureVisuals(vis),
+                        ...this.substructureVisuals(vis, hasSelections),
                     })
                 );
         }
@@ -1200,13 +1363,25 @@ export class ReDNATCOMspViewer {
                         StateTransforms.Representation.StructureRepresentation3D,
                         old => ({
                             ...old,
-                            ...this.substructureVisuals(vis),
+                            ...this.substructureVisuals(vis, hasSelections),
                         })
                     );
+            }
+
+            // Automatically show pyramids when nucleic representation is set to cartoon
+            if (display.structures.nucleicRepresentation === 'cartoon') {
+                if (!display.structures.showPyramids) {
+                    display.structures.showPyramids = true;
+                }
             }
         }
 
         await b.commit();
+
+        // Update pyramids if nucleic representation changed to cartoon
+        if (sub === 'nucleic' && display.structures.nucleicRepresentation === 'cartoon') {
+            await this.changePyramids(display);
+        }
     }
 
     async changeDensityMap(index: number, display: Display) {
@@ -1273,6 +1448,8 @@ export class ReDNATCOMspViewer {
                 if (obj.selector.type === 'step' && (sel as Api.Payloads.StepSelection).name === obj.selector.name)
                     return true;
                 else if (obj.selector.type === 'residue' && residuesEqual((sel as Api.Payloads.ResidueSelection), obj.selector))
+                    return true;
+                else if (obj.selector.type === 'base-pair' && basePairsEqual((sel as Api.Payloads.BasePairSelection), obj.selector))
                     return true;
                 return false;
             });
@@ -1619,6 +1796,58 @@ export class ReDNATCOMspViewer {
         this.app.viewerStepSelected(name);
     }
 
+    notifyBasePairSelected(basePair: BasePairsTypes.BasePair) {
+        // Get the structure to extract auth_seq_id values
+        const stru = this.plugin.state.data.cells.get(IDs.ID('entire-structure', 'nucleic', BaseRef));
+        if (!stru?.obj?.data) {
+            console.warn('[Viewer.notifyBasePairSelected] No structure available');
+            return;
+        }
+
+        const struLoci = Structure.toStructureElementLoci(stru.obj.data);
+
+        // Find the residues to get their auth_seq_id
+        const residue1Loci = Search.findResidue(
+            basePair.a.asym_id,
+            basePair.a.seq_id,
+            basePair.a.alt_id,
+            basePair.a.PDB_ins_code,
+            struLoci,
+            'label'
+        );
+
+        const residue2Loci = Search.findResidue(
+            basePair.b.asym_id,
+            basePair.b.seq_id,
+            basePair.b.alt_id,
+            basePair.b.PDB_ins_code,
+            struLoci,
+            'label'
+        );
+
+        if (residue1Loci.kind === 'element-loci' && residue2Loci.kind === 'element-loci') {
+            // Extract auth_seq_id from the loci
+            const loc1 = StructureElement.Location.create(residue1Loci.structure);
+            loc1.unit = residue1Loci.elements[0].unit;
+            loc1.element = residue1Loci.elements[0].unit.elements[OrderedSet.getAt(residue1Loci.elements[0].indices, 0)];
+            const authSeqId1 = StructureProperties.residue.auth_seq_id(loc1);
+
+            const loc2 = StructureElement.Location.create(residue2Loci.structure);
+            loc2.unit = residue2Loci.elements[0].unit;
+            loc2.element = residue2Loci.elements[0].unit.elements[OrderedSet.getAt(residue2Loci.elements[0].indices, 0)];
+            const authSeqId2 = StructureProperties.residue.auth_seq_id(loc2);
+
+            // Now create an enriched base pair object with auth_seq_id fields
+            const enrichedBasePair = {
+                ...basePair,
+                auth_seq_id_1: authSeqId1,
+                auth_seq_id_2: authSeqId2
+            };
+
+            this.app.viewerBasePairSelected(enrichedBasePair);
+        }
+    }
+
     async onLociSelected(selected: Representation.Loci) {
         const granularity = this.plugin.managers.interactivity.props.granularity;
 
@@ -1640,6 +1869,41 @@ export class ReDNATCOMspViewer {
                             return EmptyLoci;
                     }
                     return EmptyLoci;
+                } else if (selected.loci.tag === 'base-pairs-base-in-pair') {
+                    // Base pair ladder clicked
+                    const stru = this.plugin.state.data.cells.get(IDs.ID('entire-structure', 'nucleic', BaseRef));
+                    if (stru) {
+                        const bpLoci = selected.loci as BasePairsLadderTypes.Loci;
+                        // bpLoci.data contains only the selected items, so use index 0
+                        const item = bpLoci.data[0];
+
+                        if (item && item.kind === 'pair') {
+                            // Convert base pair to element loci for both residues
+                            const residue1Loci = Search.findResidue(
+                                item.a.asym_id,
+                                item.a.seq_id,
+                                item.a.alt_id,
+                                item.a.PDB_ins_code,
+                                Structure.toStructureElementLoci(stru.obj!.data),
+                                'label'
+                            );
+                            const residue2Loci = Search.findResidue(
+                                item.b.asym_id,
+                                item.b.seq_id,
+                                item.b.alt_id,
+                                item.b.PDB_ins_code,
+                                Structure.toStructureElementLoci(stru.obj!.data),
+                                'label'
+                            );
+
+                            if (residue1Loci.kind === 'element-loci' && residue2Loci.kind === 'element-loci') {
+                                // Store the base pair item for notification
+                                this.lastClickedBasePair = item;
+                                return StructureElement.Loci.union(residue1Loci, residue2Loci);
+                            }
+                        }
+                    }
+                    return EmptyLoci;
                 } else
                     return EmptyLoci;
             } else if (selected.loci.kind === 'element-loci') {
@@ -1654,9 +1918,16 @@ export class ReDNATCOMspViewer {
 
         if (normalized.kind === 'element-loci') {
             if (granularity === 'two-residues') {
-                const desc = Step.describe(normalized, this.haveMultipleModels);
-                if (desc && this.stepNames.has(desc.name))
-                    this.notifyStepSelected(desc.name);
+                // Check if this is a base pair click first
+                if (this.lastClickedBasePair) {
+                    this.notifyBasePairSelected(this.lastClickedBasePair);
+                    this.lastClickedBasePair = undefined;
+                } else {
+                    // Otherwise check if it's an NtC step
+                    const desc = Step.describe(normalized, this.haveMultipleModels);
+                    if (desc && this.stepNames.has(desc.name))
+                        this.notifyStepSelected(desc.name);
+                }
             } else if (granularity === 'residue') {
                 const desc = Residue.describe(normalized);
                 this.notifyResidueSelected(desc);
@@ -1765,6 +2036,8 @@ export class ReDNATCOMspViewer {
                 m = sel.residue.modelNum;
             } else if (sel.type === 'atom') {
                 m = sel.atom.modelNum;
+            } else if (sel.type === 'base-pair') {
+                m = sel.basePair.modelNum;
             }
 
             if (modelNum === undefined)
@@ -1818,6 +2091,17 @@ export class ReDNATCOMspViewer {
                 if (atomLoci.kind === 'element-loci') {
                     selectionExtended = this.addSelection(StruSelection(atom)) || selectionExtended;
                     succeeded.push(atom);
+                }
+            } else if (sel.type === 'base-pair') {
+                const basePair = sel.basePair;
+
+                // Check that both residues exist
+                const residue1Loci = Search.findResidue(basePair.asymId1, basePair.seqId1, basePair.altId1, basePair.insCode1, struLoci, 'label');
+                const residue2Loci = Search.findResidue(basePair.asymId2, basePair.seqId2, basePair.altId2, basePair.insCode2, struLoci, 'label');
+
+                if (residue1Loci.kind === 'element-loci' && residue2Loci.kind === 'element-loci') {
+                    selectionExtended = this.addSelection(StruSelection(basePair)) || selectionExtended;
+                    succeeded.push(basePair);
                 }
             }
         }

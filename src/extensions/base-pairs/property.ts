@@ -38,6 +38,7 @@ export namespace BasePairs {
             asym_id_1: Column.Schema.str,
             entity_id_1: Column.Schema.str,
             seq_id_1: Column.Schema.int,
+            auth_seq_id_1: Column.Schema.int,
             comp_id_1: Column.Schema.str,
             PDB_ins_code_1: Column.Schema.str,
             alt_id_1: Column.Schema.str,
@@ -45,6 +46,7 @@ export namespace BasePairs {
             asym_id_2: Column.Schema.str,
             entity_id_2: Column.Schema.str,
             seq_id_2: Column.Schema.int,
+            auth_seq_id_2: Column.Schema.int,
             comp_id_2: Column.Schema.str,
             PDB_ins_code_2: Column.Schema.str,
             alt_id_2: Column.Schema.str,
@@ -101,6 +103,7 @@ export namespace BasePairs {
 
             const asym_id = atom_site.label_asym_id.value(idx);
             const entity_id = atom_site.label_entity_id.value(idx);
+            const auth_seq_id = atom_site.auth_seq_id.value(idx);
             const comp_id = atom_site.label_comp_id.value(idx);
             const PDB_ins_code = atom_site.pdbx_PDB_ins_code.value(idx);
 
@@ -131,6 +134,7 @@ export namespace BasePairs {
                         asym_id,
                         entity_id,
                         seq_id,
+                        auth_seq_id,
                         comp_id,
                         PDB_ins_code,
                     }
@@ -272,6 +276,7 @@ function getBasePair(
             asym_id: list.asym_id_1.value(listIndex),
             entity_id: list.entity_id_1.value(listIndex),
             seq_id: list.seq_id_1.value(listIndex),
+            auth_seq_id: list.auth_seq_id_1.value(listIndex),
             comp_id: comp_id_a,
             PDB_ins_code: list.PDB_ins_code_1.value(listIndex),
             alt_id: list.alt_id_1.value(listIndex),
@@ -282,6 +287,7 @@ function getBasePair(
             asym_id: list.asym_id_2.value(listIndex),
             entity_id: list.entity_id_2.value(listIndex),
             seq_id: list.seq_id_2.value(listIndex),
+            auth_seq_id: list.auth_seq_id_2.value(listIndex),
             comp_id: comp_id_b,
             PDB_ins_code: list.PDB_ins_code_2.value(listIndex),
             alt_id: list.alt_id_2.value(listIndex),

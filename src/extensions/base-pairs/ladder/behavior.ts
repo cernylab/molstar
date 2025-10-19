@@ -55,7 +55,8 @@ function westhofAbbrev(pair: BasePairsTypes.BasePair) {
 }
 
 function formatBase(instanceName: string, base: BasePairsTypes.Residue, alt_id: string) {
-    return `Instance ${instanceName} | <b>${base.asym_id} | ${base.comp_id} ${base.seq_id}${base.PDB_ins_code}${alt_id.length > 0 ? ` (alt ${alt_id})` : ''}</b>`;
+    const authInfo = base.seq_id !== base.auth_seq_id ? ` (auth ${base.auth_seq_id})` : '';
+    return `Instance ${instanceName} | <b>${base.asym_id} | ${base.comp_id} ${base.seq_id}${base.PDB_ins_code}${authInfo}${alt_id.length > 0 ? ` (alt ${alt_id})` : ''}</b>`;
 }
 
 const RemoveNewline = /\r?\n/g;

@@ -365,12 +365,13 @@ function createBasePairsLadderMesh(ctx: VisualContext, unit: Unit, structure: St
             const asym_id = StructureProperties.chain.label_asym_id(loc);
             const entity_id = StructureProperties.entity.id(loc);
             const seq_id = StructureProperties.residue.label_seq_id(loc);
+            const auth_seq_id = StructureProperties.residue.auth_seq_id(loc);
             const PDB_ins_code = StructureProperties.residue.pdbx_PDB_ins_code(loc);
             const comp_id = StructureProperties.atom.label_comp_id(loc);
             const alt_id = StructureProperties.atom.label_alt_id(loc);
 
             const current = {
-                asym_id, entity_id, seq_id, comp_id, PDB_ins_code
+                asym_id, entity_id, seq_id, auth_seq_id, comp_id, PDB_ins_code
             };
 
             const itemIndices = findItemIndices(mapping, structure.model.modelNum - 1, asym_id, seq_id);

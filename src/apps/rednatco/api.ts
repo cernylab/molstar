@@ -58,7 +58,42 @@ export namespace ReDNATCOMspApi {
             };
         }
 
-        export type StructureSelection = StepSelection | ResidueSelection | AtomSelection;
+        export type BasePairSelection = {
+            type: 'base-pair',
+            modelNum: number,
+            // Residue 1 (use label/cif identifiers for Molstar)
+            asymId1: string,
+            seqId1: number,
+            insCode1: string,
+            altId1: string,
+            authSeqId1: number,
+            // Residue 2 (use label/cif identifiers for Molstar)
+            asymId2: string,
+            seqId2: number,
+            insCode2: string,
+            altId2: string,
+            authSeqId2: number,
+            color: number,
+        }
+        export function BasePairSelection(modelNum: number, asymId1: string, seqId1: number, insCode1: string, altId1: string, authSeqId1: number, asymId2: string, seqId2: number, insCode2: string, altId2: string, authSeqId2: number, color: number): BasePairSelection {
+            return {
+                type: 'base-pair',
+                modelNum,
+                asymId1,
+                seqId1,
+                insCode1,
+                altId1,
+                authSeqId1,
+                asymId2,
+                seqId2,
+                insCode2,
+                altId2,
+                authSeqId2,
+                color
+            };
+        }
+
+        export type StructureSelection = StepSelection | ResidueSelection | AtomSelection | BasePairSelection;
     }
 
     export namespace Commands {
@@ -87,7 +122,7 @@ export namespace ReDNATCOMspApi {
         export type Redraw = { type: 'redraw' }
         export function Redraw(): Redraw { return { type: 'redraw' }; }
 
-        export type StructureSelection = StepSelection | ResidueSelection | AtomSelection;
+        export type StructureSelection = StepSelection | ResidueSelection | AtomSelection | BasePairSelection;
         export type StructureSelectionType = StructureSelection['type'];
 
         export type SelectStructures = {
@@ -122,6 +157,14 @@ export namespace ReDNATCOMspApi {
         }
         export function AtomSelection(modelNum: number, chain: string, cifChain: string, seqId: number, insCode: string, altId: string, cifAtomId: string, color: number): AtomSelection {
             return { type: 'atom', atom: Payloads.AtomSelection(modelNum, chain, cifChain, seqId, insCode, altId, cifAtomId, color) };
+        }
+
+        export type BasePairSelection = {
+            type: 'base-pair',
+            basePair: Payloads.BasePairSelection,
+        }
+        export function BasePairSelection(basePair: Payloads.BasePairSelection): BasePairSelection {
+            return { type: 'base-pair', basePair };
         }
 
         export type SwitchModel = { type: 'switch-model', model: number };
@@ -224,6 +267,14 @@ export namespace ReDNATCOMspApi {
             brickWidth: number;
             brickHeight: number;
         };
+        ntcTubeAlpha: number;
+        pyramidAlpha: number;
+        pairingLadderAlpha: number;
+        showNtcTubeSegmentForSelectedResidues: boolean;
+        cameraRadiusFactor: number;
+        cameraClippingRadius: number;
+        cameraClippingFar: boolean;
+        cameraClippingMinNear: number;
     }
 
     export interface Object {

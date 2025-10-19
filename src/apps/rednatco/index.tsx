@@ -400,6 +400,24 @@ export class ReDNATCOMsp extends React.Component<ReDNATCOMsp.Props, State> {
         ReDNATCOMspApi.event(Api.Events.StructureRequested(step));
     }
 
+    viewerBasePairSelected(basePair: import('../../extensions/base-pairs/types').BasePairsTypes.BasePair & { auth_seq_id_1: number, auth_seq_id_2: number }) {
+        const bp = Api.Payloads.BasePairSelection(
+            basePair.PDB_model_number,
+            basePair.a.asym_id,
+            basePair.a.seq_id,
+            basePair.a.PDB_ins_code,
+            basePair.a.alt_id,
+            basePair.auth_seq_id_1,
+            basePair.b.asym_id,
+            basePair.b.seq_id,
+            basePair.b.PDB_ins_code,
+            basePair.b.alt_id,
+            basePair.auth_seq_id_2,
+            0
+        );
+        ReDNATCOMspApi.event(Api.Events.StructureRequested(bp));
+    }
+
     componentDidMount() {
         if (!this.viewer) {
             const elem = document.getElementById(this.props.elemId + '-viewer');
@@ -489,11 +507,14 @@ export class ReDNATCOMsp extends React.Component<ReDNATCOMsp.Props, State> {
 
         this.setState(prevState => {
             const display = { ...prevState.display };
-            const isNtCTube = type === "ntc-tube";
+            const isCartoon = type === "cartoon";
 
             if (display.structures.nucleicRepresentation !== type) {
                 display.structures.nucleicRepresentation = type;
-                display.structures.showPyramids = isNtCTube ? false : display.structures.showPyramids;
+                // Auto-enable pyramids when switching to cartoon mode
+                if (isCartoon) {
+                    display.structures.showPyramids = true;
+                }
             }
 
             return { display };
@@ -501,6 +522,11 @@ export class ReDNATCOMsp extends React.Component<ReDNATCOMsp.Props, State> {
             const updateViewer = this.viewer!.changeRepresentation("nucleic", this.state.display);
 
             if (type === "ntc-tube") {
+                updateViewer
+                    .then(() => this.viewer!.changePyramids(this.state.display))
+                    .finally(() => this.viewerLocker.unlock());
+            } else if (type === "cartoon") {
+                // Update pyramids when switching to cartoon (they're now enabled)
                 updateViewer
                     .then(() => this.viewer!.changePyramids(this.state.display))
                     .finally(() => this.viewerLocker.unlock());

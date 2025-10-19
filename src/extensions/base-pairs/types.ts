@@ -7,6 +7,7 @@ export namespace BasePairsTypes {
         asym_id: string,
         entity_id: string,
         seq_id: number,
+        auth_seq_id: number,
         comp_id: string,
         PDB_ins_code: string,
     }
