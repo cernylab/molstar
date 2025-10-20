@@ -44,9 +44,10 @@ const ViewerToolBar = ToolBar.Specialize<ToolBarItems>();
 type BooleanStructureKey =
   | 'showProtein'
   | 'showNucleic'
-  | 'showWater';
+  | 'showWater'
+  | 'showLigand';
 
-type Substructure = 'protein' | 'nucleic' | 'water';
+type Substructure = 'protein' | 'nucleic' | 'water' | 'ligand';
 
 const DefaultChainColor = Color(0xD9D9D9);
 const DefaultDensityMapAlpha = 0.25;
@@ -75,6 +76,8 @@ const Display = {
         showProtein: false,
 
         showWater: false,
+
+        showLigand: false,
 
         showPyramids: false,
         pyramidsTransparent: false,
@@ -557,6 +560,7 @@ export class ReDNATCOMsp extends React.Component<ReDNATCOMsp.Props, State> {
         const hasNucleic = this.viewer?.has('structure', 'nucleic') ?? false;
         const hasProtein = this.viewer?.has('structure', 'protein') ?? false;
         const hasWater = this.viewer?.has('structure', 'water') ?? false;
+        const hasLigand = this.viewer?.has('structure', 'ligand') ?? false;
         const hasBasePairsLadder = this.viewer?.areBasePairsAvailable() ?? false;
 
         const nucleic = {
@@ -643,6 +647,8 @@ export class ReDNATCOMsp extends React.Component<ReDNATCOMsp.Props, State> {
                                         <SwitchBox visible={this.state.display.structures.showProtein} name={protein.name} options={protein.options} onToggle={() => this.handleToggleStructureVisibility('showProtein', 'protein')} enabled={hasProtein} />
 
                                         <SwitchBox visible={this.state.display.structures.showWater} name='water' onToggle={() => this.handleToggleStructureVisibility('showWater', 'water')} enabled={hasWater} />
+
+                                        <SwitchBox visible={this.state.display.structures.showLigand} name='ligands' onToggle={() => this.handleToggleStructureVisibility('showLigand', 'ligand')} enabled={hasLigand} />
 
                                         <SwitchBox visible={this.state.display.structures.showBasePairsLadder} name={basePairs.name} options={basePairs.options} onToggle={() => this.handleBasePairsVisibility()} enabled={hasBasePairsLadder} />
                                     </ToolBarContent>

@@ -1141,6 +1141,16 @@ export class ReDNATCOMspViewer {
         };
     }
 
+    private ligandVisuals() {
+        return {
+            type: {
+                name: 'ball-and-stick',
+                params: { sizeFactor: 0.2, sizeAspectRatio: 0.35, aromaticBonds: false },
+            },
+            colorTheme: { name: 'element-symbol', params: {} },
+        };
+    }
+
     static async create(target: HTMLElement, options: Partial<Api.Options>, app: ReDNATCOMsp) {
         const interactCtx: { self?: ReDNATCOMspViewer } = { self: undefined };
         const defaultSpec = DefaultPluginUISpec();
@@ -1642,7 +1652,9 @@ export class ReDNATCOMspViewer {
             .to(IDs.ID('entire-structure', '', BaseRef))
             .apply(StateTransforms.Model.StructureComplexElement, { type: 'protein' }, { ref: IDs.ID('entire-structure', 'protein', BaseRef) })
             .to(IDs.ID('entire-structure', '', BaseRef))
-            .apply(StateTransforms.Model.StructureComplexElement, { type: 'water' }, { ref: IDs.ID('entire-structure', 'water', BaseRef) });
+            .apply(StateTransforms.Model.StructureComplexElement, { type: 'water' }, { ref: IDs.ID('entire-structure', 'water', BaseRef) })
+            .to(IDs.ID('entire-structure', '', BaseRef))
+            .apply(StateTransforms.Model.StructureComplexElement, { type: 'ligand' }, { ref: IDs.ID('entire-structure', 'ligand', BaseRef) });
         // Commit now so that we can check whether individual substructures are available and apply filters
         await b.commit();
 
@@ -1672,6 +1684,14 @@ export class ReDNATCOMspViewer {
                     { ref: IDs.ID('structure', 'water', BaseRef) }
                 );
         }
+        if (this.has('entire-structure', 'ligand')) {
+            b2.to(IDs.ID('entire-structure', 'ligand', BaseRef))
+                .apply(
+                    StateTransforms.Model.StructureSelectionFromExpression,
+                    { expression: Filtering.toExpression(Filters.Empty()) },
+                    { ref: IDs.ID('structure', 'ligand', BaseRef) }
+                );
+        }
         await b2.commit();
 
         // Create default visuals
@@ -1695,6 +1715,14 @@ export class ReDNATCOMspViewer {
                     StateTransforms.Representation.StructureRepresentation3D,
                     this.waterVisuals(waterColor),
                     { ref: IDs.ID('visual', 'water', BaseRef) }
+                );
+        }
+        if (display.structures.showLigand && this.has('structure', 'ligand')) {
+            b3.to(IDs.ID('structure', 'ligand', BaseRef))
+                .apply(
+                    StateTransforms.Representation.StructureRepresentation3D,
+                    this.ligandVisuals(),
+                    { ref: IDs.ID('visual', 'ligand', BaseRef) }
                 );
         }
 
@@ -1973,6 +2001,17 @@ export class ReDNATCOMspViewer {
                     })
                 );
         }
+
+        if (this.has('structure', 'ligand', BaseRef)) {
+            b.to(IDs.ID('structure', 'ligand', BaseRef))
+                .update(
+                    StateTransforms.Model.StructureSelectionFromExpression,
+                    old => ({
+                        ...old,
+                        expression: Filtering.toExpression(filter)
+                    })
+                );
+        }
         await b.commit();
 
         if (haveNucl) {
@@ -2196,6 +2235,21 @@ export class ReDNATCOMspViewer {
                     b.apply(
                         StateTransforms.Representation.StructureRepresentation3D,
                         this.waterVisuals(display.structures.waterColor),
+                        { ref: IDs.ID('visual', sub, BaseRef) }
+                    );
+                    await b.commit();
+                }
+            }
+        } else if (sub === 'ligand') {
+            if (!display.structures.showLigand) {
+                await PluginCommands.State.RemoveObject(this.plugin, { state: this.plugin.state.data, ref: IDs.ID('visual', sub, BaseRef) });
+                this.resetCamera();
+            } else {
+                const b = this.getBuilder('structure', sub);
+                if (b) {
+                    b.apply(
+                        StateTransforms.Representation.StructureRepresentation3D,
+                        this.ligandVisuals(),
                         { ref: IDs.ID('visual', sub, BaseRef) }
                     );
                     await b.commit();
