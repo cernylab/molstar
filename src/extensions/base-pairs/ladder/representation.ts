@@ -410,10 +410,29 @@ function createBasePairsLadderMesh(ctx: VisualContext, unit: Unit, structure: St
                         if (!points) continue;
                         const { firstAtom, secondAtom, midpoint } = points;
 
+                        // Shorten cylinders to avoid overlaps near N1/N9 atoms, looks better when bases are involved in more pairs
+                        const barShorteningFactor = 0.89;
+                        const firstAtomShortened = Vec3();
+                        const secondAtomShortened = Vec3();
+                        Vec3.sub(firstAtomShortened, firstAtom, midpoint);
+                        Vec3.scale(firstAtomShortened, firstAtomShortened, barShorteningFactor);
+                        Vec3.add(firstAtomShortened, firstAtomShortened, midpoint);
+                        Vec3.sub(secondAtomShortened, secondAtom, midpoint);
+                        Vec3.scale(secondAtomShortened, secondAtomShortened, barShorteningFactor);
+                        Vec3.add(secondAtomShortened, secondAtomShortened, midpoint);
+
+                        // The top/bottom cap semantics depends on the cylinder's orientation in global space rather than being purely based on the start→end parameter order
+                        // Determine which cap to disable based on cylinder direction relative to +Y axis
+                        const dir1 = Vec3.sub(Vec3(), firstAtomShortened, midpoint);
+                        const dir2 = Vec3.sub(Vec3(), secondAtomShortened, midpoint);
+                        const upVec = Vec3.create(0, 1, 0);
+                        const isFlipped1 = Vec3.dot(dir1, upVec) < 0;
+                        const isFlipped2 = Vec3.dot(dir2, upVec) < 0;
+
                         mb.currentGroup = 3 * itemIdx;
-                        addCylinder(mb, midpoint, firstAtom, props.barScale, cylinderProps);
+                        addCylinder(mb, midpoint, firstAtomShortened, props.barScale, { ...cylinderProps, [isFlipped1 ? 'topCap' : 'bottomCap']: false });
                         mb.currentGroup = 3 * itemIdx + 1;
-                        addCylinder(mb, midpoint, secondAtom, props.barScale, cylinderProps);
+                        addCylinder(mb, midpoint, secondAtomShortened, props.barScale, { ...cylinderProps, [isFlipped2 ? 'topCap' : 'bottomCap']: false });
                         mb.currentGroup = 3 * itemIdx + 2;
                         if (item.orientation === 'cis' && props.showCisBall) {
                             addSphere(mb, midpoint, props.cisBallRadius, 4);
