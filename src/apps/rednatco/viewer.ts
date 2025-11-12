@@ -1654,7 +1654,7 @@ export class ReDNATCOMspViewer {
             .to(IDs.ID('entire-structure', '', BaseRef))
             .apply(StateTransforms.Model.StructureComplexElement, { type: 'water' }, { ref: IDs.ID('entire-structure', 'water', BaseRef) })
             .to(IDs.ID('entire-structure', '', BaseRef))
-            .apply(StateTransforms.Model.StructureComplexElement, { type: 'ligand' }, { ref: IDs.ID('entire-structure', 'ligand', BaseRef) });
+            .apply(StateTransforms.Model.StructureComplexElement, { type: 'non-water-small-molecules' }, { ref: IDs.ID('entire-structure', 'ligand', BaseRef) });
         // Commit now so that we can check whether individual substructures are available and apply filters
         await b.commit();
 

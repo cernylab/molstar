@@ -1107,6 +1107,7 @@ export const StructureComplexElementTypes = {
 
     'branched': 'branched', // = carbs
     'ligand': 'ligand',
+    'non-water-small-molecules': 'non-water-small-molecules', // Combined: ligands, ions, lipids, carbohydrates
     'non-standard': 'non-standard',
 
     'coarse': 'coarse',
@@ -1141,6 +1142,7 @@ const StructureComplexElement = PluginStateTransform.BuiltIn({
 
             case 'branched': query = StructureSelectionQueries.branchedPlusConnected.query; label = 'Branched'; break;
             case 'ligand': query = StructureSelectionQueries.ligandPlusConnected.query; label = 'Ligand'; break;
+            case 'non-water-small-molecules': query = StructureSelectionQueries.nonWaterSmallMolecules.query; label = 'Small Molecules'; break;
 
             case 'non-standard': query = StructureSelectionQueries.nonStandardPolymer.query; label = 'Non-standard'; break;
 

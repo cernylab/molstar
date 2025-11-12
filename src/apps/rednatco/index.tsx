@@ -560,6 +560,9 @@ export class ReDNATCOMsp extends React.Component<ReDNATCOMsp.Props, State> {
         const hasNucleic = this.viewer?.has('structure', 'nucleic') ?? false;
         const hasProtein = this.viewer?.has('structure', 'protein') ?? false;
         const hasWater = this.viewer?.has('structure', 'water') ?? false;
+        // 'ligand' identifier now includes all non-water small molecules (ligands, ions, lipids, carbohydrates)
+        // Actual selection defined in src/apps/rednatco/viewer.ts using 'non-water-small-molecules' type
+
         const hasLigand = this.viewer?.has('structure', 'ligand') ?? false;
         const hasBasePairsLadder = this.viewer?.areBasePairsAvailable() ?? false;
 

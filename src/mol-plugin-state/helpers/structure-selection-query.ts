@@ -406,6 +406,16 @@ const connectedOnly = StructureSelectionQuery('Connected to Ligand or Carbohydra
     ]),
 ]), { category: StructureSelectionCategory.Internal, isHidden: true });
 
+// Combined selection for all small molecules (ligands, ions, lipids, carbohydrates) with connected residues
+const nonWaterSmallMolecules = StructureSelectionQuery('Non-water Small Molecules', MS.struct.modifier.union([
+    MS.struct.combinator.merge([
+        ligandPlusConnected.expression,
+        ion.expression,
+        lipid.expression,
+        branchedPlusConnected.expression
+    ])
+]), { category: StructureSelectionCategory.Internal, isHidden: true });
+
 const disulfideBridges = StructureSelectionQuery('Disulfide Bridges', MS.struct.modifier.union([
     MS.struct.combinator.merge([
         MS.struct.modifier.union([
@@ -734,6 +744,7 @@ export const StructureSelectionQueries = {
     ligandPlusConnected,
     ligandConnectedOnly,
     connectedOnly,
+    nonWaterSmallMolecules,
     disulfideBridges,
     nosBridges,
     nonStandardPolymer,
