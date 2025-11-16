@@ -44,7 +44,7 @@ export default function SwitchBox({
           {options.map((option) => (
             <button
               key={option.name}
-              className={`w-full text-left flex my-1 p-2 rounded ${
+              className={`w-full text-left flex my-1 p-1 rounded ${
                 activeOption === option.name ? "font-roboto-bold" : "font-roboto-regular"
               }`}
               onClick={() => handleSelect(option)}
