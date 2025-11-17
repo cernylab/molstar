@@ -179,6 +179,11 @@ export namespace ReDNATCOMspApi {
         export function Unhighlight(): Unhighlight {
             return { type: 'unhighlight' };
         }
+
+        export type SwitchAssemblies = { type: 'switch-assemblies', assemblies: string[] };
+        export function SwitchAssemblies(assemblies: string[]): SwitchAssemblies {
+            return { type: 'switch-assemblies', assemblies };
+        }
     }
     export type Command =
         Commands.DeselectStructures |
@@ -189,6 +194,7 @@ export namespace ReDNATCOMspApi {
         Commands.SelectStructures |
         Commands.SwitchModel |
         Commands.SwitchSelectionGranularity |
+        Commands.SwitchAssemblies |
         Commands.Unhighlight;
 
     export namespace Events {
@@ -239,10 +245,18 @@ export namespace ReDNATCOMspApi {
         Events.StructuresSelected |
         Events.StructureLoaded;
 
+    export type AssemblyInfo = {
+        id: string,
+        name: string,
+        details?: string,
+    }
+
     export type Queries = {
         'current-filter': Filters.All,
         'current-model-number': number,
         'selected-structures': Payloads.StructureSelection[],
+        'available-assemblies': AssemblyInfo[],
+        'active-assemblies': string[],
     }
 
     export type Options = {

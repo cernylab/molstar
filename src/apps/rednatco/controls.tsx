@@ -122,7 +122,7 @@ export class ToggleButton extends React.Component<{ text: string, enabled: boole
 export const RangeSlider: React.FC<RangeSlider.Props> = ({ min, max, step, value, onChange }) => {
     return (
         <input
-            className='rmsp-range-slider bg-primary-first h-[.1px] w-19'
+            className='rmsp-range-slider bg-primary-first h-[2px] w-19'
             type='range'
             value={value ?? 0}
             min={min}

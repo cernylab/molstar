@@ -2,6 +2,7 @@ import React from 'react';
 import RDC from 'react-dom/client';
 import { ReDNATCOMspApi as Api } from './api';
 import { ReDNATCOMspApiImpl } from './api-impl';
+import { AssemblySelector } from './AssemblySelector';
 import { DensityMapControls } from './density-map-controls';
 import { Filters } from './filters';
 import { ReDNATCOMspViewer } from './viewer';
@@ -92,6 +93,8 @@ const Display = {
         conformerColors: { ...NtCColors.Conformers },
         chainColor: DefaultChainColor,
         waterColor: DefaultWaterColor,
+
+        activeAssemblies: [''] as string[], // Empty string means default assembly
     },
     densityMaps: [] as DensityMapDisplay[],
 };
@@ -160,6 +163,7 @@ export class ReDNATCOMsp extends React.Component<ReDNATCOMsp.Props, State> {
         this.handleBasePairsVisibility = this.handleBasePairsVisibility.bind(this);
         this.handleBasePairsRepresentation = this.handleBasePairsRepresentation.bind(this);
         this.handleBasePairsTheme = this.handleBasePairsTheme.bind(this);
+        this.handleAssemblyToggle = this.handleAssemblyToggle.bind(this);
     }
 
     private classColorToConformers(k: keyof ConformersByClass, color: Color) {
@@ -216,6 +220,11 @@ export class ReDNATCOMsp extends React.Component<ReDNATCOMsp.Props, State> {
             this.viewer!.switchModel(cmd.model);
         } else if (cmd.type === 'switch-selection-granularity') {
             this.viewer!.actionSwitchSelectionGranularity(cmd.granularity);
+        } else if (cmd.type === 'switch-assemblies') {
+            const display = deepClone(this.state.display);
+            display.structures.activeAssemblies = cmd.assemblies;
+            await this.viewer!.switchAssemblies(cmd.assemblies, display);
+            this.setState({ ...this.state, display });
         } else if (cmd.type === 'unhighlight') {
             this.viewer!.actionUnhighlight();
         } else if (cmd.type === 'freeze') {
@@ -314,6 +323,10 @@ export class ReDNATCOMsp extends React.Component<ReDNATCOMsp.Props, State> {
             return this.viewer!.currentModelNumber();
         } else if (type === 'selected-structures') {
             return this.viewer!.getSelections();
+        } else if (type === 'available-assemblies') {
+            return this.viewer!.getAvailableAssemblies();
+        } else if (type === 'active-assemblies') {
+            return this.viewer!.getActiveAssemblies();
         }
 
         assertUnreachable(type);
@@ -359,7 +372,11 @@ export class ReDNATCOMsp extends React.Component<ReDNATCOMsp.Props, State> {
 
             this.viewer.loadStructure(coords, densityMaps, display, coords.modelNumber).then(() => {
                 this.presentConformers = this.viewer!.getPresentConformers();
-                this.setState({ ...this.state, display: this.state.display });
+                // Update display state with the actual loaded assembly
+                const loadedAssemblies = this.viewer!.getActiveAssemblies();
+                display.structures.activeAssemblies = loadedAssemblies;
+
+                this.setState({ ...this.state, display });
                 ReDNATCOMspApi.event(Api.Events.StructureLoaded());
 
                 if (this.viewer!.areBasePairsAvailable()) {
@@ -556,6 +573,26 @@ export class ReDNATCOMsp extends React.Component<ReDNATCOMsp.Props, State> {
         });
     }
 
+    private handleAssemblyToggle(assemblyId: string) {
+        if (!this.viewer) return;
+
+        const display = deepClone(this.state.display);
+        const activeAssemblies = display.structures.activeAssemblies;
+
+        // Toggle the assembly in the active list
+        if (activeAssemblies.includes(assemblyId)) {
+            // Don't allow deselecting all assemblies - at least one must be active
+            if (activeAssemblies.length > 1) {
+                display.structures.activeAssemblies = activeAssemblies.filter(id => id !== assemblyId);
+            }
+        } else {
+            // For now, only allow single assembly selection (replace current selection)
+            display.structures.activeAssemblies = [assemblyId];
+        }
+
+        this.enqueueCommand(Api.Commands.SwitchAssemblies(display.structures.activeAssemblies));
+    }
+
     render() {
         const hasNucleic = this.viewer?.has('structure', 'nucleic') ?? false;
         const hasProtein = this.viewer?.has('structure', 'protein') ?? false;
@@ -647,13 +684,20 @@ export class ReDNATCOMsp extends React.Component<ReDNATCOMsp.Props, State> {
 
                                         <SwitchBox visible={this.state.display.structures.showPyramids} name={pyramids.name} options={pyramids.options} onToggle={() => this.handleTogglePyramidsVisibility()} />
 
+                                        <SwitchBox visible={this.state.display.structures.showBasePairsLadder} name={basePairs.name} options={basePairs.options} onToggle={() => this.handleBasePairsVisibility()} enabled={hasBasePairsLadder} />
+
+                                        <AssemblySelector
+                                            assemblies={this.viewer?.getAvailableAssemblies() ?? []}
+                                            activeAssemblies={this.state.display.structures.activeAssemblies}
+                                            enabled={true}
+                                            onToggle={this.handleAssemblyToggle}
+                                        />
+
                                         <SwitchBox visible={this.state.display.structures.showProtein} name={protein.name} options={protein.options} onToggle={() => this.handleToggleStructureVisibility('showProtein', 'protein')} enabled={hasProtein} />
 
                                         <SwitchBox visible={this.state.display.structures.showWater} name='water' onToggle={() => this.handleToggleStructureVisibility('showWater', 'water')} enabled={hasWater} />
 
                                         <SwitchBox visible={this.state.display.structures.showLigand} name='ligands' onToggle={() => this.handleToggleStructureVisibility('showLigand', 'ligand')} enabled={hasLigand} />
-
-                                        <SwitchBox visible={this.state.display.structures.showBasePairsLadder} name={basePairs.name} options={basePairs.options} onToggle={() => this.handleBasePairsVisibility()} enabled={hasBasePairsLadder} />
                                     </ToolBarContent>
                             },
                             {

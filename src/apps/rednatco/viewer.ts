@@ -30,6 +30,7 @@ import { Volume } from '../../mol-model/volume';
 import { structureUnion, structureSubtract } from '../../mol-model/structure/query/utils/structure-set';
 import { Location } from '../../mol-model/structure/structure/element/location';
 import { MmcifFormat } from '../../mol-model-formats/structure/mmcif';
+import { ModelSymmetry } from '../../mol-model-formats/structure/property/symmetry';
 import { PluginBehavior, PluginBehaviors } from '../../mol-plugin/behavior';
 import { PluginCommands } from '../../mol-plugin/commands';
 import { PluginConfig } from '../../mol-plugin/config';
@@ -453,6 +454,8 @@ export class ReDNATCOMspViewer {
     private cameraClippingFar: boolean;
     private cameraClippingMinNear: number;
     private lastClickedBasePair?: BasePairsTypes.BasePair;
+    private availableAssemblies: Api.AssemblyInfo[] = [];
+    private activeAssemblies: string[] = [''];
 
     constructor(public plugin: PluginUIContext, interactionContext: { self?: ReDNATCOMspViewer }, options: Partial<Api.Options>, app: ReDNATCOMsp) {
         interactionContext.self = this;
@@ -1616,6 +1619,14 @@ export class ReDNATCOMspViewer {
         return this.selections.map(x => x.selector);
     }
 
+    getAvailableAssemblies(): Api.AssemblyInfo[] {
+        return this.availableAssemblies;
+    }
+
+    getActiveAssemblies(): string[] {
+        return this.activeAssemblies;
+    }
+
     has(id: IDs.ID, sub: IDs.Substructure | '' = '', ref = BaseRef) {
         return !!this.plugin.state.data.cells.get(IDs.ID(id, sub, ref))?.obj?.data;
     }
@@ -1626,6 +1637,197 @@ export class ReDNATCOMspViewer {
 
     isReady() {
         return this.has('entire-structure', '', BaseRef);
+    }
+
+    private extractAssemblyInfo(model: Model) {
+        this.availableAssemblies = [];
+
+        // Extract assemblies from model symmetry custom property
+        const symmetry = ModelSymmetry.Provider.get(model);
+
+        if (symmetry && symmetry.assemblies) {
+            // Add assemblies that have real symmetry operations
+            for (const assembly of symmetry.assemblies) {
+                const hasRealSymmetry = this.assemblyHasRealSymmetry(assembly);
+
+                if (hasRealSymmetry) {
+                    this.availableAssemblies.push({
+                        id: assembly.id,
+                        name: `Assembly ${assembly.id}`,
+                        details: assembly.details || undefined
+                    });
+                }
+            }
+        }
+
+        // Only add asymmetric unit if there are NO assemblies
+        if (this.availableAssemblies.length === 0) {
+            this.availableAssemblies.push({
+                id: 'asymmetric-unit',
+                name: 'Asymmetric Unit',
+                details: 'The asymmetric unit of the crystal structure'
+            });
+        }
+    }
+
+    private assemblyHasRealSymmetry(assembly: { operatorGroups: ReadonlyArray<{ operators: ReadonlyArray<SymmetryOperator> }> }): boolean {
+        try {
+            const groups = assembly.operatorGroups;
+
+            // If there are no operator groups, it's identity-only
+            if (!groups || groups.length === 0) return false;
+
+            // Check if any group has more than one operator, or if the single operator is not identity
+            for (const group of groups) {
+                if (!group.operators || group.operators.length === 0) continue;
+
+                // More than one operator means real symmetry
+                if (group.operators.length > 1) return true;
+
+                // Check if the single operator is not identity
+                // Identity operator has name '1_555' or similar
+                const op = group.operators[0];
+                if (op.name !== '1_555' && !op.name.startsWith('1_555')) {
+                    return true;
+                }
+            }
+
+            return false;
+        } catch {
+            // If there's any error accessing operator groups, assume it has symmetry
+            return true;
+        }
+    }
+
+    async switchAssemblies(assemblyIds: string[], display: Display) {
+        // For now, support only single assembly selection
+        // Multi-assembly visualization would require parallel state tree branches
+        if (assemblyIds.length === 0) return;
+
+        const assemblyId = assemblyIds[0];
+        this.activeAssemblies = [assemblyId];
+
+        // Get the model
+        const modelCell = this.plugin.state.data.cells.get(IDs.ID('model', '', BaseRef));
+        if (!modelCell?.obj) return;
+
+        // Remove old structure and its children
+        const update = this.plugin.state.data.build();
+        if (this.has('entire-structure', '', BaseRef)) {
+            update.delete(IDs.ID('entire-structure', '', BaseRef));
+        }
+        await update.commit();
+
+        // Build new structure with selected assembly
+        const assemblyParams = assemblyId === 'asymmetric-unit'
+            ? { type: { name: 'model' as const, params: {} } }
+            : { type: { name: 'assembly' as const, params: assemblyId ? { id: assemblyId } : {} } };
+
+        const b = this.plugin.state.data.build()
+            .to(IDs.ID('model', '', BaseRef))
+            .apply(StateTransforms.Model.StructureFromModel, assemblyParams, { ref: IDs.ID('entire-structure', '', BaseRef) })
+            // Extract substructures
+            .apply(StateTransforms.Model.StructureComplexElement, { type: 'nucleic' }, { ref: IDs.ID('entire-structure', 'nucleic', BaseRef) })
+            .to(IDs.ID('entire-structure', '', BaseRef))
+            .apply(StateTransforms.Model.StructureComplexElement, { type: 'protein' }, { ref: IDs.ID('entire-structure', 'protein', BaseRef) })
+            .to(IDs.ID('entire-structure', '', BaseRef))
+            .apply(StateTransforms.Model.StructureComplexElement, { type: 'water' }, { ref: IDs.ID('entire-structure', 'water', BaseRef) })
+            .to(IDs.ID('entire-structure', '', BaseRef))
+            .apply(StateTransforms.Model.StructureComplexElement, { type: 'non-water-small-molecules' }, { ref: IDs.ID('entire-structure', 'ligand', BaseRef) });
+        await b.commit();
+
+        // Rebuild filtered structures
+        const b2 = this.plugin.state.data.build();
+        if (this.has('entire-structure', 'nucleic')) {
+            b2.to(IDs.ID('entire-structure', 'nucleic', BaseRef))
+                .apply(
+                    StateTransforms.Model.StructureSelectionFromExpression,
+                    { expression: Filtering.toExpression(Filters.Empty()) },
+                    { ref: IDs.ID('structure', 'nucleic', BaseRef) }
+                );
+        }
+        if (this.has('entire-structure', 'protein')) {
+            b2.to(IDs.ID('entire-structure', 'protein', BaseRef))
+                .apply(
+                    StateTransforms.Model.StructureSelectionFromExpression,
+                    { expression: Filtering.toExpression(Filters.Empty()) },
+                    { ref: IDs.ID('structure', 'protein', BaseRef) }
+                );
+        }
+        if (this.has('entire-structure', 'water')) {
+            b2.to(IDs.ID('entire-structure', 'water', BaseRef))
+                .apply(
+                    StateTransforms.Model.StructureSelectionFromExpression,
+                    { expression: Filtering.toExpression(Filters.Empty()) },
+                    { ref: IDs.ID('structure', 'water', BaseRef) }
+                );
+        }
+        if (this.has('entire-structure', 'ligand')) {
+            b2.to(IDs.ID('entire-structure', 'ligand', BaseRef))
+                .apply(
+                    StateTransforms.Model.StructureSelectionFromExpression,
+                    { expression: Filtering.toExpression(Filters.Empty()) },
+                    { ref: IDs.ID('structure', 'ligand', BaseRef) }
+                );
+        }
+        await b2.commit();
+
+        // Recreate visuals with current display settings
+        const chainColor = Color(display.structures.chainColor);
+        const waterColor = Color(display.structures.waterColor);
+
+        const nucl = this.getNucleicStructure();
+        if (nucl)
+            await this.visualizeNucleicNotSelected(nucl, [], display);
+
+        const b3 = this.plugin.state.data.build();
+        if (display.structures.showProtein && this.has('structure', 'protein')) {
+            b3.to(IDs.ID('structure', 'protein', BaseRef))
+                .apply(
+                    StateTransforms.Representation.StructureRepresentation3D,
+                    this.substructureVisuals(SubstructureVisual.BuiltIn('cartoon', chainColor)),
+                    { ref: IDs.ID('visual', 'protein', BaseRef) }
+                );
+        }
+        if (display.structures.showWater && this.has('structure', 'water')) {
+            b3.to(IDs.ID('structure', 'water', BaseRef))
+                .apply(
+                    StateTransforms.Representation.StructureRepresentation3D,
+                    this.waterVisuals(waterColor),
+                    { ref: IDs.ID('visual', 'water', BaseRef) }
+                );
+        }
+        if (display.structures.showLigand && this.has('structure', 'ligand')) {
+            b3.to(IDs.ID('structure', 'ligand', BaseRef))
+                .apply(
+                    StateTransforms.Representation.StructureRepresentation3D,
+                    this.ligandVisuals(),
+                    { ref: IDs.ID('visual', 'ligand', BaseRef) }
+                );
+        }
+
+        if (display.structures.showPyramids) {
+            b3.to(IDs.ID('structure', 'nucleic', BaseRef))
+                .apply(
+                    StateTransforms.Representation.StructureRepresentation3D,
+                    this.pyramidsParams(display.structures.conformerColors ?? NtCColors.Conformers, new Map(), display.structures.pyramidsTransparent ?? false),
+                    { ref: IDs.ID('pyramids', 'nucleic', BaseRef) }
+                );
+        }
+
+        if (this.areBasePairsAvailable() && display.structures.showBasePairsLadder) {
+            b3.to(IDs.ID('structure', 'nucleic', BaseRef))
+                .apply(
+                    StateTransforms.Representation.StructureRepresentation3D,
+                    this.basePairsLadderParams(display),
+                    { ref: IDs.ID('base-pairs-ladder', 'nucleic', BaseRef) }
+                );
+        }
+
+        await b3.commit();
+
+        // Clear selections as they may no longer be valid
+        this.selections.splice(0, this.selections.length);
     }
 
     async loadStructure(
@@ -1645,8 +1847,36 @@ export class ReDNATCOMspViewer {
             ? t.apply(StateTransforms.Model.TrajectoryFromPDB, {}, { ref: IDs.ID('trajectory', '', BaseRef) })
             : t.apply(StateTransforms.Data.ParseCif).apply(StateTransforms.Model.TrajectoryFromMmCif, {}, { ref: IDs.ID('trajectory', '', BaseRef) })
         )(this.plugin.state.data.build().toRoot().apply(RawData, { data: coords.data }, { ref: IDs.ID('data', '', BaseRef) }))
-            .apply(StateTransforms.Model.ModelFromTrajectory, { modelIndex: modelNumber - 1 }, { ref: IDs.ID('model', '', BaseRef) }) // WARNING: The modelNumber - 1 is a major hack!!!
-            .apply(StateTransforms.Model.StructureFromModel, { type: { name: 'assembly', params: {} } }, { ref: IDs.ID('entire-structure', '', BaseRef) })
+            .apply(StateTransforms.Model.ModelFromTrajectory, { modelIndex: modelNumber - 1 }, { ref: IDs.ID('model', '', BaseRef) }); // WARNING: The modelNumber - 1 is a major hack!!!
+        await b.commit();
+
+        // Extract available assemblies from the model
+        const modelCell = this.plugin.state.data.cells.get(IDs.ID('model', '', BaseRef));
+        if (modelCell?.obj) {
+            const model = (modelCell.obj as StateObject<Model>).data;
+            this.extractAssemblyInfo(model);
+        }
+
+        // Determine which assembly to use
+        let assemblyId = display.structures.activeAssemblies.length > 0 && display.structures.activeAssemblies[0]
+            ? display.structures.activeAssemblies[0]
+            : '';
+
+        // If no specific assembly is requested (empty string), use the first available assembly
+        if (!assemblyId || assemblyId === '') {
+            assemblyId = this.availableAssemblies.length > 0 ? this.availableAssemblies[0].id : 'asymmetric-unit';
+        }
+
+        this.activeAssemblies = [assemblyId];
+
+        // Use the selected assembly
+        const assemblyParams = assemblyId === 'asymmetric-unit'
+            ? { type: { name: 'model' as const, params: {} } }
+            : { type: { name: 'assembly' as const, params: { id: assemblyId } } };
+
+        const b1_5 = this.plugin.state.data.build()
+            .to(IDs.ID('model', '', BaseRef))
+            .apply(StateTransforms.Model.StructureFromModel, assemblyParams, { ref: IDs.ID('entire-structure', '', BaseRef) })
             // Extract substructures
             .apply(StateTransforms.Model.StructureComplexElement, { type: 'nucleic' }, { ref: IDs.ID('entire-structure', 'nucleic', BaseRef) })
             .to(IDs.ID('entire-structure', '', BaseRef))
@@ -1656,7 +1886,7 @@ export class ReDNATCOMspViewer {
             .to(IDs.ID('entire-structure', '', BaseRef))
             .apply(StateTransforms.Model.StructureComplexElement, { type: 'non-water-small-molecules' }, { ref: IDs.ID('entire-structure', 'ligand', BaseRef) });
         // Commit now so that we can check whether individual substructures are available and apply filters
-        await b.commit();
+        await b1_5.commit();
 
         // Create the "possibly filtered" structure PSOs
         const b2 = this.plugin.state.data.build();

@@ -13,6 +13,9 @@ export function Tooltip({ text, img, color }: TooltipProps) {
 
     const [bubbleStyle, setBubbleStyle] = useState<React.CSSProperties | undefined>(undefined);
 
+    // Check if we're in a DNATCO analysis view where we want to preserve Mol* state
+    const isInAnalysisView = window.location.pathname.match(/^\/app\/dnatco\/(annotation|validation|refinement|downloads)/);
+
     useLayoutEffect(() => {
         if (!show || !bubbleRef.current) return;
 
@@ -57,7 +60,11 @@ export function Tooltip({ text, img, color }: TooltipProps) {
                 onMouseLeave={() => setShow(false)}
             >
 
-                <a href='/app/about/help#ntcFamilies'>
+                <a
+                    href='/app/about/help#ntcFamilies'
+                    target={isInAnalysisView ? '_blank' : undefined}
+                    rel={isInAnalysisView ? 'noopener noreferrer' : undefined}
+                >
                     <img
                         className="w-4 cursor-pointer"
                         src={img}
