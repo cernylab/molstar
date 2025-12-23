@@ -37,6 +37,7 @@ import { PluginConfig } from '../../mol-plugin/config';
 import { PluginContext } from '../../mol-plugin/context';
 import { PluginSpec } from '../../mol-plugin/spec';
 import { LociLabel } from '../../mol-plugin-state/manager/loci-label';
+import { PluginStateObject } from '../../mol-plugin-state/objects';
 import { StateTransforms } from '../../mol-plugin-state/transforms';
 import { StructureRepresentation3D } from '../../mol-plugin-state/transforms/representation';
 import { RawData } from '../../mol-plugin-state/transforms/data';
@@ -456,6 +457,7 @@ export class ReDNATCOMspViewer {
     private lastClickedBasePair?: BasePairsTypes.BasePair;
     private availableAssemblies: Api.AssemblyInfo[] = [];
     private activeAssemblies: string[] = [''];
+    private customSurroundingsRef: string | undefined;
 
     constructor(public plugin: PluginUIContext, interactionContext: { self?: ReDNATCOMspViewer }, options: Partial<Api.Options>, app: ReDNATCOMsp) {
         interactionContext.self = this;
@@ -1397,6 +1399,147 @@ export class ReDNATCOMspViewer {
         }
     }
 
+    async toggleSurroundingResidues(display: Display) {
+        // Update custom surroundings based on current focus
+        const currentFocus = this.plugin.managers.structure.focus.current;
+        const loci = currentFocus?.loci;
+
+        await this.updateCustomSurroundings(loci, display);
+    }
+
+    async updateCustomSurroundings(loci: StructureElement.Loci | undefined, display: Display) {
+        const enabled = display.structures.showSurroundingResidues;
+        const radius = display.structures.surroundingResiduesDistance;
+
+        // Remove existing custom surroundings if any
+        if (this.customSurroundingsRef) {
+            const existingNode = this.plugin.state.data.select(this.customSurroundingsRef)[0];
+            if (existingNode) {
+                await this.plugin.state.data.build().delete(this.customSurroundingsRef).commit();
+            }
+            this.customSurroundingsRef = undefined;
+        }
+
+        // If disabled or no loci, we're done
+        if (!enabled || !loci || StructureElement.Loci.isEmpty(loci)) {
+            return;
+        }
+
+        // Find the structure node
+        const structure = loci.structure;
+
+        // Try to find the structure cell - first try exact match
+        let structureCell: StateObjectCell | undefined = this.plugin.state.data.selectQ(q =>
+            q.ofType(PluginStateObject.Molecule.Structure).filter(c => c.obj?.data === structure)
+        )[0];
+
+        // If not found, try to find the parent structure
+        if (!structureCell) {
+            const parentNode = this.plugin.helpers.substructureParent.get(structure);
+            if (parentNode) {
+                structureCell = this.plugin.state.data.cells.get(parentNode.transform.ref) as StateObjectCell | undefined;
+            }
+        }
+
+        // If still not found, try to use the entire structure as fallback (not nucleic-only)
+        // This ensures surroundings can include ligands, waters, ions, etc.
+        if (!structureCell) {
+            structureCell = this.plugin.state.data.cells.get(IDs.ID('entire-structure', '', BaseRef)) as StateObjectCell | undefined;
+        }
+
+        if (!structureCell) {
+            console.warn('Could not find structure cell for custom surroundings');
+            return;
+        }
+
+        // Build expression for surroundings around all residues in the loci
+        // We manually build expressions because Bundle.toExpression has a bug
+        // where it loses residues in multi-residue loci
+
+        // Build expressions for each residue and combine them
+        const residueExpressions: any[] = [];
+
+        for (const element of loci.elements) {
+            const unit = element.unit;
+            const size = OrderedSet.size(element.indices);
+            const processedResidues = new Set<number>();
+
+            for (let i = 0; i < size; i++) {
+                const atomIdx = OrderedSet.getAt(element.indices, i);
+                const residueIdx = unit.model.atomicHierarchy.residueAtomSegments.index[atomIdx];
+
+                if (processedResidues.has(residueIdx)) continue;
+                processedResidues.add(residueIdx);
+
+                // Get residue auth info for the expression
+                const loc = Location.create(structure, unit, unit.elements[atomIdx]);
+                const authSeqId = StructureProperties.residue.auth_seq_id(loc);
+                const authAsymId = StructureProperties.chain.auth_asym_id(loc);
+                const insCode = StructureProperties.residue.pdbx_PDB_ins_code(loc);
+
+                // Create expression for this specific residue
+                let residueExpr = MSB.struct.generator.atomGroups({
+                    'chain-test': MSB.core.rel.eq([MSB.struct.atomProperty.macromolecular.auth_asym_id(), authAsymId]),
+                    'residue-test': MSB.core.rel.eq([MSB.struct.atomProperty.macromolecular.auth_seq_id(), authSeqId])
+                });
+
+                if (insCode) {
+                    residueExpr = MSB.struct.modifier.intersectBy({
+                        0: residueExpr,
+                        by: MSB.struct.generator.atomGroups({
+                            'residue-test': MSB.core.rel.eq([MSB.struct.atomProperty.macromolecular.pdbx_PDB_ins_code(), insCode])
+                        })
+                    });
+                }
+
+                residueExpressions.push(residueExpr);
+            }
+        }
+
+        // Combine all residue expressions with union
+        let targetExpression = residueExpressions[0];
+        for (let i = 1; i < residueExpressions.length; i++) {
+            targetExpression = MSB.struct.combinator.merge([targetExpression, residueExpressions[i]]);
+        }
+
+        const surroundingsExpression = MSB.struct.modifier.includeSurroundings({
+            0: targetExpression,
+            radius: radius,
+            'as-whole-residues': true
+        });
+
+        // Exclude the target residues from the surroundings
+        const surroundingsOnlyExpression = MSB.struct.modifier.exceptBy({
+            0: surroundingsExpression,
+            by: targetExpression
+        });
+
+        // Create the selection and representation
+        const update = this.plugin.state.data.build();
+        const selection = update.to(structureCell.transform.ref)
+            .apply(StateTransforms.Model.StructureSelectionFromExpression, {
+                expression: surroundingsOnlyExpression,
+                label: 'Custom Surroundings'
+            }, { tags: 'custom-surroundings-selection' });
+
+        const repr = selection
+            .apply(StateTransforms.Representation.StructureRepresentation3D, {
+                type: {
+                    name: 'ball-and-stick',
+                    params: {
+                        sizeFactor: 0.1,
+                        sizeAspectRatio: 0.33,
+                        aromaticBonds: false,
+                        excludeTypes: ['hydrogen-bond', 'metal-coordination']
+                    }
+                },
+                colorTheme: { name: 'element-symbol', params: {} }
+            }, { tags: 'custom-surroundings-repr' });
+
+        await update.commit();
+        this.customSurroundingsRef = repr.ref;
+    }
+
     async changeDensityMap(index: number, display: Display) {
         if (!this.hasDensityMaps())
             return;
@@ -2043,7 +2186,13 @@ export class ReDNATCOMspViewer {
         this.app.viewerResidueSelected(desc);
     }
 
-    notifyStructureDeselected() {
+    async notifyStructureDeselected() {
+        // Clear focus to hide surrounding residues
+        this.plugin.managers.structure.focus.clear();
+
+        // Clear custom surroundings
+        await this.updateCustomSurroundings(undefined, this.app.state.display);
+
         if (this.selections.length === 0)
             this.resetCamera();
         else
@@ -2109,6 +2258,11 @@ export class ReDNATCOMspViewer {
     async onLociSelected(selected: Representation.Loci) {
         const granularity = this.plugin.managers.interactivity.props.granularity;
 
+        // For residue selections, deselect all previous selections first (single selection mode)
+        if (granularity === 'residue') {
+            await this.notifyStructureDeselected();
+        }
+
         const normalized = (() => {
             if (selected.loci.kind === 'data-loci') {
                 if (selected.loci.tag === 'dnatco-tube-segment-data') {
@@ -2157,7 +2311,15 @@ export class ReDNATCOMspViewer {
                             if (residue1Loci.kind === 'element-loci' && residue2Loci.kind === 'element-loci') {
                                 // Store the base pair item for notification
                                 this.lastClickedBasePair = item;
-                                return StructureElement.Loci.union(residue1Loci, residue2Loci);
+
+                                // Use structureUnion to properly combine the two residues with the parent structure
+                                // This is the same approach used in Search.findStep
+                                const parentStructure = stru.obj!.data;
+                                const union = structureUnion(parentStructure, [
+                                    StructureElement.Loci.toStructure(residue1Loci),
+                                    StructureElement.Loci.toStructure(residue2Loci)
+                                ]);
+                                return Structure.toStructureElementLoci(union);
                             }
                         }
                     }
@@ -2189,6 +2351,11 @@ export class ReDNATCOMspViewer {
             } else if (granularity === 'residue') {
                 const desc = Residue.describe(normalized);
                 this.notifyResidueSelected(desc);
+            }
+
+            // Update custom surroundings representation (only if enabled)
+            if (this.app.state.display.structures.showSurroundingResidues) {
+                await this.updateCustomSurroundings(normalized, this.app.state.display);
             }
         }
     }
@@ -2254,6 +2421,9 @@ export class ReDNATCOMspViewer {
 
     async actionDeselectStructures(display: Display) {
         await this.clearSelections();
+
+        // Clear custom surroundings when deselecting
+        await this.updateCustomSurroundings(undefined, display);
 
         const struLoci = this.getNucleicStructure();
         if (struLoci)
@@ -2376,6 +2546,72 @@ export class ReDNATCOMspViewer {
         }
 
         await this.visualizeNucleic(selectionExtended, struLoci, display);
+
+        // Update custom surroundings for the selections (only if enabled)
+        if (this.app.state.display.structures.showSurroundingResidues && succeeded.length > 0) {
+            // Get the first selection (when clicking residue table, first is the residue, rest are bonded atoms)
+            const firstSel = selections[0];
+            let loci: Loci = EmptyLoci;
+
+            if (firstSel.type === 'step') {
+                const stepLociArray = this.stepLoci(firstSel.step.name, struLoci);
+                if (stepLociArray.length > 0) {
+                    loci = stepLociArray[0];
+                }
+            } else if (firstSel.type === 'residue') {
+                loci = Search.findResidue(
+                    firstSel.residue.chain,
+                    firstSel.residue.seqId,
+                    firstSel.residue.altId,
+                    firstSel.residue.insCode,
+                    struLoci,
+                    'auth'
+                );
+            } else if (firstSel.type === 'atom') {
+                // AtomSelection also has chain (auth_asym_id) and seqId (auth_seq_id)
+                loci = Search.findResidue(
+                    firstSel.atom.chain,
+                    firstSel.atom.seqId,
+                    firstSel.atom.altId,
+                    firstSel.atom.insCode,
+                    struLoci,
+                    'auth'
+                );
+            } else if (firstSel.type === 'base-pair') {
+                const residue1Loci = Search.findResidue(
+                    firstSel.basePair.asymId1,
+                    firstSel.basePair.seqId1,
+                    firstSel.basePair.altId1,
+                    firstSel.basePair.insCode1,
+                    struLoci,
+                    'label'
+                );
+                const residue2Loci = Search.findResidue(
+                    firstSel.basePair.asymId2,
+                    firstSel.basePair.seqId2,
+                    firstSel.basePair.altId2,
+                    firstSel.basePair.insCode2,
+                    struLoci,
+                    'label'
+                );
+
+                if (residue1Loci.kind === 'element-loci' && residue2Loci.kind === 'element-loci') {
+                    const stru = this.plugin.state.data.cells.get(IDs.ID('entire-structure', 'nucleic', BaseRef));
+                    if (stru) {
+                        const parentStructure = stru.obj!.data;
+                        const union = structureUnion(parentStructure, [
+                            StructureElement.Loci.toStructure(residue1Loci),
+                            StructureElement.Loci.toStructure(residue2Loci)
+                        ]);
+                        loci = Structure.toStructureElementLoci(union);
+                    }
+                }
+            }
+
+            if (loci.kind === 'element-loci') {
+                await this.updateCustomSurroundings(loci, display);
+            }
+        }
 
         return succeeded;
     }

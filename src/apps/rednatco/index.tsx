@@ -89,6 +89,9 @@ const Display = {
         showSimpleTheme: true,
         showDetailedTheme: false,
 
+        showSurroundingResidues: false,
+        surroundingResiduesDistance: 4.0,
+
         classColors: { ...NtCColors.Classes },
         conformerColors: { ...NtCColors.Conformers },
         chainColor: DefaultChainColor,
@@ -164,6 +167,7 @@ export class ReDNATCOMsp extends React.Component<ReDNATCOMsp.Props, State> {
         this.handleBasePairsRepresentation = this.handleBasePairsRepresentation.bind(this);
         this.handleBasePairsTheme = this.handleBasePairsTheme.bind(this);
         this.handleAssemblyToggle = this.handleAssemblyToggle.bind(this);
+        this.handleToggleSurroundingResidues = this.handleToggleSurroundingResidues.bind(this);
     }
 
     private classColorToConformers(k: keyof ConformersByClass, color: Color) {
@@ -301,6 +305,21 @@ export class ReDNATCOMsp extends React.Component<ReDNATCOMsp.Props, State> {
         display.structures.conformerColors = conformerColors;
 
         this.finalizeNtCColorUpdate(display);
+    }
+
+    private hasModifiedConformers(cls: keyof NtCColors.Classes): boolean {
+        // Check if any conformer belonging to this class has a non-default color
+        const conformerColors = this.state.display.structures.conformerColors;
+        for (const [conformerKey, defaultClassColor] of Object.entries(NtCColors.Conformers)) {
+            if (defaultClassColor === NtCColors.Classes[cls]) {
+                const currentColor = conformerColors[conformerKey as keyof NtCColors.Conformers];
+                const defaultColor = NtCColors.Conformers[conformerKey as keyof NtCColors.Conformers];
+                if (currentColor !== defaultColor) {
+                    return true;
+                }
+            }
+        }
+        return false;
     }
 
     private updateWaterColor(color: number) {
@@ -522,6 +541,15 @@ export class ReDNATCOMsp extends React.Component<ReDNATCOMsp.Props, State> {
         });
     }
 
+    handleToggleSurroundingResidues() {
+        const display = { ...this.state.display };
+        display.structures.showSurroundingResidues = !display.structures.showSurroundingResidues;
+
+        this.viewer!.toggleSurroundingResidues(display).then(() => {
+            this.setState({ ...this.state, display });
+        });
+    }
+
     handleChangeNucleicRepresentation(type: VisualRepresentations) {
         if (!this.viewerLocker.tryLock()) return;
 
@@ -640,35 +668,42 @@ export class ReDNATCOMsp extends React.Component<ReDNATCOMsp.Props, State> {
         return (
             <div className='rmsp-app'>
                 <div className='flex'>
-                    {(['A', 'B', 'BII', 'miB', 'Z', 'IC', 'OPN', 'SYN', 'N'] as (keyof NtCColors.Classes)[]).map(k =>
-                        <div className='rmsp-control-line w-full' key={k}>
-                            <div className='rmsp-control-item-group'>
-                                <div
-                                    className='rmsp-control-item cursor-pointer'
-                                    onClick={evt => ColorPicker.create(
-                                        evt,
-                                        this.state.display.structures.classColors[k],
-                                        color => this.updateClassColor({ cls: k, color })
-                                    )}
-                                >
-                                    <ColorBox caption={k} color={this.state.display.structures.classColors[k]} />
+                    {(['A', 'B', 'BII', 'miB', 'Z', 'IC', 'OPN', 'SYN', 'N'] as (keyof NtCColors.Classes)[]).map(k => {
+                        const hasModified = this.hasModifiedConformers(k);
+                        const caption = hasModified ? `${k}*` : k;
+                        const tooltipText = hasModified
+                            ? `${NtCColors.Tooltips[k]}\n\n* Indicates that one or more individual conformers in this class have custom colors.`
+                            : NtCColors.Tooltips[k];
+                        return (
+                            <div className='rmsp-control-line w-full' key={k}>
+                                <div className='rmsp-control-item-group'>
+                                    <div
+                                        className='rmsp-control-item cursor-pointer'
+                                        onClick={evt => ColorPicker.create(
+                                            evt,
+                                            this.state.display.structures.classColors[k],
+                                            color => this.updateClassColor({ cls: k, color })
+                                        )}
+                                    >
+                                        <ColorBox caption={caption} color={this.state.display.structures.classColors[k]} />
+                                    </div>
+
+                                    <Tooltip
+                                        text={tooltipText}
+                                        img='/imgs/tooltip.png'
+                                        color={this.state.display.structures.classColors[k]}
+                                    />
+
+                                    <IconButton
+                                        img='/imgs/reload.svg'
+                                        color={this.state.display.structures.classColors[k]}
+                                        onClicked={() => this.updateClassColor({ cls: k, color: NtCColors.Classes[k] })}
+                                        enabled={true}
+                                    />
                                 </div>
-
-                                <Tooltip
-                                    text={NtCColors.Tooltips[k]}
-                                    img='/imgs/tooltip.png'
-                                    color={this.state.display.structures.classColors[k]}
-                                />
-
-                                <IconButton
-                                    img='/imgs/reload.svg'
-                                    color={this.state.display.structures.classColors[k]}
-                                    onClicked={() => this.updateClassColor({ cls: k, color: NtCColors.Classes[k] })}
-                                    enabled={true}
-                                />
                             </div>
-                        </div>
-                    )}
+                        );
+                    })}
                 </div>
                 <div className='flex flex-row h-full'>
                     <ViewerToolBar
@@ -698,6 +733,8 @@ export class ReDNATCOMsp extends React.Component<ReDNATCOMsp.Props, State> {
                                         <SwitchBox visible={this.state.display.structures.showWater} name='water' onToggle={() => this.handleToggleStructureVisibility('showWater', 'water')} enabled={hasWater} />
 
                                         <SwitchBox visible={this.state.display.structures.showLigand} name='ligands' onToggle={() => this.handleToggleStructureVisibility('showLigand', 'ligand')} enabled={hasLigand} />
+
+                                        <SwitchBox visible={this.state.display.structures.showSurroundingResidues} name='Neighbors' onToggle={() => this.handleToggleSurroundingResidues()} enabled={true} title='Show residues within 4Å of the selected residue(s)' />
                                     </ToolBarContent>
                             },
                             {
