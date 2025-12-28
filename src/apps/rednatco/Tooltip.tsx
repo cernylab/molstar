@@ -76,7 +76,7 @@ export function Tooltip({ text, img, color }: TooltipProps) {
                     <div
                         ref={bubbleRef}
                         style={bubbleStyle}
-                        className="absolute min-w-[10rem] max-w-[13rem] z-[1000] whitespace-normal break-words rounded bg-full-white px-2 py-1 text-sm text-black shadow-lg ring pointer-events-none transition-opacity duration-200"
+                        className="absolute min-w-[10rem] max-w-[13rem] z-[1000] break-words rounded bg-full-white px-2 py-1 text-sm text-black shadow-lg ring pointer-events-none transition-opacity duration-200 whitespace-pre-line"
                     >
                         {text}
                     </div>

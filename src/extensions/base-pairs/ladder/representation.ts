@@ -127,12 +127,25 @@ function findAnchorAtom(r: ResidueWithUnit, alt_id: string, structure: Structure
 function findAtomInRange(name: string, altId: string, start: number, end: number, structure: Structure, unit: Unit) {
     const loc = StructureElement.Location.create(structure, unit, -1 as ElementIndex);
 
+    // First try exact alt_id match
     for (let eI = start; eI < end; eI++) {
         loc.element = loc.unit.elements[eI];
         const elName = StructureProperties.atom.label_atom_id(loc);
         const elAltId = StructureProperties.atom.label_alt_id(loc);
 
         if (elName === name && elAltId === altId) return loc.element;
+    }
+
+    // If not found and we were looking for a specific alt_id, try empty alt_id
+    // (base atoms often don't have alt_id even when backbone atoms do)
+    if (altId !== '') {
+        for (let eI = start; eI < end; eI++) {
+            loc.element = loc.unit.elements[eI];
+            const elName = StructureProperties.atom.label_atom_id(loc);
+            const elAltId = StructureProperties.atom.label_alt_id(loc);
+
+            if (elName === name && elAltId === '') return loc.element;
+        }
     }
 
     return -1 as ElementIndex;
@@ -368,18 +381,28 @@ function createBasePairsLadderMesh(ctx: VisualContext, unit: Unit, structure: St
             const auth_seq_id = StructureProperties.residue.auth_seq_id(loc);
             const PDB_ins_code = StructureProperties.residue.pdbx_PDB_ins_code(loc);
             const comp_id = StructureProperties.atom.label_comp_id(loc);
-            const alt_id = StructureProperties.atom.label_alt_id(loc);
 
-            const current = {
-                asym_id, entity_id, seq_id, auth_seq_id, comp_id, PDB_ins_code
-            };
+            // Collect all unique alt_ids in this residue
+            const alt_ids = new Set<string>();
+            for (let eI = residue.start; eI < residue.end; eI++) {
+                loc.element = loc.unit.elements[eI];
+                const alt_id = StructureProperties.atom.label_alt_id(loc);
+                alt_ids.add(alt_id);
+            }
 
-            const itemIndices = findItemIndices(mapping, structure.model.modelNum - 1, asym_id, seq_id);
-            for (const itemIdx of itemIndices) {
-                const item = items[itemIdx];
+            // Process each alt_id variant
+            for (const alt_id of alt_ids) {
+                const current = {
+                    asym_id, entity_id, seq_id, auth_seq_id, comp_id, PDB_ins_code, alt_id
+                };
+
+                const itemIndices = findItemIndices(mapping, structure.model.modelNum - 1, asym_id, seq_id);
+                for (const itemIdx of itemIndices) {
+                    const item = items[itemIdx];
 
                 if (item.kind === 'unpaired' && props.showUnpaired) {
-                    if (!BasePairsUtil.areResiduesMatching(item.residue, current)) continue;
+                    const match = BasePairsUtil.areResiduesMatching(item.residue, current);
+                    if (!match) continue;
 
                     const baseType = getNucleotideBaseType(unit, residue.index);
                     if (isUsableBaseType(baseType)) {
@@ -441,9 +464,10 @@ function createBasePairsLadderMesh(ctx: VisualContext, unit: Unit, structure: St
                         }
                     }
                 }
-            }
-        }
-    }
+                } // end itemIdx loop
+            } // end alt_id loop
+        } // end residueIt loop
+    } // end chainIt loop
 
     return MeshBuilder.getMesh(mb);
 }
