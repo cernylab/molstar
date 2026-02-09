@@ -1,7 +1,7 @@
 import { Filters } from './filters';
 import { Expression } from '../../mol-script/language/expression';
 import { MolScriptBuilder as MSB } from '../../mol-script/language/builder';
-import { formatMolScript } from '../../mol-script/language/expression-formatter';
+// import { formatMolScript } from '../../mol-script/language/expression-formatter';
 
 export namespace Filtering {
     function empty() {
@@ -49,7 +49,7 @@ export namespace Filtering {
             }
 
             expr = MSB.struct.generator.atomGroups({ 'atom-test': expr, 'group-by': MSB.struct.atomProperty.macromolecular.auth_asym_id() });
-            console.log(formatMolScript(expr));
+            // console.log(formatMolScript(expr));
 
             return expr;
         }

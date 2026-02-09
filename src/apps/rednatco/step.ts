@@ -177,7 +177,9 @@ export namespace Step {
             return void 0;
         }
 
-        if (chain.length !== 1) {
+        // auth_asym_id can be multi-char, let's insist on non-empty here
+        // http://mmcif.rcsb.org/dictionaries/mmcif_pdbx_v50.dic/Items/_atom_site.auth_asym_id.html
+        if (chain.length === 0) {
             console.error(`String ${name} is not valid step name`);
             return void 0;
         } else
