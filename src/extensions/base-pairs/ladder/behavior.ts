@@ -61,13 +61,20 @@ function formatBase(instanceName: string, base: BasePairsTypes.Residue, alt_id: 
 
 const RemoveNewline = /\r?\n/g;
 export function itemLabel(item: BasePairsLadderTypes.LociItem) {
+    let napairLine = '';
+    if (item.kind === 'pair' && (item.napascoMetric !== null || item.napairRmsd !== null)) {
+        const parts: string[] = [];
+        if (item.napairRmsd !== null) parts.push(`RMSD: <b>${item.napairRmsd.toFixed(2)}</b>`);
+        if (item.napascoMetric !== null) parts.push(`NAPASCO: <b>${item.napascoMetric.toFixed(0)}</b>`);
+        napairLine = ` ${parts.join(' ')}`;
+    }
     const label = item.kind === 'unpaired'
         ? `
             Unpaired base<br />
             ${formatBase(item.instanceName, item.residue, '')}
         `
         : `
-            <b>${westhofAbbrev(item)}</b><br />
+            <b>${westhofAbbrev(item)}</b>${napairLine}<br />
             ${formatBase(item.instanceNameA, item.a, item.a.alt_id)}<br />
             <div style="text-align:center">\u296E</div>
             ${formatBase(item.instanceNameB, item.b, item.b.alt_id)}<br />

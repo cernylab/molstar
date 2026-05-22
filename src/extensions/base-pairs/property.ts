@@ -14,6 +14,14 @@ export const BasePairsParams = {};
 export type BasePairsParams = typeof BasePairsParams;
 export type BasePairsProps = PD.Values<BasePairsParams>;
 
+// Module-level override: when set, fromCif returns this instead of reading from CIF.
+// Cleared by setExternalPairings(undefined) on new structure load.
+let _externalPairings: BasePairsTypes.Data | undefined = undefined;
+
+export function setExternalPairings(data: BasePairsTypes.Data | undefined) {
+    _externalPairings = data;
+}
+
 function updateMapping(subject: {
     modelIdx: number,
     mapping: BasePairsTypes.AsymIdMap[],
@@ -159,6 +167,7 @@ export namespace BasePairs {
 
     export async function fromCif(ctx: CustomProperty.Context, model: Model, props: BasePairsProps): Promise<CustomProperty.Data<Pairings>> {
         const info = PropertyWrapper.createInfo();
+        if (_externalPairings !== undefined) return { value: { info, data: _externalPairings } };
         const data = getCifData(model);
         if (!data) return { value: { info, data: void 0 } };
 
@@ -272,6 +281,8 @@ function getBasePair(
             orientation === 'cis' &&
             base_edge_1 === 'watson-crick' &&
             base_edge_2 === 'watson-crick',
+        napascoMetric: null,
+        napairRmsd: null,
         a: {
             asym_id: list.asym_id_1.value(listIndex),
             entity_id: list.entity_id_1.value(listIndex),

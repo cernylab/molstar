@@ -2,6 +2,7 @@ import React from 'react';
 import RDC from 'react-dom/client';
 import { ReDNATCOMspApi as Api } from './api';
 import { ReDNATCOMspApiImpl } from './api-impl';
+import { setExternalPairings } from '../../extensions/base-pairs/property';
 import { AssemblySelector } from './AssemblySelector';
 import { DensityMapControls } from './density-map-controls';
 import { Filters } from './filters';
@@ -236,6 +237,8 @@ export class ReDNATCOMsp extends React.Component<ReDNATCOMsp.Props, State> {
                 this.viewer!.plugin.canvas3d!.pause(true);
             else
                 this.viewer!.plugin.canvas3d!.resume();
+        } else if (cmd.type === 'set-external-base-pairs') {
+            await this.viewer!.setExternalBasePairs(cmd.data, this.state.display);
         }
     }
 
@@ -359,6 +362,8 @@ export class ReDNATCOMsp extends React.Component<ReDNATCOMsp.Props, State> {
     }
 
     loadStructure(coords: { data: string, type: Api.CoordinatesFormat, modelNumber: number }, densityMaps: { data: Uint8Array, type: Api.DensityMapFormat, kind: Api.DensityMapKind }[] | null) {
+        // Clear any external pairings from the previous structure
+        setExternalPairings(undefined);
         if (this.viewer) {
             const display = { ...this.state.display };
             if (densityMaps) {

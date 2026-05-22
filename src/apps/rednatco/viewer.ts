@@ -12,7 +12,7 @@ import { Step } from './step';
 import { Superpose } from './superpose';
 import { isoBounds, prettyIso } from './util';
 import { BasePairs } from '../../extensions/base-pairs';
-import { BasePairs as BasePairsProp } from '../../extensions/base-pairs/property';
+import { BasePairs as BasePairsProp, setExternalPairings } from '../../extensions/base-pairs/property';
 import { BasePairsTypes } from '../../extensions/base-pairs/types';
 import { BasePairsLadderTypes } from '../../extensions/base-pairs/ladder/types';
 import { DnatcoNtCs } from '../../extensions/dnatco';
@@ -1333,6 +1333,111 @@ export class ReDNATCOMspViewer {
             }
         } else
             await PluginCommands.State.RemoveObject(this.plugin, { state: this.plugin.state.data, ref: IDs.ID('base-pairs-ladder', 'nucleic', BaseRef) });
+    }
+
+    async setExternalBasePairs(payload: Api.Payloads.ExternalBasePairsData | null, display: Display) {
+        if (payload === null) {
+            setExternalPairings(undefined);
+        } else {
+            // Look up entity_id for each asym_id from the loaded model
+            const modelObj = this.plugin.state.data.cells.get(IDs.ID('model', '', BaseRef))?.obj;
+            const model = modelObj ? (modelObj as StateObject<Model>).data : undefined;
+
+            const asymToEntity = new Map<string, string>();
+            if (model) {
+                const ah = model.atomicHierarchy;
+                for (let c = 0; c < ah.chains._rowCount; c++) {
+                    asymToEntity.set(ah.chains.label_asym_id.value(c), ah.chains.label_entity_id.value(c));
+                }
+            }
+
+            const ComplementaryBases = [['A','U'],['C','G'],['DA','DT'],['DC','DG']];
+            const isCoding = (a: string, b: string, orient: string, edge1: string, edge2: string) =>
+                orient === 'cis' && edge1 === 'watson-crick' && edge2 === 'watson-crick' &&
+                ComplementaryBases.some(([pa, pb]) => (pa === a && pb === b) || (pa === b && pb === a));
+
+            const toEdge = (e: string): BasePairsTypes.BaseEdge => {
+                const el = e.toLowerCase();
+                if (el === 'watson-crick') return 'watson-crick';
+                if (el === 'hoogsteen') return 'hoogsteen';
+                return 'sugar';
+            };
+            const toOrientation = (o: string): 'cis' | 'trans' =>
+                o.length > 0 && o[0].toLowerCase() === 'c' ? 'cis' : 'trans';
+
+            const items: BasePairsTypes.Item[] = [];
+            const mapping: BasePairsTypes.AsymIdMap[] = [];
+
+            const addToMapping = (modelNum: number, asym_id: string, seq_id: number) => {
+                const modelIdx = modelNum - 1;
+                if (!mapping[modelIdx]) mapping[modelIdx] = new Map();
+                const seqMap = mapping[modelIdx].get(asym_id) ?? new Map<number, number[]>();
+                const indices = seqMap.get(seq_id) ?? [];
+                indices.push(items.length - 1);
+                seqMap.set(seq_id, indices);
+                mapping[modelIdx].set(asym_id, seqMap);
+            };
+
+            for (const pair of payload.pairs) {
+                const orient = toOrientation(pair.orientation);
+                const edge1 = toEdge(pair.base1Edge);
+                const edge2 = toEdge(pair.base2Edge);
+                const bp: BasePairsTypes.BasePair = {
+                    kind: 'pair',
+                    PDB_model_number: pair.model,
+                    orientation: orient,
+                    is_coding: isCoding(pair.compId1, pair.compId2, orient, edge1, edge2),
+                    napascoMetric: pair.napascoMetric,
+                    napairRmsd: pair.napairRmsd,
+                    a: {
+                        asym_id: pair.asymId1, entity_id: asymToEntity.get(pair.asymId1) ?? '',
+                        seq_id: pair.seqId1, auth_seq_id: pair.authSeqId1,
+                        comp_id: pair.compId1, PDB_ins_code: pair.insCode1,
+                        alt_id: pair.altId1, struct_oper_id: '1',
+                        base_edge: edge1,
+                    },
+                    b: {
+                        asym_id: pair.asymId2, entity_id: asymToEntity.get(pair.asymId2) ?? '',
+                        seq_id: pair.seqId2, auth_seq_id: pair.authSeqId2,
+                        comp_id: pair.compId2, PDB_ins_code: pair.insCode2,
+                        alt_id: pair.altId2, struct_oper_id: '1',
+                        base_edge: edge2,
+                    },
+                };
+                items.push(bp);
+                addToMapping(pair.model, pair.asymId1, pair.seqId1);
+            }
+
+            for (const ur of payload.unpaired) {
+                const u: BasePairsTypes.UnpairedResidue = {
+                    kind: 'unpaired',
+                    PDB_model_number: ur.model,
+                    residue: {
+                        asym_id: ur.asymId, entity_id: asymToEntity.get(ur.asymId) ?? '',
+                        seq_id: ur.seqId, auth_seq_id: ur.authSeqId,
+                        comp_id: ur.compId, PDB_ins_code: ur.insCode,
+                    },
+                };
+                items.push(u);
+                addToMapping(ur.model, ur.asymId, ur.seqId);
+            }
+
+            setExternalPairings({ items, mapping });
+        }
+
+        // Invalidate the cached model property so fromCif re-evaluates
+        const modelObj = this.plugin.state.data.cells.get(IDs.ID('model', '', BaseRef))?.obj;
+        if (modelObj) {
+            delete (modelObj as any).data._staticPropertyData['base-pairs-ladder'];
+        }
+
+        // Force re-draw: remove the ladder and re-add it if currently visible
+        if (this.has('base-pairs-ladder', 'nucleic')) {
+            await PluginCommands.State.RemoveObject(this.plugin, { state: this.plugin.state.data, ref: IDs.ID('base-pairs-ladder', 'nucleic', BaseRef) });
+            if (display.structures.showBasePairsLadder) {
+                await this.changeBasePairsLadder(display);
+            }
+        }
     }
 
     async changeWaterColor(display: Display) {

@@ -25,6 +25,8 @@ export namespace BasePairsTypes {
         a: PairedBase,
         b: PairedBase,
         is_coding: boolean,
+        napascoMetric: number | null, // NAPAIR quality score 0–100; null for FR3D
+        napairRmsd: number | null,    // NAPAIR RMSD; null for FR3D
     };
 
     export type basePairsLadder = {

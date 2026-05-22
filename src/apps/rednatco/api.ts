@@ -58,6 +58,25 @@ export namespace ReDNATCOMspApi {
             };
         }
 
+        export type ExternalBasePair = {
+            model: number,
+            asymId1: string, seqId1: number, insCode1: string, altId1: string, authSeqId1: number, compId1: string,
+            asymId2: string, seqId2: number, insCode2: string, altId2: string, authSeqId2: number, compId2: string,
+            orientation: string,
+            base1Edge: string,
+            base2Edge: string,
+            napascoMetric: number | null,
+            napairRmsd: number | null,
+        };
+        export type ExternalUnpairedResidue = {
+            model: number,
+            asymId: string, seqId: number, insCode: string, altId: string, authSeqId: number, compId: string,
+        };
+        export type ExternalBasePairsData = {
+            pairs: ExternalBasePair[],
+            unpaired: ExternalUnpairedResidue[],
+        };
+
         export type BasePairSelection = {
             type: 'base-pair',
             modelNum: number,
@@ -184,6 +203,11 @@ export namespace ReDNATCOMspApi {
         export function SwitchAssemblies(assemblies: string[]): SwitchAssemblies {
             return { type: 'switch-assemblies', assemblies };
         }
+
+        export type SetExternalBasePairs = { type: 'set-external-base-pairs', data: Payloads.ExternalBasePairsData | null };
+        export function SetExternalBasePairs(data: Payloads.ExternalBasePairsData | null): SetExternalBasePairs {
+            return { type: 'set-external-base-pairs', data };
+        }
     }
     export type Command =
         Commands.DeselectStructures |
@@ -195,7 +219,8 @@ export namespace ReDNATCOMspApi {
         Commands.SwitchModel |
         Commands.SwitchSelectionGranularity |
         Commands.SwitchAssemblies |
-        Commands.Unhighlight;
+        Commands.Unhighlight |
+        Commands.SetExternalBasePairs;
 
     export namespace Events {
         export type Type = Event['type'];
@@ -280,6 +305,8 @@ export namespace ReDNATCOMspApi {
             brickLength: number;
             brickWidth: number;
             brickHeight: number;
+            napascoMaxGap: number;
+            napascoGapThreshold: number;
         };
         ntcTubeAlpha: number;
         pyramidAlpha: number;

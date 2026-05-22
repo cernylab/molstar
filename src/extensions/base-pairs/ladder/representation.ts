@@ -62,6 +62,8 @@ const tmpVec = Vec3();
      brickLength: number,
      brickWidth: number,
      brickHeight: number,
+     napascoMaxGap: number,
+     napascoGapThreshold: number,
  }) => ({
      ...UnitsMeshParams,
      barRadius: PD.Numeric(defaults.barRadius, { min: 0.1, max: 5.0, step: 0.1 }),
@@ -80,7 +82,9 @@ const tmpVec = Vec3();
      showBrick: PD.Boolean(defaults.showBrick),
      brickLength: PD.Numeric(defaults.brickLength, { min: 0.2, max: 8.0, step: 0.1 }), // along base long axis (toward N1/N9)
      brickWidth: PD.Numeric(defaults.brickWidth, { min: 0.2, max: 6.0, step: 0.1 }),  // lateral extent
-     brickHeight: PD.Numeric(defaults.brickHeight, { min: 0.1, max: 4.0, step: 0.1 })  // thickness normal to base plane
+     brickHeight: PD.Numeric(defaults.brickHeight, { min: 0.1, max: 4.0, step: 0.1 }), // thickness normal to base plane
+     napascoMaxGap: PD.Numeric(defaults.napascoMaxGap, { min: 0.0, max: 1.0, step: 0.05 }), // max gap fraction at NAPASCO=0
+     napascoGapThreshold: PD.Numeric(defaults.napascoGapThreshold, { min: 0, max: 100, step: 1 }), // scores >= threshold show no gap
  });
  type BasePairsLadderMeshParams = ReturnType<typeof BasePairsLadderMeshParamsFactory>;
  
@@ -102,6 +106,8 @@ const tmpVec = Vec3();
      brickLength: 4.0,
      brickWidth: 2.0,
      brickHeight: 0.6,
+     napascoMaxGap: 0.4,
+     napascoGapThreshold: 75,
  } as const;
 
 type ResidueWithUnit = {
@@ -433,7 +439,7 @@ function createBasePairsLadderMesh(ctx: VisualContext, unit: Unit, structure: St
                         if (!points) continue;
                         const { firstAtom, secondAtom, midpoint } = points;
 
-                        // Shorten cylinders to avoid overlaps near N1/N9 atoms, looks better when bases are involved in more pairs
+                        // Shorten cylinders to avoid overlaps near N1/N9 atoms, looks better when bases are involved in more pairs.
                         const barShorteningFactor = 0.89;
                         const firstAtomShortened = Vec3();
                         const secondAtomShortened = Vec3();
@@ -444,18 +450,34 @@ function createBasePairsLadderMesh(ctx: VisualContext, unit: Unit, structure: St
                         Vec3.scale(secondAtomShortened, secondAtomShortened, barShorteningFactor);
                         Vec3.add(secondAtomShortened, secondAtomShortened, midpoint);
 
-                        // The top/bottom cap semantics depends on the cylinder's orientation in global space rather than being purely based on the start→end parameter order
-                        // Determine which cap to disable based on cylinder direction relative to +Y axis
+                        // NAPASCO quality: open a gap on the midpoint (center) side of each half.
+                        // Scores >= napascoGapThreshold → no gap; score 0 → max gap (napascoMaxGap).
+                        const gapFraction = item.napascoMetric !== null
+                            ? (1.0 - Math.min(item.napascoMetric, props.napascoGapThreshold) / props.napascoGapThreshold) * props.napascoMaxGap
+                            : 0.0;
+                        const firstInner = Vec3();
+                        const secondInner = Vec3();
+                        Vec3.sub(firstInner, firstAtom, midpoint);
+                        Vec3.scale(firstInner, firstInner, gapFraction);
+                        Vec3.add(firstInner, firstInner, midpoint);
+                        Vec3.sub(secondInner, secondAtom, midpoint);
+                        Vec3.scale(secondInner, secondInner, gapFraction);
+                        Vec3.add(secondInner, secondInner, midpoint);
+
+                        // Cap logic: with a gap the inner end floats and needs a cap; without a gap remove
+                        // the inward cap to avoid z-fighting with the central sphere.
                         const dir1 = Vec3.sub(Vec3(), firstAtomShortened, midpoint);
                         const dir2 = Vec3.sub(Vec3(), secondAtomShortened, midpoint);
                         const upVec = Vec3.create(0, 1, 0);
                         const isFlipped1 = Vec3.dot(dir1, upVec) < 0;
                         const isFlipped2 = Vec3.dot(dir2, upVec) < 0;
+                        const capProps1 = gapFraction > 0 ? cylinderProps : { ...cylinderProps, [isFlipped1 ? 'topCap' : 'bottomCap']: false };
+                        const capProps2 = gapFraction > 0 ? cylinderProps : { ...cylinderProps, [isFlipped2 ? 'topCap' : 'bottomCap']: false };
 
                         mb.currentGroup = 3 * itemIdx;
-                        addCylinder(mb, midpoint, firstAtomShortened, props.barScale, { ...cylinderProps, [isFlipped1 ? 'topCap' : 'bottomCap']: false });
+                        addCylinder(mb, firstInner, firstAtomShortened, props.barScale, capProps1);
                         mb.currentGroup = 3 * itemIdx + 1;
-                        addCylinder(mb, midpoint, secondAtomShortened, props.barScale, { ...cylinderProps, [isFlipped2 ? 'topCap' : 'bottomCap']: false });
+                        addCylinder(mb, secondInner, secondAtomShortened, props.barScale, capProps2);
                         mb.currentGroup = 3 * itemIdx + 2;
                         if (item.orientation === 'cis' && props.showCisBall) {
                             addSphere(mb, midpoint, props.cisBallRadius, 4);
@@ -580,7 +602,9 @@ function BasePairsLadderVisual(materialId: number): UnitsVisual<BasePairsLadderP
                 newProps.showBrick !== currentProps.showBrick ||
                 newProps.brickLength !== currentProps.brickLength ||
                 newProps.brickWidth !== currentProps.brickWidth ||
-                newProps.brickHeight !== currentProps.brickHeight
+                newProps.brickHeight !== currentProps.brickHeight ||
+                newProps.napascoMaxGap !== currentProps.napascoMaxGap ||
+                newProps.napascoGapThreshold !== currentProps.napascoGapThreshold
             );
         },
         mustRecreate() {
