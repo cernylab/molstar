@@ -449,6 +449,9 @@ export class ReDNATCOMspViewer {
     private ntcTubeAlpha: number;
     private pyramidAlpha: number;
     private pairingLadderAlpha: number;
+    private puckerSphereAlpha: number;
+    private puckerSpheresColors: Record<string, Color>;
+    private puckerSpheresRadius: number;
     private showNtcTubeSegmentForSelectedResidues: boolean;
     private cameraRadiusFactor: number;
     private cameraClippingRadius: number;
@@ -467,6 +470,17 @@ export class ReDNATCOMspViewer {
         this.ntcTubeAlpha = options.ntcTubeAlpha ?? 0.5;
         this.pyramidAlpha = options.pyramidAlpha ?? 0.5;
         this.pairingLadderAlpha = options.pairingLadderAlpha ?? 0.5;
+        this.puckerSphereAlpha = options.puckerSphereAlpha ?? 0.5;
+        const ps = options.puckerSpheres;
+        this.puckerSpheresColors = {
+            N:  Color(ps?.colorN  ?? 0xffff00),
+            NE: Color(ps?.colorNE ?? 0xffa500),
+            E:  Color(ps?.colorE  ?? 0xff0000),
+            SE: Color(ps?.colorSE ?? 0x008b8b),
+            S:  Color(ps?.colorS  ?? 0x0000ff),
+            W:  Color(ps?.colorW  ?? 0x808080),
+        };
+        this.puckerSpheresRadius = ps?.radius ?? 1.5;
         this.showNtcTubeSegmentForSelectedResidues = options.showNtcTubeSegmentForSelectedResidues ?? true;
         this.cameraRadiusFactor = options.cameraRadiusFactor ?? 3;
         this.cameraClippingRadius = options.cameraClippingRadius ?? 100;
@@ -640,6 +654,51 @@ export class ReDNATCOMspViewer {
                 },
             },
         };
+    }
+
+    private puckerSpheresParams(transparent: boolean) {
+        return {
+            type: {
+                name: 'pucker-spheres',
+                params: { radius: this.puckerSpheresRadius, alpha: transparent ? this.puckerSphereAlpha : 1.0 },
+            },
+            colorTheme: {
+                name: 'pucker-spheres',
+                params: {
+                    N:  this.puckerSpheresColors['N'],
+                    NE: this.puckerSpheresColors['NE'],
+                    E:  this.puckerSpheresColors['E'],
+                    SE: this.puckerSpheresColors['SE'],
+                    S:  this.puckerSpheresColors['S'],
+                    W:  this.puckerSpheresColors['W'],
+                },
+            },
+        };
+    }
+
+    async changePuckerSpheres(display: Display) {
+        if (display.structures.showPuckerSpheres) {
+            const transparent = this.selections.length > 0;
+            if (!this.has('pucker-spheres', 'nucleic')) {
+                const b = this.getBuilder('structure', 'nucleic');
+                if (b) {
+                    b.apply(
+                        StateTransforms.Representation.StructureRepresentation3D,
+                        this.puckerSpheresParams(transparent),
+                        { ref: IDs.ID('pucker-spheres', 'nucleic', BaseRef) }
+                    );
+                    await b.commit();
+                }
+            } else {
+                const b = this.getBuilder('pucker-spheres', 'nucleic');
+                b.update(
+                    StateTransforms.Representation.StructureRepresentation3D,
+                    old => ({ ...old, ...this.puckerSpheresParams(transparent) })
+                );
+                await b.commit();
+            }
+        } else
+            await PluginCommands.State.RemoveObject(this.plugin, { state: this.plugin.state.data, ref: IDs.ID('pucker-spheres', 'nucleic', BaseRef) });
     }
 
     private basePairsLadderParams(display: Display) {
@@ -1133,6 +1192,16 @@ export class ReDNATCOMspViewer {
             await this.changeBasePairsLadder(display);
         }
 
+        // Update pucker sphere transparency when a step/residue is selected/deselected
+        if (display.structures.showPuckerSpheres && this.has('pucker-spheres', 'nucleic')) {
+            await this.changePuckerSpheres(display);
+        }
+
+        // Update pyramid transparency on selection; respects manual pyramidsTransparent setting
+        if (display.structures.showPyramids && this.has('pyramids', 'nucleic')) {
+            await this.changePyramids(display);
+        }
+
         return true;
     }
 
@@ -1283,12 +1352,13 @@ export class ReDNATCOMspViewer {
 
     async changePyramids(display: Display) {
         if (display.structures.showPyramids) {
+            const transparent = (display.structures.pyramidsTransparent ?? false) || this.selections.length > 0;
             if (!this.has('pyramids', 'nucleic')) {
                 const b = this.getBuilder('structure', 'nucleic');
                 if (b) {
                     b.apply(
                         StateTransforms.Representation.StructureRepresentation3D,
-                        this.pyramidsParams(display.structures.conformerColors ?? NtCColors.Conformers, new Map(), display.structures.pyramidsTransparent ?? false),
+                        this.pyramidsParams(display.structures.conformerColors ?? NtCColors.Conformers, new Map(), transparent),
                         { ref: IDs.ID('pyramids', 'nucleic', BaseRef) }
                     );
                     await b.commit();
@@ -1299,7 +1369,7 @@ export class ReDNATCOMspViewer {
                     StateTransforms.Representation.StructureRepresentation3D,
                     old => ({
                         ...old,
-                        ...this.pyramidsParams(display.structures.conformerColors ?? NtCColors.Conformers, new Map(), display.structures.pyramidsTransparent ?? false),
+                        ...this.pyramidsParams(display.structures.conformerColors ?? NtCColors.Conformers, new Map(), transparent),
                     })
                 );
                 await b.commit();
@@ -2058,8 +2128,17 @@ export class ReDNATCOMspViewer {
             b3.to(IDs.ID('structure', 'nucleic', BaseRef))
                 .apply(
                     StateTransforms.Representation.StructureRepresentation3D,
-                    this.pyramidsParams(display.structures.conformerColors ?? NtCColors.Conformers, new Map(), display.structures.pyramidsTransparent ?? false),
+                    this.pyramidsParams(display.structures.conformerColors ?? NtCColors.Conformers, new Map(), (display.structures.pyramidsTransparent ?? false) || this.selections.length > 0),
                     { ref: IDs.ID('pyramids', 'nucleic', BaseRef) }
+                );
+        }
+
+        if (display.structures.showPuckerSpheres) {
+            b3.to(IDs.ID('structure', 'nucleic', BaseRef))
+                .apply(
+                    StateTransforms.Representation.StructureRepresentation3D,
+                    this.puckerSpheresParams(this.selections.length > 0),
+                    { ref: IDs.ID('pucker-spheres', 'nucleic', BaseRef) }
                 );
         }
 
@@ -2208,8 +2287,17 @@ export class ReDNATCOMspViewer {
             b3.to(IDs.ID('structure', 'nucleic', BaseRef))
                 .apply(
                     StateTransforms.Representation.StructureRepresentation3D,
-                    this.pyramidsParams(display.structures.conformerColors ?? NtCColors.Conformers, new Map(), display.structures.pyramidsTransparent ?? false),
+                    this.pyramidsParams(display.structures.conformerColors ?? NtCColors.Conformers, new Map(), (display.structures.pyramidsTransparent ?? false) || this.selections.length > 0),
                     { ref: IDs.ID('pyramids', 'nucleic', BaseRef) }
+                );
+        }
+
+        if (display.structures.showPuckerSpheres) {
+            b3.to(IDs.ID('structure', 'nucleic', BaseRef))
+                .apply(
+                    StateTransforms.Representation.StructureRepresentation3D,
+                    this.puckerSpheresParams(this.selections.length > 0),
+                    { ref: IDs.ID('pucker-spheres', 'nucleic', BaseRef) }
                 );
         }
 

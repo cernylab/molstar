@@ -84,6 +84,8 @@ const Display = {
         showPyramids: false,
         pyramidsTransparent: false,
 
+        showPuckerSpheres: false,
+
         showBasePairsLadder: false,
         showPairedBases: true,
         showUnpairedBases: true,
@@ -164,6 +166,7 @@ export class ReDNATCOMsp extends React.Component<ReDNATCOMsp.Props, State> {
         this.handleChangeNucleicRepresentation = this.handleChangeNucleicRepresentation.bind(this);
         this.handleChangeProteinRepresentation = this.handleChangeProteinRepresentation.bind(this);
         this.handleTogglePyramidsVisibility = this.handleTogglePyramidsVisibility.bind(this);
+        this.handleTogglePuckerSpheresVisibility = this.handleTogglePuckerSpheresVisibility.bind(this);
         this.handleBasePairsVisibility = this.handleBasePairsVisibility.bind(this);
         this.handleBasePairsRepresentation = this.handleBasePairsRepresentation.bind(this);
         this.handleBasePairsTheme = this.handleBasePairsTheme.bind(this);
@@ -530,6 +533,15 @@ export class ReDNATCOMsp extends React.Component<ReDNATCOMsp.Props, State> {
         });
     }
 
+    handleTogglePuckerSpheresVisibility() {
+        const display = { ...this.state.display };
+        display.structures.showPuckerSpheres = !display.structures.showPuckerSpheres;
+
+        this.viewer!.changePuckerSpheres(display).then(() => {
+            this.setState({ ...this.state, display });
+        });
+    }
+
     handlePyramidsSolid() {
         const display = { ...this.state.display };
         display.structures.pyramidsTransparent = false;
@@ -653,6 +665,10 @@ export class ReDNATCOMsp extends React.Component<ReDNATCOMsp.Props, State> {
             ]
         };
 
+        const puckerSpheres = {
+            name: "puckers",
+        };
+
         const protein = {
             name: "protein",
             options: [
@@ -723,6 +739,8 @@ export class ReDNATCOMsp extends React.Component<ReDNATCOMsp.Props, State> {
                                         <SwitchBox visible={this.state.display.structures.showNucleic} name={nucleic.name} options={nucleic.options} onToggle={() => this.handleToggleStructureVisibility('showNucleic', 'nucleic')} enabled={hasNucleic} />
 
                                         <SwitchBox visible={this.state.display.structures.showPyramids} name={pyramids.name} options={pyramids.options} onToggle={() => this.handleTogglePyramidsVisibility()} />
+
+                                        <SwitchBox visible={this.state.display.structures.showPuckerSpheres} name={puckerSpheres.name} onToggle={() => this.handleTogglePuckerSpheresVisibility()} />
 
                                         <SwitchBox visible={this.state.display.structures.showBasePairsLadder} name={basePairs.name} options={basePairs.options} onToggle={() => this.handleBasePairsVisibility()} enabled={hasBasePairsLadder} />
 

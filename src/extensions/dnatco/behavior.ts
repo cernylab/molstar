@@ -15,6 +15,9 @@ import { NtCTubePreset } from './ntc-tube/behavior';
 import { NtCTubeColorThemeProvider } from './ntc-tube/color';
 import { NtCTubeProvider } from './ntc-tube/property';
 import { NtCTubeRepresentationProvider } from './ntc-tube/representation';
+import { PuckerSpheresProvider } from './pucker-spheres/property';
+import { PuckerSpheresColorThemeProvider } from './pucker-spheres/color';
+import { PuckerSpheresRepresentationProvider } from './pucker-spheres/representation';
 
 
 export const DnatcoNtCs = PluginBehavior.create<{ autoAttach: boolean, showToolTip: boolean }>({
@@ -28,11 +31,14 @@ export const DnatcoNtCs = PluginBehavior.create<{ autoAttach: boolean, showToolT
         register(): void {
             this.ctx.customModelProperties.register(ConfalPyramidsProvider, this.params.autoAttach);
             this.ctx.customModelProperties.register(NtCTubeProvider, this.params.autoAttach);
+            this.ctx.customModelProperties.register(PuckerSpheresProvider, this.params.autoAttach);
 
             this.ctx.representation.structure.themes.colorThemeRegistry.add(ConfalPyramidsColorThemeProvider);
             this.ctx.representation.structure.registry.add(ConfalPyramidsRepresentationProvider);
             this.ctx.representation.structure.themes.colorThemeRegistry.add(NtCTubeColorThemeProvider);
             this.ctx.representation.structure.registry.add(NtCTubeRepresentationProvider);
+            this.ctx.representation.structure.themes.colorThemeRegistry.add(PuckerSpheresColorThemeProvider);
+            this.ctx.representation.structure.registry.add(PuckerSpheresRepresentationProvider);
 
             this.ctx.builders.structure.representation.registerPreset(ConfalPyramidsPreset);
             this.ctx.builders.structure.representation.registerPreset(NtCTubePreset);
@@ -41,11 +47,14 @@ export const DnatcoNtCs = PluginBehavior.create<{ autoAttach: boolean, showToolT
         unregister() {
             this.ctx.customModelProperties.unregister(ConfalPyramidsProvider.descriptor.name);
             this.ctx.customModelProperties.unregister(NtCTubeProvider.descriptor.name);
+            this.ctx.customModelProperties.unregister(PuckerSpheresProvider.descriptor.name);
 
             this.ctx.representation.structure.registry.remove(ConfalPyramidsRepresentationProvider);
             this.ctx.representation.structure.themes.colorThemeRegistry.remove(ConfalPyramidsColorThemeProvider);
             this.ctx.representation.structure.registry.remove(NtCTubeRepresentationProvider);
             this.ctx.representation.structure.themes.colorThemeRegistry.remove(NtCTubeColorThemeProvider);
+            this.ctx.representation.structure.registry.remove(PuckerSpheresRepresentationProvider);
+            this.ctx.representation.structure.themes.colorThemeRegistry.remove(PuckerSpheresColorThemeProvider);
 
             this.ctx.builders.structure.representation.unregisterPreset(ConfalPyramidsPreset);
             this.ctx.builders.structure.representation.unregisterPreset(NtCTubePreset);

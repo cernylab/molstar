@@ -311,6 +311,16 @@ export namespace ReDNATCOMspApi {
         ntcTubeAlpha: number;
         pyramidAlpha: number;
         pairingLadderAlpha: number;
+        puckerSphereAlpha: number;
+        puckerSpheres: {
+            colorN: number;
+            colorNE: number;
+            colorE: number;
+            colorSE: number;
+            colorS: number;
+            colorW: number;
+            radius: number;
+        };
         showNtcTubeSegmentForSelectedResidues: boolean;
         cameraRadiusFactor: number;
         cameraClippingRadius: number;
