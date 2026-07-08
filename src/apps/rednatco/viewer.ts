@@ -446,6 +446,8 @@ export class ReDNATCOMspViewer {
     private selections = new Array<StruSelection>();
     private hydrogensInReferences;
     private basePairsLadderOptions;
+    private cisBallColor: Color;
+    private transBallColor: Color;
     private ntcTubeAlpha: number;
     private pyramidAlpha: number;
     private pairingLadderAlpha: number;
@@ -467,6 +469,8 @@ export class ReDNATCOMspViewer {
         this.app = app;
         this.hydrogensInReferences = options.hydrogensInReferences ?? false;
         this.basePairsLadderOptions = options.basePairsLadder;
+        this.cisBallColor = options.basePairsLadder?.cisBallColor ? Color.fromHexStyle(options.basePairsLadder.cisBallColor) : Color(0x363636);
+        this.transBallColor = options.basePairsLadder?.transBallColor ? Color.fromHexStyle(options.basePairsLadder.transBallColor) : Color(0xFAFAFA);
         this.ntcTubeAlpha = options.ntcTubeAlpha ?? 0.5;
         this.pyramidAlpha = options.pyramidAlpha ?? 0.5;
         this.pairingLadderAlpha = options.pairingLadderAlpha ?? 0.5;
@@ -709,9 +713,11 @@ export class ReDNATCOMspViewer {
         // Note: Per-stick transparency would require mesh-level transparency data which is more complex
         const hasSelections = this.selections.length > 0;
 
-        // Merge config options with display settings (display settings take precedence for show flags)
+        // Merge config options with display settings (display settings take precedence for show flags).
+        // Ball colors are consumed by the color theme (below), not the geometry, so keep them out here.
+        const { cisBallColor, transBallColor, ...ladderGeomOptions } = this.basePairsLadderOptions || {};
         const params = {
-            ...(this.basePairsLadderOptions || {}),
+            ...ladderGeomOptions,
             showPairs: display.structures.showPairedBases,
             showUnpaired: display.structures.showUnpairedBases,
             // Make whole ladder semi-transparent when any residues are selected to reduce visual clutter
@@ -726,7 +732,10 @@ export class ReDNATCOMspViewer {
             },
             colorTheme: {
                 name: theme,
-                params: {},
+                params: {
+                    cisBallColor: this.cisBallColor,
+                    transBallColor: this.transBallColor,
+                },
             },
         };
     }

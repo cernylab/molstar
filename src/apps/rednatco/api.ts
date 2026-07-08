@@ -295,6 +295,8 @@ export namespace ReDNATCOMspApi {
             cisBallRadius: number;
             transBallRadius: number;
             unpairedBallRadius: number;
+            cisBallColor: string;
+            transBallColor: string;
             showPairs: boolean;
             showUnpaired: boolean;
             showUnpairedBall: boolean;

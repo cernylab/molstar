@@ -26,8 +26,8 @@ const DetailedLadderColors = {
     'Sugar': Color(0xFF0000),
     'cWW_Complementary': Color(0xFAFAFA),
     'WW_Other': Color(0xFFFF00),
-    'Cis_Ball': Color(0xFAFAFA),
-    'Trans_Ball': Color(0x363636),
+    'Cis_Ball': Color(0x363636),
+    'Trans_Ball': Color(0xFAFAFA),
     Default: DefaultColor,
 };
 
@@ -36,8 +36,8 @@ const SimpleLadderColors = {
     'Sugar': Color(0xC70039),
     'cWW_Complementary': Color(0xFAFAFA),
     'WW_Other': Color(0xC70039),
-    'Cis_Ball': Color(0xFAFAFA),
-    'Trans_Ball': Color(0x363636),
+    'Cis_Ball': Color(0x363636),
+    'Trans_Ball': Color(0xFAFAFA),
     Default: DefaultColor,
 };
 
@@ -51,6 +51,10 @@ export const BasePairsLadderColorThemeParams = {
         default: PD.EmptyGroup(),
         custom: PD.Group(toColorMapParams(DetailedLadderColors)),
     }),
+    // Colors of the cis/trans base-pair balls. Defaults match the hardcoded
+    // values above; overridden from config (basePairsLadder.cisBallColor / transBallColor).
+    cisBallColor: PD.Color(Color(0x363636)),
+    transBallColor: PD.Color(Color(0xFAFAFA)),
 };
 export type BasePairsLadderColorThemeParams = typeof BasePairsLadderColorThemeParams;
 
@@ -59,7 +63,8 @@ export function getBasePairsLadderColorThemeParams(ctx: ThemeDataContext) {
 }
 
 export function BasePairsLadderColorTheme(ctx: ThemeDataContext, props: PD.Values<BasePairsLadderColorThemeParams>, variant: 'simple' | 'detailed'): ColorTheme<BasePairsLadderColorThemeParams> {
-    const colorMap = props.colors.name === 'default' ? DefaultLadderColors[variant] : props.colors.params;
+    const baseColorMap = props.colors.name === 'default' ? DefaultLadderColors[variant] : props.colors.params;
+    const colorMap: Record<string, Color> = { ...baseColorMap, Cis_Ball: props.cisBallColor, Trans_Ball: props.transBallColor };
 
     function color(location: Location, isSecondary: boolean): Color {
         if (BasePairsLadderTypes.isLocation(location)) {
