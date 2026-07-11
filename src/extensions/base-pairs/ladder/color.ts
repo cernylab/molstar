@@ -41,16 +41,27 @@ const SimpleLadderColors = {
     Default: DefaultColor,
 };
 
-const DefaultLadderColors = {
+export const DefaultLadderColors = {
     detailed: DetailedLadderColors,
     simple: SimpleLadderColors
 };
+
+// Sentinel meaning "no override, fall back to the variant (simple/detailed) default".
+export const UseVariantDefault = Color(-1);
 
 export const BasePairsLadderColorThemeParams = {
     colors: PD.MappedStatic('default', {
         default: PD.EmptyGroup(),
         custom: PD.Group(toColorMapParams(DetailedLadderColors)),
     }),
+    // Per-element overrides for the pairing colors, driven by the panel controls.
+    // Each defaults to the UseVariantDefault sentinel: when left untouched the variant's
+    // built-in color shows through, so Simple/Detailed keep working and stay the reset target.
+    cwwColor: PD.Color(UseVariantDefault),      // cWW_Complementary
+    wwColor: PD.Color(UseVariantDefault),       // WW_Other
+    hColor: PD.Color(UseVariantDefault),        // Hoogsteen
+    sColor: PD.Color(UseVariantDefault),        // Sugar
+    unpairedColor: PD.Color(UseVariantDefault), // Default
     // Colors of the cis/trans base-pair balls. Defaults match the hardcoded
     // values above; overridden from config (basePairsLadder.cisBallColor / transBallColor).
     cisBallColor: PD.Color(Color(0x363636)),
@@ -64,7 +75,15 @@ export function getBasePairsLadderColorThemeParams(ctx: ThemeDataContext) {
 
 export function BasePairsLadderColorTheme(ctx: ThemeDataContext, props: PD.Values<BasePairsLadderColorThemeParams>, variant: 'simple' | 'detailed'): ColorTheme<BasePairsLadderColorThemeParams> {
     const baseColorMap = props.colors.name === 'default' ? DefaultLadderColors[variant] : props.colors.params;
-    const colorMap: Record<string, Color> = { ...baseColorMap, Cis_Ball: props.cisBallColor, Trans_Ball: props.transBallColor };
+    const colorMap: Record<string, Color> = { ...baseColorMap };
+    // Overlay the per-element overrides; a sentinel (< 0) leaves the variant default in place.
+    if (props.cwwColor >= 0) colorMap.cWW_Complementary = props.cwwColor;
+    if (props.wwColor >= 0) colorMap.WW_Other = props.wwColor;
+    if (props.hColor >= 0) colorMap.Hoogsteen = props.hColor;
+    if (props.sColor >= 0) colorMap.Sugar = props.sColor;
+    if (props.unpairedColor >= 0) colorMap.Default = props.unpairedColor;
+    colorMap.Cis_Ball = props.cisBallColor;
+    colorMap.Trans_Ball = props.transBallColor;
 
     function color(location: Location, isSecondary: boolean): Color {
         if (BasePairsLadderTypes.isLocation(location)) {

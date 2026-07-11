@@ -3,6 +3,7 @@ import RDC from 'react-dom/client';
 import { ReDNATCOMspApi as Api } from './api';
 import { ReDNATCOMspApiImpl } from './api-impl';
 import { setExternalPairings } from '../../extensions/base-pairs/property';
+import { DefaultLadderColors } from '../../extensions/base-pairs/ladder/color';
 import { AssemblySelector } from './AssemblySelector';
 import { DensityMapControls } from './density-map-controls';
 import { Filters } from './filters';
@@ -54,6 +55,33 @@ type Substructure = 'protein' | 'nucleic' | 'water' | 'ligand';
 const DefaultChainColor = Color(0xD9D9D9);
 const DefaultDensityMapAlpha = 0.25;
 const DefaultWaterColor = Color(0x0BB2FF);
+
+// Base-pair ladder recoloring. Keys are the panel-facing pairing elements; each maps to
+// the corresponding key in the ladder color theme's variant maps (DefaultLadderColors).
+export type PairingColorKey = 'cWW' | 'W' | 'H' | 'S' | 'cis' | 'trans' | 'unpaired';
+const PairingMapKey: Record<PairingColorKey, keyof (typeof DefaultLadderColors)['detailed']> = {
+    cWW: 'cWW_Complementary',
+    W: 'WW_Other',
+    H: 'Hoogsteen',
+    S: 'Sugar',
+    cis: 'Cis_Ball',
+    trans: 'Trans_Ball',
+    unpaired: 'Default',
+};
+// Stored per element; the -1 sentinel means "no override, use the variant/config default".
+const PairingUseDefault = Color(-1);
+type PairingVariant = 'simple' | 'detailed';
+// The Simple and Detailed variants keep fully independent override maps, so recoloring one
+// never touches the other.
+const emptyPairingOverrides = (): Record<PairingColorKey, Color> => ({
+    cWW: PairingUseDefault,
+    W: PairingUseDefault,
+    H: PairingUseDefault,
+    S: PairingUseDefault,
+    cis: PairingUseDefault,
+    trans: PairingUseDefault,
+    unpaired: PairingUseDefault,
+});
 export type VisualRepresentations = 'ball-and-stick' | 'cartoon' | 'ntc-tube';
 export type DensityMapRepresentation = 'wireframe' | 'solid';
 
@@ -99,6 +127,13 @@ const Display = {
         conformerColors: { ...NtCColors.Conformers },
         chainColor: DefaultChainColor,
         waterColor: DefaultWaterColor,
+
+        // Per-element overrides for the base-pair ladder colors, kept independently for each
+        // variant. PairingUseDefault means "fall back to the variant/config default".
+        pairingColors: {
+            simple: emptyPairingOverrides(),
+            detailed: emptyPairingOverrides(),
+        } as Record<PairingVariant, Record<PairingColorKey, Color>>,
 
         activeAssemblies: [''] as string[], // Empty string means default assembly
     },
@@ -339,6 +374,77 @@ export class ReDNATCOMsp extends React.Component<ReDNATCOMsp.Props, State> {
 
         this.viewer!.changeWaterColor(display);
         this.setState({ ...this.state, display });
+    }
+
+    // Default (reset target) color of a pairing element: config value for the cis/trans
+    // balls, otherwise the current variant's built-in color from the ladder theme maps.
+    private pairingDefaultColor(key: PairingColorKey): Color {
+        if (key === 'cis')
+            return this.viewer?.getCisBallColorDefault() ?? DefaultLadderColors.detailed.Cis_Ball;
+        if (key === 'trans')
+            return this.viewer?.getTransBallColorDefault() ?? DefaultLadderColors.detailed.Trans_Ball;
+
+        const variant = this.state.display.structures.showSimpleTheme ? 'simple' : 'detailed';
+        return DefaultLadderColors[variant][PairingMapKey[key]];
+    }
+
+    // Resolved color shown in the panel: the active variant's stored override, or its default.
+    private pairingColor(key: PairingColorKey): Color {
+        const variant: PairingVariant = this.state.display.structures.showSimpleTheme ? 'simple' : 'detailed';
+        const stored = this.state.display.structures.pairingColors[variant][key];
+        return stored >= 0 ? stored : this.pairingDefaultColor(key);
+    }
+
+    // The controls shown in the panel depend on the variant. In Simple the Watson-Crick
+    // 'other', Hoogsteen and Sugar edges share one color, so they collapse to a single control.
+    private pairingControls(): { caption: string, keys: PairingColorKey[] }[] {
+        if (this.state.display.structures.showSimpleTheme) {
+            return [
+                { caption: 'cWW', keys: ['cWW'] },
+                { caption: 'W/H/S', keys: ['W', 'H', 'S'] },
+                { caption: 'cis', keys: ['cis'] },
+                { caption: 'trans', keys: ['trans'] },
+                { caption: 'unpaired', keys: ['unpaired'] },
+            ];
+        }
+        return [
+            { caption: 'cWW', keys: ['cWW'] },
+            { caption: 'W', keys: ['W'] },
+            { caption: 'H', keys: ['H'] },
+            { caption: 'S', keys: ['S'] },
+            { caption: 'cis', keys: ['cis'] },
+            { caption: 'trans', keys: ['trans'] },
+            { caption: 'unpaired', keys: ['unpaired'] },
+        ];
+    }
+
+    private updatePairingColors(keys: PairingColorKey[], color: Color) {
+        const variant: PairingVariant = this.state.display.structures.showSimpleTheme ? 'simple' : 'detailed';
+        const variantColors = { ...this.state.display.structures.pairingColors[variant] };
+        keys.forEach(k => variantColors[k] = color);
+
+        const display: Display = {
+            ...this.state.display,
+            structures: {
+                ...this.state.display.structures,
+                pairingColors: { ...this.state.display.structures.pairingColors, [variant]: variantColors },
+            },
+        };
+
+        this.viewer!.changeBasePairsLadder(display).then(() => this.setState({ ...this.state, display }));
+    }
+
+    // Reset every pairing color of one variant back to its defaults in a single action.
+    private resetPairingVariant(variant: PairingVariant) {
+        const display: Display = {
+            ...this.state.display,
+            structures: {
+                ...this.state.display.structures,
+                pairingColors: { ...this.state.display.structures.pairingColors, [variant]: emptyPairingOverrides() },
+            },
+        };
+
+        this.viewer!.changeBasePairsLadder(display).then(() => this.setState({ ...this.state, display }));
     }
 
     apiQuery(type: keyof Api.Queries) {
@@ -770,15 +876,55 @@ export class ReDNATCOMsp extends React.Component<ReDNATCOMsp.Props, State> {
                                                 <div className='rmsp-control-vertical-section-caption font-roboto-bold'>
                                                     Base pairs theme
                                                 </div>
-                                                <div className='flex flex-col items-start mt-1 mb-3 ml-4'>
-                                                    <button className={`${this.state.display.structures.showSimpleTheme ? 'font-roboto-bold' : 'font-roboto-regular'} my-1 p-1`} onClick={() => this.handleBasePairsTheme('simple')}>
-                                                        Simple
-                                                    </button>
-                                                    <button className={`${this.state.display.structures.showDetailedTheme ? 'font-roboto-bold' : 'font-roboto-regular'} my-1 p-1`} onClick={() => this.handleBasePairsTheme('detailed')}>
-                                                        Detailed
-                                                    </button>
+                                                <div className='flex flex-col mt-1 mb-1 ml-4'>
+                                                    <div className='flex flex-row items-center justify-between'>
+                                                        <button className={`${this.state.display.structures.showSimpleTheme ? 'font-roboto-bold' : 'font-roboto-regular'} py-0.5`} onClick={() => this.handleBasePairsTheme('simple')}>
+                                                            Simple
+                                                        </button>
+                                                        <IconButton
+                                                            img='/imgs/reload.svg'
+                                                            onClicked={() => this.resetPairingVariant('simple')}
+                                                            enabled={true}
+                                                        />
+                                                    </div>
+                                                    <div className='flex flex-row items-center justify-between'>
+                                                        <button className={`${this.state.display.structures.showDetailedTheme ? 'font-roboto-bold' : 'font-roboto-regular'} py-0.5`} onClick={() => this.handleBasePairsTheme('detailed')}>
+                                                            Detailed
+                                                        </button>
+                                                        <IconButton
+                                                            img='/imgs/reload.svg'
+                                                            onClicked={() => this.resetPairingVariant('detailed')}
+                                                            enabled={true}
+                                                        />
+                                                    </div>
                                                 </div>
+
+                                                {this.pairingControls().map(ctrl =>
+                                                    <div className='rmsp-control-line' key={ctrl.caption}>
+                                                        <div className='rmsp-control-item-group'>
+                                                            <div
+                                                                className='rmsp-control-item cursor-pointer'
+                                                                onClick={evt => ColorPicker.create(
+                                                                    evt,
+                                                                    this.pairingColor(ctrl.keys[0]),
+                                                                    color => this.updatePairingColors(ctrl.keys, Color(color))
+                                                                )}
+                                                            >
+                                                                <ColorBox caption={ctrl.caption} color={this.pairingColor(ctrl.keys[0])} />
+                                                            </div>
+
+                                                            <IconButton
+                                                                img='/imgs/reload.svg'
+                                                                onClicked={() => this.updatePairingColors(ctrl.keys, PairingUseDefault)}
+                                                                enabled={true}
+                                                            />
+                                                        </div>
+                                                    </div>
+                                                )}
                                             </>
+                                        )}
+                                        {this.state.display.structures.showBasePairsLadder && (
+                                            <div className='rmsp-control-vertical-separator' />
                                         )}
                                         <div className='rmsp-control-vertical-section-caption font-roboto-bold'>
                                             Structure
@@ -824,7 +970,7 @@ export class ReDNATCOMsp extends React.Component<ReDNATCOMsp.Props, State> {
                                             </div>
                                         </div>
 
-                                        <div className='rmsp-control-vertical-spacer' />
+                                        <div className='rmsp-control-vertical-separator' />
 
                                         <div className='rmsp-control-vertical-section-caption font-roboto-bold'>
                                             NtC classes

@@ -705,6 +705,15 @@ export class ReDNATCOMspViewer {
             await PluginCommands.State.RemoveObject(this.plugin, { state: this.plugin.state.data, ref: IDs.ID('pucker-spheres', 'nucleic', BaseRef) });
     }
 
+    // Config-resolved default ball colors, used as the reset targets in the colors panel.
+    getCisBallColorDefault() {
+        return this.cisBallColor;
+    }
+
+    getTransBallColorDefault() {
+        return this.transBallColor;
+    }
+
     private basePairsLadderParams(display: Display) {
         const theme = display.structures.showSimpleTheme ? 'base-pairs-ladder-simple' : 'base-pairs-ladder-detailed';
 
@@ -716,6 +725,9 @@ export class ReDNATCOMspViewer {
         // Merge config options with display settings (display settings take precedence for show flags).
         // Ball colors are consumed by the color theme (below), not the geometry, so keep them out here.
         const { cisBallColor, transBallColor, ...ladderGeomOptions } = this.basePairsLadderOptions || {};
+        // Simple and Detailed keep independent override maps; pick the active one. In Simple the
+        // W/H/S grouped control keeps those three keys in sync within its own map.
+        const pc = display.structures.pairingColors[display.structures.showSimpleTheme ? 'simple' : 'detailed'];
         const params = {
             ...ladderGeomOptions,
             showPairs: display.structures.showPairedBases,
@@ -733,8 +745,15 @@ export class ReDNATCOMspViewer {
             colorTheme: {
                 name: theme,
                 params: {
-                    cisBallColor: this.cisBallColor,
-                    transBallColor: this.transBallColor,
+                    // Panel overrides; a negative sentinel falls back to the variant default
+                    // inside the theme (edges/unpaired) or to the config default here (balls).
+                    cwwColor: pc.cWW,
+                    wwColor: pc.W,
+                    hColor: pc.H,
+                    sColor: pc.S,
+                    unpairedColor: pc.unpaired,
+                    cisBallColor: pc.cis >= 0 ? pc.cis : this.cisBallColor,
+                    transBallColor: pc.trans >= 0 ? pc.trans : this.transBallColor,
                 },
             },
         };
